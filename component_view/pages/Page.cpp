@@ -1,6 +1,7 @@
 #include "component_view/pages/Page.h"
 
 #include <cstdio>
+#include <string>
 
 #include "component_view/Global.h"
 #include "component_view/components/Box.h"
@@ -11,6 +12,19 @@ namespace gui_dev::cv {
 Page::Page() = default;
 
 Page::~Page() = default;
+
+Box& Page::Overlay() {
+    if (overlay_ == nullptr) {
+        overlay_ = std::make_unique<Box>("page_overlay");
+        overlay_->background = 0;
+        overlay_->padding = EdgeInsets{};
+        overlay_->layout = LayoutMode::Free;
+        overlay_->interactive = false;
+        overlay_->size = Global::canvas_size;
+        overlay_->visible = false;
+    }
+    return *overlay_;
+}
 
 Box& Page::Root() {
     if (root_ == nullptr) {
@@ -45,13 +59,48 @@ void Page::Update(float dt) {
     root_->size = Global::canvas_size;
     root_->LayoutTree(Global::canvas_pos, Global::canvas_size);
 
+    // 弹层始终参与布局：即使当前不可见，也要保证第一次显形时矩形是新鲜的
+    if (overlay_ != nullptr) {
+        overlay_->position = ImVec2(0.0f, 0.0f);
+        overlay_->size = Global::canvas_size;
+        overlay_->LayoutTree(Global::canvas_pos, Global::canvas_size);
+    }
+
     focusables_.clear();
-    root_->CollectFocusables(focusables_);
-    OnInput();
+    if (Global::modal != nullptr) {
+        // 模态打开时焦点只在这个子树里流动（Focus Trap）
+        Global::modal->CollectFocusables(focusables_);
+    } else {
+        root_->CollectFocusables(focusables_);
+    }
+
+    // 鼠标命中（在控件更新之前，控件自己读 Global::hovered）
+    Global::hovered = Global::mouse_available ? root_->HitTest(Global::mouse) : nullptr;
+    if (Global::hovered != nullptr && Global::modal != nullptr && Global::modal != Global::hovered &&
+        !Global::modal->ContainsDescendant(Global::hovered)) {
+        Global::hovered = nullptr; // 模态之外不接受鼠标
+    }
+
+    // 焦点导航：自己消费方向键的控件（列表/滑条/键盘）会跳过
     Global::NavigateFocus(focusables_);
 
-    Global::hovered = Global::mouse_available ? root_->HitTest(Global::mouse) : nullptr;
+    // 焦点自动滚动：把聚焦组件滚进最近的滚动容器
+    if (Global::focused != nullptr) {
+        if (Widget* host = Global::focused->ScrollHost()) {
+            host->EnsureVisible(Global::focused);
+        }
+    }
+
+    // 控件自己处理按键（A/B/X/Y/方向/扳机……），处理过的按键会被消费
     root_->UpdateTree(dt);
+    if (overlay_ != nullptr && overlay_->visible) {
+        // 可见性可能就在这一帧被控件改掉（打开弹窗/键盘），重新布局一次再更新
+        overlay_->LayoutTree(Global::canvas_pos, Global::canvas_size);
+        overlay_->UpdateTree(dt);
+    }
+
+    // 页面级兜底输入：只处理控件都没消费的按键
+    OnInput();
     OnUpdate(dt);
 }
 
@@ -70,6 +119,9 @@ void Page::Render() {
     if (show_hud_) {
         DrawHud(dl);
     }
+    if (overlay_ != nullptr && overlay_->visible) {
+        overlay_->DrawTree(dl);
+    }
     OnOverlay(dl);
 }
 
@@ -82,8 +134,25 @@ void Page::DrawHud(ImDrawList* dl) {
     Draw::RoundedRectFilled(dl, bar, Theme::Alpha(Theme::kBgSideBar, 0.97f), 0.0f, 0.0f, 0.0f, 0.0f);
     dl->AddLine(ImVec2(bar.min.x, bar.min.y), ImVec2(bar.max.x, bar.min.y), Theme::kBorder, 1.0f);
 
+    // 右侧信息先算好宽度，左侧提示区不能压到它
+    char info[192];
+    if (page_total_ > 0) {
+        std::snprintf(info, sizeof(info), "%s · %s · %dx%d · %.0f FPS · %d/%d", Title(), Global::platform_name,
+                      static_cast<int>(Global::canvas_size.x), static_cast<int>(Global::canvas_size.y),
+                      ImGui::GetIO().Framerate, page_index_ + 1, page_total_);
+    } else {
+        std::snprintf(info, sizeof(info), "%s · %s · %dx%d · %.0f FPS", Title(), Global::platform_name,
+                      static_cast<int>(Global::canvas_size.x), static_cast<int>(Global::canvas_size.y),
+                      ImGui::GetIO().Framerate);
+    }
+    const ImVec2 info_extent = Draw::MeasureText(nullptr, Theme::kFontSmall, info, 0.0f);
+    const float hint_limit = bar.max.x - 28.0f - info_extent.x - 24.0f;
+
     float cursor_x = bar.min.x + 28.0f;
     for (const auto& hint : hints_) {
+        if (cursor_x > hint_limit) {
+            break;
+        }
         const char* glyph = Icons::Glyph(hint.first);
         const float glyph_size = 20.0f;
         const ImVec2 glyph_extent = Draw::MeasureText(nullptr, glyph_size, glyph, 0.0f);
@@ -98,17 +167,6 @@ void Page::DrawHud(ImDrawList* dl) {
         cursor_x += label_extent.x + 28.0f;
     }
 
-    char info[192];
-    if (page_total_ > 0) {
-        std::snprintf(info, sizeof(info), "%s · %s · %dx%d · %.0f FPS · %d/%d", Title(), Global::platform_name,
-                      static_cast<int>(Global::canvas_size.x), static_cast<int>(Global::canvas_size.y),
-                      ImGui::GetIO().Framerate, page_index_ + 1, page_total_);
-    } else {
-        std::snprintf(info, sizeof(info), "%s · %s · %dx%d · %.0f FPS", Title(), Global::platform_name,
-                      static_cast<int>(Global::canvas_size.x), static_cast<int>(Global::canvas_size.y),
-                      ImGui::GetIO().Framerate);
-    }
-    const ImVec2 info_extent = Draw::MeasureText(nullptr, Theme::kFontSmall, info, 0.0f);
     Draw::Text(dl, nullptr, Theme::kFontSmall,
                ImVec2(bar.max.x - 28.0f - info_extent.x, bar.Center().y - info_extent.y * 0.5f), Theme::kTextMuted,
                info);

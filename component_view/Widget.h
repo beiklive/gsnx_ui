@@ -1,7 +1,7 @@
 // Widget：所有组件的父类。
 //
-// 这一层把「坐标 / 位置 / 尺寸 / 圆角 / 边框 / 阴影 / 布局 / 交互」全部做完，
-// 子类（Box / Label / Button / Image）只负责三件事：
+// 这一层把「坐标 / 位置 / 尺寸 / 圆角 / 边框 / 阴影 / 布局 / 溢出滚动 / 焦点动画 /
+// 命中测试 / 事件」全部做完，子类（Box / Label / Button / List ...）只负责三件事：
 //   1. MeasureContent()  —— 内容需要多大
 //   2. OnDrawContent()   —— 内容画什么
 //   3. OnUpdate()        —— 每帧状态（可选）
@@ -11,7 +11,9 @@
 //     绝对矩形每帧由 LayoutTree() 算好后放在 rect 里。
 //   * size 是**外框尺寸**（含 padding/border），0 表示按内容自适应。
 //   * 不借用 ImGui 的 item 机制（不调 InvisibleButton）：命中测试自己做，
-//     这样才能按 z_order / 子节点优先的顺序决定谁被点中。
+//     这样才能按 z_order / 子节点优先的顺序决定谁被点中，也让手柄焦点完全可控。
+//   * Focus 是一等状态：focused / 焦点缩放 / 焦点位移 / 焦点框都由基类统一处理，
+//     hover 只是「桌面平台的额外输入」。
 #pragma once
 
 #include <cstdint>
@@ -25,6 +27,7 @@
 
 #include "component_view/Theme.h"
 #include "component_view/Types.h"
+#include "platform/Input.h"
 
 namespace gui_dev::cv {
 
@@ -44,14 +47,13 @@ public:
     bool visible = true;
     bool enabled = true;
     float opacity = 1.0f;       // 0..1，作用于自身填充/边框/文字
-    bool clip_children = false; // 子节点超出自身矩形时裁剪
     bool interactive = true;    // 是否参与鼠标命中
 
     // ---- 坐标 / 位置（相对父内容区） ---------------------------------------
     ImVec2 position{0.0f, 0.0f}; // 相对父内容区左上角的偏移
     ImVec2 anchor{0.0f, 0.0f};   // 父内容区剩余空间的分配比例：0=靠 position，0.5=居中，1=贴右/下
     ImVec2 pivot{0.0f, 0.0f};    // 自身归一化枢轴：0=左上角对齐，0.5=自身中心对齐，1=右下角对齐
-    ImVec2 offset{0.0f, 0.0f};   // 最后叠加的像素偏移（动画用，不参与布局计算）
+    ImVec2 offset{0.0f, 0.0f};   // 最后叠加的像素偏移（一般用 visual_translate 做动画）
     EdgeInsets margin;
     EdgeInsets padding;
 
@@ -74,19 +76,57 @@ public:
     BorderStyle border;
     ShadowStyle shadow;
 
+    // ---- 溢出与滚动 --------------------------------------------------------
+    Overflow overflow = Overflow::Visible;
+    ImVec2 scroll{0.0f, 0.0f};         // 当前滚动量（平滑后）
+    ImVec2 scroll_target{0.0f, 0.0f};  // 目标滚动量（EnsureVisible / 翻页设置）
+    ImVec2 scroll_max{0.0f, 0.0f};     // 可滚动上限（布局时算出）
+    ImVec2 content_extent{0.0f, 0.0f}; // 子节点占用的总尺寸
+    bool scroll_enabled = true;
+    float scroll_smoothing = 14.0f;    // 指数平滑速度
+    bool scroll_overscroll = false;    // 越界回弹（超出后弹回，不硬夹）
+    bool scroll_snap = false;          // 滚动目标吸附到页宽整数倍
+    bool scroll_bar = true;
+    bool scroll_bar_auto_hide = true;
+    float scroll_bar_thickness = 5.0f;
+
     // ---- 子节点布局 --------------------------------------------------------
     LayoutMode layout = LayoutMode::Free;
     ImVec2 gap{0.0f, 0.0f};
     Align align_x = Align::Start;
     Align align_y = Align::Start;
 
-    // ---- 交互状态（每帧刷新，只读） ----------------------------------------
+    // ---- 焦点视觉（Focus 是核心状态） --------------------------------------
     bool focusable = false;
-    bool focus_on_hover = false;
+    bool focus_on_hover = false;        // 桌面平台：鼠标悬停即接管焦点
+    // 焦点分区：0 = 不分区（全局导航）；不同分区的组件之间只有左右方向可以跨越。
+    // 主机 UI 常用「左列标签 / 右列内容」两分区，避免上下键在分区之间乱跳。
+    int focus_zone = 0;
+    // 该控件是否自己消费方向键。
+    // true = 全局焦点导航不抢这个方向，留给控件内部导航（列表 / 滑条 / 键盘……），
+    // 离开这类控件用另一半方向键或 B 键。
+    bool capture_horizontal = false;
+    bool capture_vertical = false;
+    bool focus_frame = false;           // 是否在自身外侧画焦点框
+    float focus_scale = 1.0f;           // focused 时的缩放（1 = 不缩放）
+    ImVec2 focus_translate{0.0f, 0.0f}; // focused 时的位移
+    float focus_animation_speed = 16.0f;
+    float focus_frame_width = 2.0f;
+    float focus_frame_offset = 4.0f;
+    ImU32 focus_frame_color = Theme::kAccent;
+    float disabled_opacity = 0.45f;
+
+    // ---- 每帧由子类设置的即时视觉变换（按压缩放等） ------------------------
+    ImVec2 visual_scale{1.0f, 1.0f};
+    ImVec2 visual_translate{0.0f, 0.0f};
+
+    // ---- 交互状态（每帧刷新，只读） ----------------------------------------
     bool hovered = false;
     bool pressed = false;
     bool clicked = false;
     bool focused = false;
+    bool selected = false; // 由容器/页面设置：当前选中项
+    float focus_mix = 0.0f; // 焦点动画进度 0..1（平滑）
 
     // ---- 事件 --------------------------------------------------------------
     std::function<void(Widget&)> on_click;
@@ -115,11 +155,12 @@ public:
     }
     void Remove(Widget* child);
     void Clear();
+    bool ContainsDescendant(const Widget* target) const;
 
-    // ---- 几何结果（LayoutTree 之后有效） -----------------------------------
+    // ---- 几何结果（LayoutTree 之后有效，均为布局坐标） ---------------------
     ImVec2 measured_size{0.0f, 0.0f};
     Rect rect;         // 屏幕矩形（外框）
-    Rect content_rect; // 去掉 padding/border 的内容区
+    Rect content_rect; // 去掉 padding/border 的内容区（已含滚动偏移）
     Rect margin_rect;  // 含 margin 的外框
 
     bool Contains(const ImVec2& p) const { return rect.Contains(p); }
@@ -131,22 +172,39 @@ public:
     float CornerBL() const { return corner_bl >= 0.0f ? corner_bl : corner_radius; }
     float CornerBR() const { return corner_br >= 0.0f ? corner_br : corner_radius; }
 
+    // ---- 绘制期变换（子类绘制时用；保证焦点缩放能作用于整棵子树） ---------
+    Rect DrawRect() const { return draw_rect_; }
+    Rect DrawContentRect() const { return draw_transform_.Apply(content_rect); }
+    float DrawScale() const { return draw_transform_.AverageScale(); }
+
     // ---- 每帧流程 ----------------------------------------------------------
     // 测量 + 定位整棵子树。parent_content_pos/size 是父节点内容区的屏幕矩形。
     void LayoutTree(const ImVec2& parent_content_pos, const ImVec2& parent_content_size);
     void UpdateTree(float dt);
     void DrawTree(ImDrawList* dl);
     void CollectFocusables(std::vector<Widget*>& out);
-    // 鼠标命中：子节点优先。
+    // 鼠标命中：子节点优先 + z_order 高者优先。
     Widget* HitTest(const ImVec2& p);
     // 平移整棵子树（对齐修正用）
     void Move(const ImVec2& delta);
+    // 焦点自动滚动：把 target 滚动进可见区（target 需在本子树内）
+    bool EnsureVisible(Widget* target);
+    // 焦点自动滚动：把任意矩形滚动进内容区（复合控件内部索引导航用）
+    void EnsureRectVisible(const Rect& target_rect);
+    // 滚动翻页（L/R、ZL/ZR）：direction=-1 上一页 / +1 下一页
+    void ScrollPage(int direction, float scale = 1.0f);
+    // 最近的滚动容器祖先（自己也算）
+    Widget* ScrollHost();
 
     // ---- 焦点 --------------------------------------------------------------
     void RequestFocus();
     void YieldFocus();
+    // 子树里第一个可聚焦组件（对话框/页面切换后接管焦点用）
+    Widget* FirstFocusable();
+    // 给整棵子树的组件设置焦点分区
+    void SetFocusZone(int zone);
 
-    // ---- 链式设置（子类继续返回自身类型） ----------------------------------
+    // ---- 链式设置 ----------------------------------------------------------
     Widget& SetName(std::string value) {
         name = std::move(value);
         return *this;
@@ -226,8 +284,18 @@ public:
         align_y = y;
         return *this;
     }
+    Widget& SetOverflow(Overflow value) {
+        overflow = value;
+        return *this;
+    }
     Widget& SetFocusable(bool value) {
         focusable = value;
+        return *this;
+    }
+    Widget& SetFocusVisual(float scale, const ImVec2& translate, bool frame) {
+        focus_scale = scale;
+        focus_translate = translate;
+        focus_frame = frame;
         return *this;
     }
     Widget& SetVisible(bool value) {
@@ -255,25 +323,38 @@ protected:
     // ---- 子类接口 ----------------------------------------------------------
     // 内容自身需要的尺寸（不含 padding/border/margin）。默认 0。
     virtual ImVec2 MeasureContent(const ImVec2& available);
-    // 内容绘制（背景/边框之后，子节点之前）
+    // 内容绘制（背景/边框之后，子节点之前）。content 是**已变换**的内容区矩形。
     virtual void OnDrawContent(ImDrawList* dl, const Rect& content);
-    // 叠加绘制（子节点之后：焦点环、选中高亮、角标……）
+    // 叠加绘制（子节点之后：角标、自定义焦点框……）
     virtual void OnDrawOverlay(ImDrawList* dl, const Rect& content);
     virtual void OnUpdate(float dt);
     // 手柄 Confirm / 鼠标点击统一走这里，子类可重写以扩展行为
     virtual void Activate();
+    // 手柄按键分发（仅当自己持有焦点）。返回 true 表示已消费。
+    virtual bool OnPadAction(InputAction action);
+    // 布局完成后调用（算滚动上限等）
+    virtual void OnAfterLayout() {}
 
-    // 子类可用：自身填充色（已乘 opacity）
-    ImU32 Tint(ImU32 color) const { return Theme::Alpha(color, opacity); }
+    // 子类可用：自身填充色（已乘 opacity / disabled）
+    ImU32 Tint(ImU32 color) const;
+    float EffectiveOpacity() const;
 
 private:
     void Measure(const ImVec2& available);
     void Place(const ImVec2& parent_content_pos, const ImVec2& parent_content_size);
     void PlaceChildren();
     ImVec2 FlowChildrenSize(const ImVec2& content_available);
+    void UpdateScroll(float dt);
     void DrawBackground(ImDrawList* dl);
-    void UpdateInteraction();
+    void DrawFocusFrame(ImDrawList* dl);
+    void DrawScrollBar(ImDrawList* dl);
+    void UpdateInteraction(float dt);
     void DrawChildren(ImDrawList* dl);
+    void DrawTree(ImDrawList* dl, const Transform2D& parent_transform);
+
+    Transform2D draw_transform_{};
+    Rect draw_rect_{};
+    float scroll_bar_alpha_ = 0.0f;
 };
 
 } // namespace gui_dev::cv

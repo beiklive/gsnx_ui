@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include <imgui.h>
 
@@ -94,5 +95,41 @@ enum class LayoutMode {
 enum class Align { Start, Center, End, Stretch };
 enum class TextAlign { Left, Center, Right };
 enum class VerticalAlign { Top, Middle, Bottom };
+
+// ---- 溢出处理 ------------------------------------------------------------
+enum class Overflow {
+    Visible, // 超出部分照常绘制（不裁剪）
+    Hidden,  // 裁剪，不滚动
+    Scroll   // 裁剪 + 可滚动（焦点自动滚动由 Widget::EnsureVisible 负责）
+};
+
+// ---- 2D 变换（仅缩放 + 平移，轴对齐） -------------------------------------
+// p -> p * scale + offset。焦点缩放/位移动画靠它下发给整棵子树。
+struct Transform2D {
+    ImVec2 scale{1.0f, 1.0f};
+    ImVec2 offset{0.0f, 0.0f};
+
+    ImVec2 Apply(const ImVec2& p) const {
+        return ImVec2(p.x * scale.x + offset.x, p.y * scale.y + offset.y);
+    }
+    Rect Apply(const Rect& r) const { return Rect{Apply(r.min), Apply(r.max)}; }
+    float AverageScale() const { return (scale.x + scale.y) * 0.5f; }
+    // 先应用自己，再应用外层（outer ∘ self）
+    Transform2D Then(const Transform2D& outer) const {
+        return Transform2D{ImVec2(scale.x * outer.scale.x, scale.y * outer.scale.y),
+                           ImVec2(offset.x * outer.scale.x + outer.offset.x, offset.y * outer.scale.y + outer.offset.y)};
+    }
+    static Transform2D ScaleAbout(const ImVec2& center, float scale, const ImVec2& translate) {
+        return Transform2D{ImVec2(scale, scale),
+                           ImVec2(center.x - center.x * scale + translate.x, center.y - center.y * scale + translate.y)};
+    }
+};
+
+// ---- 属性展示行（页面右侧 Properties 面板用） ------------------------------
+struct PropRow {
+    std::string name;
+    std::string value;
+    bool highlight = false; // 当前状态行高亮
+};
 
 } // namespace gui_dev::cv

@@ -37,6 +37,20 @@ inline constexpr ImU32 kYellow        = IM_COL32(0xDC, 0xDC, 0xAA, 0xFF);
 inline constexpr ImU32 kBlue          = IM_COL32(0x56, 0x9C, 0xD6, 0xFF);
 inline constexpr ImU32 kGreen         = IM_COL32(0x6A, 0x99, 0x55, 0xFF);
 
+inline constexpr ImU32 kWhite         = IM_COL32(0xFF, 0xFF, 0xFF, 0xFF);
+inline constexpr ImU32 kSuccess       = kTeal;
+
+// 控件专用
+inline constexpr ImU32 kTrack         = IM_COL32(0x3A, 0x3A, 0x3D, 0xFF); // 滑条 / 进度条底色
+inline constexpr ImU32 kTrackFill     = IM_COL32(0x00, 0x7A, 0xCC, 0xFF);
+inline constexpr ImU32 kScrim         = IM_COL32(0x08, 0x08, 0x0A, 0xC8); // 弹层遮罩
+inline constexpr ImU32 kListRow       = IM_COL32(0x2A, 0x2A, 0x2D, 0xFF);
+inline constexpr ImU32 kListRowAlt    = IM_COL32(0x24, 0x24, 0x27, 0xFF);
+inline constexpr ImU32 kListRowFocus  = IM_COL32(0x26, 0x4F, 0x78, 0xFF);
+inline constexpr ImU32 kKeyBg         = IM_COL32(0x33, 0x33, 0x37, 0xFF); // 虚拟键盘按键
+inline constexpr ImU32 kKeyBgTop      = IM_COL32(0x3D, 0x3D, 0x42, 0xFF);
+inline constexpr ImU32 kKeyBgActive   = IM_COL32(0x0E, 0x63, 0x9C, 0xFF);
+
 inline constexpr ImU32 kShadow        = IM_COL32(0x00, 0x00, 0x00, 0x8C);
 inline constexpr ImU32 kShadowSoft    = IM_COL32(0x00, 0x00, 0x00, 0x50);
 
@@ -55,6 +69,10 @@ inline constexpr float kRadiusLarge = 16.0f;
 inline constexpr float kGapSmall = 8.0f;
 inline constexpr float kGap      = 14.0f;
 inline constexpr float kGapLarge = 24.0f;
+
+inline constexpr float kControlHeight = 44.0f;
+inline constexpr float kListRowHeight = 46.0f;
+inline constexpr float kKeySize       = 46.0f;
 
 // ---- 颜色工具 ------------------------------------------------------------
 // 取同色不同透明度：alpha 是 0..1 的倍率。

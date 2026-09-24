@@ -14,7 +14,10 @@ enum class InputAction : std::uint8_t {
     Right,
     Confirm,     // A / Enter / 确定
     Cancel,      // B / Esc / 返回
+    ActionX,     // X / X 键 / 辅助操作
+    ActionY,     // Y / Y 键 / 辅助操作
     Menu,        // + / Start / 菜单
+    Minus,       // - / Select / 关闭
     PageLeft,    // L
     PageRight,   // R
     TriggerLeft, // ZL

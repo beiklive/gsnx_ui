@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "component_view/Draw.h"
+#include "component_view/Global.h"
 
 namespace gui_dev::cv {
 namespace {
@@ -18,6 +19,9 @@ float SmoothTo(float current, float target, float speed, float dt) {
 Button::Button() : Widget("button") {
     focusable = true;
     focus_on_hover = true;
+    focus_frame = true;
+    focus_scale = 1.03f;
+    focus_frame_offset = 3.0f;
     Primary();
 }
 
@@ -25,6 +29,9 @@ Button::Button(std::string value) : Widget("button") {
     text = std::move(value);
     focusable = true;
     focus_on_hover = true;
+    focus_frame = true;
+    focus_scale = 1.03f;
+    focus_frame_offset = 3.0f;
     Primary();
 }
 
@@ -32,6 +39,7 @@ Button& Button::Primary() {
     color_normal = Theme::kButton;
     color_hover = Theme::kAccentHover;
     color_pressed = Theme::kButtonActive;
+    color_selected = Theme::kButtonActive;
     color_disabled = Theme::kBgWidget;
     text_color = Theme::kTextBright;
     text_color_disabled = Theme::kTextDisabled;
@@ -46,6 +54,7 @@ Button& Button::Secondary() {
     color_normal = Theme::kBgWidget;
     color_hover = Theme::kBgWidgetHi;
     color_pressed = Theme::kBgInput;
+    color_selected = Theme::kSelection;
     color_disabled = Theme::kBgWidget;
     text_color = Theme::kTextPrimary;
     text_color_disabled = Theme::kTextDisabled;
@@ -60,6 +69,7 @@ Button& Button::Ghost() {
     color_normal = 0;
     color_hover = Theme::Alpha(Theme::kTextPrimary, 0.10f);
     color_pressed = Theme::Alpha(Theme::kTextPrimary, 0.18f);
+    color_selected = Theme::Alpha(Theme::kAccent, 0.22f);
     color_disabled = 0;
     text_color = Theme::kTextPrimary;
     text_color_disabled = Theme::kTextDisabled;
@@ -74,6 +84,7 @@ Button& Button::Danger() {
     color_normal = Theme::kError;
     color_hover = Theme::Mix(Theme::kError, IM_COL32(0xFF, 0xFF, 0xFF, 0xFF), 0.18f);
     color_pressed = Theme::Mix(Theme::kError, IM_COL32(0x00, 0x00, 0x00, 0xFF), 0.25f);
+    color_selected = Theme::Mix(Theme::kError, IM_COL32(0x00, 0x00, 0x00, 0xFF), 0.35f);
     color_disabled = Theme::kBgWidget;
     text_color = Theme::kTextBright;
     text_color_disabled = Theme::kTextDisabled;
@@ -91,6 +102,11 @@ Button& Button::SetText(std::string value) {
 
 Button& Button::SetIcon(std::string glyph) {
     icon = std::move(glyph);
+    return *this;
+}
+
+Button& Button::SetHint(std::string glyph) {
+    hint = std::move(glyph);
     return *this;
 }
 
@@ -118,6 +134,9 @@ ImVec2 Button::ContentExtent() const {
         extent.x += icon_gap + icon_extent.x;
         extent.y = Maxf(extent.y, icon_extent.y);
     }
+    if (!hint.empty()) {
+        extent.x += 18.0f + Draw::MeasureText(nullptr, Theme::kFontSmall, hint.c_str(), 0.0f).x;
+    }
     return extent;
 }
 
@@ -135,42 +154,73 @@ void Button::OnUpdate(float dt) {
     hover_mix_ = SmoothTo(hover_mix_, hover_target, transition_speed, dt);
     press_mix_ = SmoothTo(press_mix_, (pressed && enabled) ? 1.0f : 0.0f, transition_speed * 1.4f, dt);
 
+    // 按压缩放/位移
+    const float scale = 1.0f + (press_scale - 1.0f) * press_mix_;
+    visual_scale = ImVec2(scale, scale);
+    visual_translate = ImVec2(0.0f, press_translate * press_mix_);
+
     if (!enabled) {
         background = color_disabled;
         return;
     }
     ImU32 fill = Theme::Mix(color_normal, color_hover, hover_mix_);
     fill = Theme::Mix(fill, color_pressed, press_mix_);
+    if (selected) {
+        fill = Theme::Mix(fill, color_selected, 0.85f);
+    }
     background = fill;
 }
 
-void Button::OnDrawContent(ImDrawList* dl, const Rect& content) {
-    const float size = ResolvedFontSize();
-    const ImVec2 text_extent = Draw::MeasureText(nullptr, size, text.c_str(), 0.0f);
-    const bool has_icon = !icon.empty();
-    const float icon_size = ResolvedIconSize();
-    const ImVec2 icon_extent = has_icon ? Draw::MeasureText(nullptr, icon_size, icon.c_str(), 0.0f) : ImVec2(0.0f, 0.0f);
-    const float total_width = text_extent.x + (has_icon ? icon_gap + icon_extent.x : 0.0f);
+bool Button::OnPadAction(InputAction action) {
+    if (action == InputAction::ActionX) {
+        if (on_aux) {
+            on_aux(*this);
+            return true;
+        }
+    } else if (action == InputAction::ActionY) {
+        if (on_aux2) {
+            on_aux2(*this);
+            return true;
+        }
+    }
+    return false;
+}
 
+void Button::OnDrawContent(ImDrawList* dl, const Rect& content) {
+    const float size = ResolvedFontSize() * DrawScale();
+    const float icon_size = ResolvedIconSize() * DrawScale();
+    const std::string visible_text = enabled ? text : text;
+    const ImVec2 text_extent = Draw::MeasureText(nullptr, size, visible_text.c_str(), 0.0f);
+    const bool has_icon = !icon.empty();
+    const ImVec2 icon_extent =
+        has_icon ? Draw::MeasureText(nullptr, icon_size, icon.c_str(), 0.0f) : ImVec2(0.0f, 0.0f);
+
+    float hint_width = 0.0f;
+    if (!hint.empty()) {
+        const float hint_size = Theme::kFontSmall * DrawScale();
+        hint_width = 18.0f + Draw::MeasureText(nullptr, hint_size, hint.c_str(), 0.0f).x;
+    }
+
+    const float total_width = text_extent.x + (has_icon ? icon_gap * DrawScale() + icon_extent.x : 0.0f) + hint_width;
     float cursor_x = content.Center().x - total_width * 0.5f;
     const ImU32 foreground = Tint(enabled ? text_color : text_color_disabled);
+
     if (has_icon) {
         Draw::Text(dl, nullptr, icon_size, ImVec2(cursor_x, content.Center().y - icon_extent.y * 0.5f), foreground,
                    icon.c_str());
-        cursor_x += icon_extent.x + icon_gap;
+        cursor_x += icon_extent.x + icon_gap * DrawScale();
     }
-    Draw::Text(dl, nullptr, size, ImVec2(cursor_x, content.Center().y - text_extent.y * 0.5f), foreground, text.c_str());
-}
+    Draw::Text(dl, nullptr, size, ImVec2(cursor_x, content.Center().y - text_extent.y * 0.5f), foreground,
+               visible_text.c_str());
+    cursor_x += text_extent.x;
 
-void Button::OnDrawOverlay(ImDrawList* dl, const Rect& content) {
-    (void)content;
-    if (!show_focus_ring || !focused || !enabled) {
-        return;
+    if (!hint.empty()) {
+        const float hint_size = Theme::kFontSmall * DrawScale();
+        const ImVec2 hint_extent = Draw::MeasureText(nullptr, hint_size, hint.c_str(), 0.0f);
+        Draw::Text(dl, nullptr, hint_size,
+                   ImVec2(cursor_x + 18.0f * DrawScale(), content.Center().y - hint_extent.y * 0.5f),
+                   Tint(Theme::kTextMuted), hint.c_str());
     }
-    const Rect ring = rect.Expanded(focus_ring_offset);
-    Draw::RoundedRectOutline(dl, ring, Tint(focus_ring_color), focus_ring_width, CornerTL() + focus_ring_offset,
-                             CornerTR() + focus_ring_offset, CornerBL() + focus_ring_offset,
-                             CornerBR() + focus_ring_offset);
 }
 
 } // namespace gui_dev::cv

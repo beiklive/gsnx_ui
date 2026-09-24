@@ -1,5 +1,7 @@
 #include "component_view/components/Image.h"
 
+#include <cmath>
+
 #include "component_view/Draw.h"
 
 namespace gui_dev::cv {
@@ -61,14 +63,43 @@ void Image::OnDrawContent(ImDrawList* dl, const Rect& content) {
     }
 
     // Cover 会超出内容区，按内容区裁剪（圆角由 AddImageRounded 处理）。
-    const bool clip = fit == Fit::Cover && !tiled;
+    if (flip_x) {
+        const float t = uv_min.x;
+        uv_min.x = uv_max.x;
+        uv_max.x = t;
+    }
+    if (flip_y) {
+        const float t = uv_min.y;
+        uv_min.y = uv_max.y;
+        uv_max.y = t;
+    }
+
+    const bool rotated = Absf(rotation) > 0.01f;
+    const bool clip = (fit == Fit::Cover && !tiled) || rotated;
     if (clip) {
         dl->PushClipRect(content.min, content.max, true);
     }
 
-    const ImDrawFlags flags = Draw::CornerFlags(CornerTL(), CornerTR(), CornerBL(), CornerBR());
-    const float rounding = Draw::MaxCorner(CornerTL(), CornerTR(), CornerBL(), CornerBR());
-    dl->AddImageRounded(texture, destination.min, destination.max, uv_min, uv_max, Tint(tint), rounding, flags);
+    if (rotated) {
+        // 旋转用四边形绘制：绕中心旋转四个角（此时不支持圆角裁剪）
+        const float radians = rotation * 3.14159265358979f / 180.0f;
+        const float c = std::cos(radians);
+        const float s = std::sin(radians);
+        const ImVec2 center = destination.Center();
+        auto rotate = [&](const ImVec2& p) {
+            const float dx = p.x - center.x;
+            const float dy = p.y - center.y;
+            return ImVec2(center.x + dx * c - dy * s, center.y + dx * s + dy * c);
+        };
+        dl->AddImageQuad(texture, rotate(destination.min), rotate(ImVec2(destination.max.x, destination.min.y)),
+                         rotate(destination.max), rotate(ImVec2(destination.min.x, destination.max.y)),
+                         ImVec2(uv_min.x, uv_min.y), ImVec2(uv_max.x, uv_min.y), ImVec2(uv_max.x, uv_max.y),
+                         ImVec2(uv_min.x, uv_max.y), Tint(tint));
+    } else {
+        const ImDrawFlags flags = Draw::CornerFlags(CornerTL(), CornerTR(), CornerBL(), CornerBR());
+        const float rounding = Draw::MaxCorner(CornerTL(), CornerTR(), CornerBL(), CornerBR()) * DrawScale();
+        dl->AddImageRounded(texture, destination.min, destination.max, uv_min, uv_max, Tint(tint), rounding, flags);
+    }
 
     if (clip) {
         dl->PopClipRect();

@@ -18,6 +18,9 @@ public:
     enum class Fit { Stretch, Contain, Cover };
     Fit fit = Fit::Contain;
     bool tiled = false; // 尺寸大于原始尺寸时按平铺显示（UV 重复）
+    bool flip_x = false;
+    bool flip_y = false;
+    float rotation = 0.0f; // 角度（度），非 0 时用四边形绘制（圆角失效）
 
     void SetTexture(ImTextureRef texture_ref, const ImVec2& size);
     Image& SetUV(const ImVec2& min_uv, const ImVec2& max_uv);

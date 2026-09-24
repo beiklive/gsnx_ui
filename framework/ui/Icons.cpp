@@ -155,12 +155,22 @@ Button FromAction(InputAction action) {
         return Button::A;
     case InputAction::Cancel:
         return Button::B;
+    case InputAction::ActionX:
+        return Button::X;
+    case InputAction::ActionY:
+        return Button::Y;
     case InputAction::Menu:
         return Button::Plus;
+    case InputAction::Minus:
+        return Button::Minus;
     case InputAction::PageLeft:
         return Button::L;
     case InputAction::PageRight:
         return Button::R;
+    case InputAction::TriggerLeft:
+        return Button::ZL;
+    case InputAction::TriggerRight:
+        return Button::ZR;
     case InputAction::Up:
         return Button::Up;
     case InputAction::Down:

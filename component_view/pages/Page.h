@@ -55,6 +55,9 @@ public:
 
     // ---- HUD ---------------------------------------------------------------
     void AddHint(Icons::Button button, std::string label);
+    void ClearHints() { hints_.clear(); }
+    // 弹层容器（Dialog / 虚拟键盘）：画在 HUD 之上，默认隐藏
+    Box& Overlay();
     void SetPageInfo(int index, int total);
     void SetShowHud(bool value) { show_hud_ = value; }
 
@@ -62,6 +65,7 @@ private:
     void DrawHud(ImDrawList* dl);
 
     std::unique_ptr<Box> root_;
+    std::unique_ptr<Box> overlay_;
     UiContext* ui_ = nullptr;
     std::vector<Widget*> focusables_;
     std::vector<std::pair<Icons::Button, std::string>> hints_;

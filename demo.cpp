@@ -1,11 +1,11 @@
-// demo.cpp —— 组件库演示入口。
+// demo.cpp —— 手柄优先的控件库 Demo 入口。
 //
-// 这里只做三件事：
-//   1. 把 component_view 里的页面挂进 pages_
-//   2. 每帧驱动 Global（输入/画布）→ Page::Update → Page::Render
-//   3. 处理页面切换（L / R）与脚本化退出（GUI_DEV_EXIT_AFTER）
+// 只做三件事：
+//   1. 把页面挂进 pages_（当前只有一个 ShowcaseShell：左侧 16 个控件 Tab + 右侧展示区）
+//   2. 每帧驱动：Global（输入/画布）→ Page::Update → Page::Render
+//   3. 处理脚本化退出（GUI_DEV_EXIT_AFTER）与窗口尺寸（GUI_DEV_WINDOW）
 //
-// 组件与页面本身都在 component_view/ 下，不在这里实现。
+// 组件与页面都在 component_view/ 下，这里不实现任何控件。
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -13,15 +13,14 @@
 
 #include "component_view/Global.h"
 #include "component_view/Theme.h"
-#include "component_view/pages/ComponentGalleryPage.h"
-#include "component_view/pages/PropertyPage.h"
+#include "component_view/pages/ShowcaseShell.h"
 #include "core/App.h"
 #include "ui/Scene.h"
 #include "ui/UiContext.h"
 
 namespace {
 
-// component_view 的页面是即时模式渲染（App::OnFrame 里直接画），不用 Scene 栈；
+// 组件页面是即时模式渲染（App::OnFrame 里直接画），不用 Scene 栈；
 // 但主循环把「栈空」当作应用结束，所以压一个空壳场景占住栈顶。
 class HostScene : public gui_dev::Scene {
 public:
@@ -59,14 +58,10 @@ public:
         gui_dev::cv::Theme::ApplyToImGui();
         Scenes().Reset(std::make_unique<HostScene>());
 
-        // ---- 页面登记：加自己的页面就 push 到这里 --------------------------
-        pages_.push_back(std::make_unique<gui_dev::cv::ComponentGalleryPage>());
-        pages_.push_back(std::make_unique<gui_dev::cv::PropertyPage>());
-
-        for (std::size_t index = 0; index < pages_.size(); ++index) {
-            pages_[index]->Bind(ui);
-            pages_[index]->SetPageInfo(static_cast<int>(index), static_cast<int>(pages_.size()));
-        }
+        // ---- 页面登记：16 个控件页都在 ShowcaseShell 里 --------------------
+        auto shell = std::make_unique<gui_dev::cv::ShowcaseShell>();
+        shell->Bind(ui);
+        pages_.push_back(std::move(shell));
 
         if (const char* value = std::getenv("GUI_DEV_EXIT_AFTER")) {
             exit_after_ = std::atoi(value);
@@ -75,24 +70,12 @@ public:
 
     void OnFrame(gui_dev::UiContext& ui, float dt) override {
         gui_dev::cv::Global::BeginFrame(ui);
-
-        const gui_dev::PadState& pad = ui.Pad();
-        if (pad.Pressed(gui_dev::InputAction::PageLeft) && page_index_ > 0) {
-            --page_index_;
+        // 所有按键都交给控件自己处理（Focus 是核心状态，页面不做额外分发）。
+        if (!pages_.empty()) {
+            gui_dev::cv::Page& page = *pages_[static_cast<std::size_t>(page_index_)];
+            page.Update(dt);
+            page.Render();
         }
-        if (pad.Pressed(gui_dev::InputAction::PageRight) &&
-            page_index_ + 1 < static_cast<int>(pages_.size())) {
-            ++page_index_;
-        }
-
-        if (pages_.empty()) {
-            gui_dev::cv::Global::EndFrame();
-            return;
-        }
-        gui_dev::cv::Page& page = *pages_[static_cast<std::size_t>(page_index_)];
-        page.Update(dt);
-        page.Render();
-
         gui_dev::cv::Global::EndFrame();
 
         if (exit_after_ > 0 && ++frame_ >= exit_after_) {

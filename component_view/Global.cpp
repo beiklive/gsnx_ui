@@ -40,6 +40,21 @@ void BeginFrame(UiContext& ui) {
     }
 
     hovered = nullptr;
+    for (std::size_t i = 0; i < kInputActionCount; ++i) {
+        consumed[i] = false;
+    }
+}
+
+bool Available(InputAction action) {
+    const std::size_t index = static_cast<std::size_t>(action);
+    return index < kInputActionCount && !consumed[index];
+}
+
+void MarkConsumed(InputAction action) {
+    const std::size_t index = static_cast<std::size_t>(action);
+    if (index < kInputActionCount) {
+        consumed[index] = true;
+    }
 }
 
 void EndFrame() {
@@ -104,27 +119,47 @@ void NavigateFocus(const std::vector<Widget*>& focusables) {
     if (dir.x == 0.0f && dir.y == 0.0f) {
         return;
     }
+    // 控件自己消费这个方向时，导航让位（例如垂直列表里的 ↑↓、滑条里的 ←→）
+    if ((dir.x != 0.0f && current->capture_horizontal) || (dir.y != 0.0f && current->capture_vertical)) {
+        return;
+    }
 
-    // 最近邻选择：主方向投影距离 + 2 倍垂直偏移，保证「按下键去下一行」不会跳到很远。
+    // 最近邻选择：主方向投影距离 + 2 倍垂直偏移。
+    // 先在同一个焦点分区里找；找不到且是左右方向时，才允许跨分区
+    //（这正是「内容区按 ← 回到左侧标签列、标签列按 → 进入内容」的实现）。
     const ImVec2 center = current->rect.Center();
-    Widget* best = nullptr;
-    float best_score = FLT_MAX;
-    for (Widget* item : focusables) {
-        if (item == current || !item->visible || !item->enabled) {
-            continue;
+    const int zone = current->focus_zone;
+
+    auto pick = [&](bool same_zone_only) {
+        Widget* best = nullptr;
+        float best_score = FLT_MAX;
+        for (Widget* item : focusables) {
+            if (item == current || !item->visible || !item->enabled) {
+                continue;
+            }
+            const bool same_zone = (item->focus_zone == zone);
+            if (same_zone_only != same_zone) {
+                continue;
+            }
+            const ImVec2 item_center = item->rect.Center();
+            const ImVec2 delta(item_center.x - center.x, item_center.y - center.y);
+            const float along = delta.x * dir.x + delta.y * dir.y;
+            if (along <= 1.0f) {
+                continue;
+            }
+            const float perpendicular = Absf(dir.x != 0.0f ? delta.y : delta.x);
+            const float score = along + perpendicular * 2.0f;
+            if (score < best_score) {
+                best_score = score;
+                best = item;
+            }
         }
-        const ImVec2 item_center = item->rect.Center();
-        const ImVec2 delta(item_center.x - center.x, item_center.y - center.y);
-        const float along = delta.x * dir.x + delta.y * dir.y;
-        if (along <= 1.0f) {
-            continue;
-        }
-        const float perpendicular = Absf(dir.x != 0.0f ? delta.y : delta.x);
-        const float score = along + perpendicular * 2.0f;
-        if (score < best_score) {
-            best_score = score;
-            best = item;
-        }
+        return best;
+    };
+
+    Widget* best = pick(true);
+    if (best == nullptr && dir.x != 0.0f) {
+        best = pick(false);
     }
     if (best != nullptr) {
         SetFocus(best);

@@ -22,13 +22,15 @@ GUI_DEV/
 │   ├── platform/               # Backend 接口 + 抽象输入 + SDL2 后端
 │   └── gamemenu/               # 暂停菜单 UI 层（Persona 式视觉语言）
 ├── component_view/             # ★ 组件与页面（你的工作区）
-│   ├── Global.{h,cpp}          # 全局变量：画布 / 鼠标 / 手柄 / 焦点 / 帧信息
+│   ├── Global.{h,cpp}          # 全局变量：画布 / 鼠标 / 手柄 / 焦点 / 分区 / 输入消费
 │   ├── Theme.{h,cpp}           # VSCode Dark+ 调色板与 720p 尺寸规范
-│   ├── Types.h                 # Rect / EdgeInsets / BorderStyle / ShadowStyle / 枚举
-│   ├── Draw.{h,cpp}            # 绘制原语：圆角矩形 / 软阴影 / 文本排版 / 色卡
-│   ├── Widget.{h,cpp}          # ★ 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 布局 / 交互 / 事件
-│   ├── components/             # 子类：Box / Label / Button / Image
-│   └── pages/                  # Page 基类 + ComponentGalleryPage + PropertyPage
+│   ├── Types.h                 # Rect / EdgeInsets / BorderStyle / ShadowStyle / Transform2D / 枚举
+│   ├── Draw.{h,cpp}            # 绘制原语：圆角矩形 / 软阴影 / 描边文字 / 省略号 / 对勾
+│   ├── Widget.{h,cpp}          # ★ 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 溢出滚动 / 焦点动画 / 事件
+│   ├── components/             # 16 个控件：Box / Label / Button / Image / ImageButton / List /
+│   │                           #   ScrollBox / TabBar / Checkbox / RadioGroup / Slider / Progress /
+│   │                           #   InputField / VirtualKeyboard / Dialog / Menu / PropertyPanel
+│   └── pages/                  # ShowcaseShell（左 Tab + 右展示区）+ 16 个控件页
 ├── examples/                   # 框架示例（与组件库互不依赖）
 │   ├── flow_box/               # framework/ui 组件预览（流光焦点框）
 │   ├── pause_menu/             # 暂停菜单 Demo（Persona 式动态菜单）
@@ -48,7 +50,7 @@ GUI_DEV/
 ```bash
 cmake --preset mac
 cmake --build --preset mac
-./build/mac/gui_dev_demo          # ★ component_view 组件库 demo（L/R 翻页）
+./build/mac/gui_dev_demo          # ★ 手柄优先控件库 demo（左 16 个 Tab + 右展示区）
 ./build/mac/gui_dev_flow_demo     # framework/ui 组件预览（可聚焦 Box / 流光边框）
 ./build/mac/gui_dev_pause_demo    # 暂停菜单 Demo（Persona 式动态菜单）
 ./build/mac/gui_dev_widget_demo   # 自定义控件 8 例
@@ -118,91 +120,130 @@ GUI_DEV_EXIT_AFTER=60 ./build/mac/gui_dev_demo   # 跑满 60 帧后正常退出�
 
 ## component_view 组件库
 
-`component_view/` 是组件与页面；`demo.cpp` 只负责「登记页面 + 每帧驱动」，两者互不耦合：
-加页面 = 写一个 `Page` 子类 + 在 `demo.cpp` 里 `push_back` 一行。
+手柄优先的控件库 + 演示。**Focus 是核心状态，Hover 只是桌面端的额外输入**；
+所有控件都能用 `↑ ↓ ← → / A / B / X / Y / L / R / ZL / ZR / + / -` 操作，
+文本输入走自绘虚拟键盘（**绝不调用系统键盘**），也没有传统桌面控件。
 
-### 分层
+```bash
+./build/mac/gui_dev_demo        # 左侧 16 个控件 Tab，右侧是「真的能操作」的展示区
+```
 
-| 文件 | 职责 |
-|---|---|
-| `Global.{h,cpp}` | 全局变量：`canvas_pos/canvas_size`、鼠标与手柄、`hovered/pressed/focused/active`、`delta_time`、`NavigateFocus` |
-| `Theme.{h,cpp}` | VSCode Dark+ 调色板 + 720p 尺寸常量 + `ApplyToImGui()` |
-| `Types.h` | `Rect` / `EdgeInsets` / `BorderStyle` / `ShadowStyle` / `LayoutMode` / `Align` |
-| `Draw.{h,cpp}` | 绘制原语：圆角矩形、软阴影（多层圆角矩形近似高斯）、文本排版、色卡 |
-| `Widget.{h,cpp}` | 父类：属性 + 布局 + 命中测试 + 事件；子类只写三个函数 |
-| `components/` | `Box`（容器）/ `Label`（文本）/ `Button`（按钮）/ `Image`（图片） |
-| `pages/` | `Page` 基类 + `ComponentGalleryPage`（组件总览）+ `PropertyPage`（属性演示） |
+### Demo 结构
 
-界面快照：`docs/component-gallery.png`（组件总览）、`docs/component-properties.png`（属性演示）。
+```text
+┌──────────────┬──────────────────────────────────────────┐
+│ > BOX        │  控件名 + 一句话说明                       │
+│   LABEL      │  ┌──────── Showcase（可操作）────────┐    │
+│   BUTTON     │  │                                    │    │
+│   ...        │  └────────────────────────────────────┘    │
+│   MENU       │  Properties：Visual / Layout / State /     │
+│              │              Focus / Navigation（实时）    │
+└──────────────┴──────────────────────────────────────────┘
+```
+
+Tab 顺序：`BOX · LABEL · BUTTON · IMAGE · IMAGE BUTTON · LIST · SCROLL · TAB ·
+CHECKBOX · RADIO · SLIDER · PROGRESS · INPUT · KEYBOARD · DIALOG · MENU`
+
+### 手柄操作模型（三条规则）
+
+1. **一个复合控件 = 一个焦点停靠点**：`List / TabBar / Menu / RadioGroup / Slider /
+   VirtualKeyboard` 内部自己维护光标，不把每个条目做成焦点组件。
+2. **方向键归属**：控件声明 `capture_horizontal / capture_vertical`，
+   自己消费的方向键不会被全局焦点导航抢走；离开这类控件用另一半方向键或 B。
+3. **输入消费**：一帧内同一按键只被消费一次（`Global::Available / MarkConsumed`），
+   页面级输入永远在控件之后执行，避免「同一帧换焦点又触发一次」这类双重响应。
+
+焦点分区（`focus_zone`）把左侧 Tab 列和右侧内容区分开，跨区只允许左右方向 —— 所以
+`→` 从 Tab 进内容区、`←` / `B` 回 Tab，上下键不会在两侧之间乱跳。
+
+### 控件与关键交互
+
+| 控件 | 手柄操作 | 覆盖能力 |
+|---|---|---|
+| BOX | 可聚焦时焦点框 + 缩放 + 位移 | Layout / Padding / Gap / Align / Anchor / 四角圆角 / 边框 / 阴影 / Overflow(hidden·scroll) |
+| LABEL | 聚焦换文案换色 | 单行 / 多行 / 自动换行 / 省略号 / 跑马灯 / 字重 / 描边 / 阴影 / 对齐 |
+| BUTTON | A 确认，X/Y 辅助 | Normal·Focused·Pressed·Selected·Disabled 五态 + 图标 + 焦/按压缩放 |
+| IMAGE | —（不聚焦） | Contain / Cover / Stretch / UV 裁切 / Tint / Flip / 旋转 / 圆角与圆形 |
+| IMAGE BUTTON | A 选中 | 五态贴图 + 角标 + 标题条 + 焦点放大 + 边框动画 + 选中标记 |
+| LIST | ↑↓ 移动（可循环），L/R 翻页，ZL/ZR 快滚，A 激活，X/Y 首尾 | 垂直 / 水平 / 网格 + 焦点自动滚动 + 进入动画 + 禁用项 |
+| SCROLL | ↑↓ 移动焦点并自动滚动，L/R 与 ZL/ZR 翻页，+ 回顶部 | 平滑 / 越界回弹 / 吸附 / 滚动条自动隐藏 / 方向提示箭头 |
+| TAB | ←→ 或 ↑↓ 移动，A 选中，L/R 翻页，ZL/ZR 首尾 | 水平 / 垂直 + 图标 + 指示条滑动动画 |
+| CHECKBOX | A 或 X 切换 | 勾选动画 / 焦点换色与位移 / Disabled |
+| RADIO | ↑↓ 移动高亮，A 选定 | 单选组 / 圆点动画 / 禁用项 / 水平与垂直 |
+| SLIDER | ←→ 微调，L/R 快调，ZL/ZR 大步，A 应用，B 回滚 | Track / Fill / Thumb / 刻度 / 百分比 / 值动画 |
+| PROGRESS | —（只读） | 确定 / 不定态 / 水平 / 垂直 / 圆角 / 平滑动画 |
+| INPUT | A 打开虚拟键盘，X 清空，Y 退格 | Placeholder / 前缀后缀 / 密码 / 只读 / 光标 / 选区 / 长度限制 |
+| KEYBOARD | 方向键选键，A 输入，L/R 换字符页，ZL/ZR Shift，+/− 确定/退格，B 取消 | QWERTY / 符号 / 数字三页 + Shift + 光标 + 全选 + 清空 |
+| DIALOG | ←→ 切按钮，A 执行，B 取消 | 模态 + 遮罩 + Focus Trap + 进出动画 + 按钮组 |
+| MENU | ↑↓ 移动，A 进入/激活，B 返回上级，L/R 分区，ZL/ZR 首尾 | 分隔符 / 图标 / 快捷键提示 / 状态值 / 子菜单 + 面包屑 |
+
+界面快照：`docs/showcase-box.png`、`showcase-list.png`、`showcase-keyboard.png`、
+`showcase-dialog.png`、`showcase-menu.png`、`showcase-imagebutton.png`。
 
 ### Widget 基类属性（都有默认值，全部链式可设）
 
 | 类别 | 属性 |
 |---|---|
-| 位置 | `position`（相对父内容区）、`anchor`、`pivot`、`offset`、`margin` |
-| 尺寸 | `size`（0 = 按内容自适应）、`min_size`、`max_size`、`aspect_ratio`、`padding` |
+| 位置 | `position`、`anchor`、`pivot`、`offset`、`margin` |
+| 尺寸 | `size`（0 = 自适应）、`min_size`、`max_size`、`aspect_ratio`、`padding` |
 | 圆角 | `corner_radius` 统一；`corner_tl/tr/bl/br` 单角覆盖（-1 = 跟随统一值） |
-| 边框 | `border.width` / `border.color` / `border.inset`（inset 让描边画在矩形内部） |
-| 阴影 | `shadow.enabled/offset/blur/spread/color`，用 `ShadowStyle::Soft(blur)` 起手 |
-| 外观 | `background`（ARGB）、`opacity`、`visible`、`enabled`、`clip_children` |
-| 布局 | `layout`（Free / Vertical / Horizontal）、`gap`、`align_x/align_y`、`z_order` |
-| 交互 | `focusable`、`focus_on_hover`；`hovered/pressed/clicked/focused` 为每帧只读状态 |
-| 事件 | `on_click`、`on_press`、`on_hover_enter/leave`、`on_focus/blur` |
+| 边框 | `border.width` / `color` / `inset` |
+| 阴影 | `shadow.enabled/offset/blur/spread/color`（`ShadowStyle::Soft(blur)`） |
+| 溢出 | `overflow`(Visible·Hidden·Scroll) + `scroll` / `scroll_target` / `scroll_max` / `scroll_bar_auto_hide` / `scroll_overscroll` / `scroll_snap` |
+| 外观 | `background`、`opacity`、`visible`、`enabled`、`z_order` |
+| 布局 | `layout`(Free·Vertical·Horizontal)、`gap`、`align_x/align_y` |
+| 焦点 | `focusable`、`focus_frame`、`focus_scale`、`focus_translate`、`focus_mix`、`focus_zone`、`capture_horizontal/vertical` |
+| 事件 | `on_click`、`on_press`、`on_hover_enter/leave`、`on_focus/blur`、虚函数 `OnPadAction(action)` |
 
-几何语义：`size` 是**外框**尺寸（含 padding/border）；`anchor` 是「锚点在父内容区（去掉 margin 后）的比例位置」，
-`pivot` 是「自身哪个点贴到锚点上」，两者都取 0/0.5/1 就是左上/居中/右下。
+焦点动画（缩放/位移）会作为 `Transform2D` 下发给整棵子树，所以容器聚焦时子节点一起缩放，
+文字与圆角按同一个缩放系数绘制。
 
 ### 加一个组件
 
-子类只覆写三个函数（`Widget.h` 顶部有完整约定）：
+子类只覆写需要的部分（`Widget.h` 顶部有完整约定）：
 
 ```cpp
 class Badge : public cv::Widget {
 public:
-    Badge() : Widget("badge") { background = cv::Theme::kAccent; corner_radius = 999.0f; }
+    Badge() : Widget("badge") {
+        background = cv::Theme::kAccent;
+        corner_radius = 999.0f;
+        focusable = true;        // 需要手柄焦点就打开
+        focus_frame = true;
+        focus_scale = 1.05f;
+    }
 protected:
     ImVec2 MeasureContent(const ImVec2& available) override;              // 内容需要多大
-    void OnDrawContent(ImDrawList* dl, const cv::Rect& content) override; // 内容画什么
+    void OnDrawContent(ImDrawList* dl, const cv::Rect& content) override; // 内容画什么（用 Draw::*）
     void OnUpdate(float dt) override;                                     // 每帧状态（可选）
+    bool OnPadAction(cv::InputAction action) override;                    // 手柄按键（返回 true = 已消费）
 };
 ```
 
 ### 加一个页面
 
+`ControlPage` 是「一个 Tab + 右侧展示区 + 属性面板」的接口，四步：
+
 ```cpp
-class MyPage : public cv::Page {
-public:
-    const char* Title() const override { return "我的页面"; }
-    void OnBuild() override {
-        Root().Emplace<cv::Label>("hello", cv::Theme::kFontTitle)->SetPosition(0.0f, 0.0f);
-
-        cv::Box* card = Root().Emplace<cv::Box>("card");
-        card->Card().SetPosition(0.0f, 80.0f).SetSize(400.0f, 200.0f);
-
-        cv::Button* button = card->Emplace<cv::Button>("确认");
-        button->Primary().SetPosition(20.0f, 20.0f);
-        button->on_click = [](cv::Widget&) { /* ... */ };
-    }
+class MyPage : public cv::ControlPage {
+    const char* Name() const override { return "MY"; }        // Tab 标题
+    const char* Title() const override { return "我的控件"; }  // 页面标题
+    const char* Summary() const override { return "一句话说明"; }
+    void Build(cv::Widget* host, cv::UiContext& ui) override;  // 往展示区里塞控件（真能操作）
+    void FillProperties(std::vector<cv::PropSection>& out) const override; // 右侧实时属性
+    std::vector<std::pair<cv::Icons::Button, std::string>> Navigation() const override; // 底部按键提示
 };
-
-// demo.cpp
-pages_.push_back(std::make_unique<MyPage>());
 ```
+
+然后在 `component_view/pages/ControlPages.cpp` 的 `CreateControlPages()` 里加一行即可
+（`component_view/` 下的 `.cpp` 由 CMake GLOB 自动纳入，不用改 CMakeLists）。
 
 ### demo.cpp 的四件事
 
 1. `Configure`：窗口大小与 vsync（`GUI_DEV_WINDOW=WxH`、`GUI_DEV_NO_VSYNC=1`）
-2. `OnStart`：`Theme::ApplyToImGui()` → 登记页面 → `Bind(ui)` / `SetPageInfo`
-3. `OnFrame`：`Global::BeginFrame(ui)` → L/R 切页 → `page.Update(dt)` → `page.Render()` → `Global::EndFrame()`
+2. `OnStart`：`Theme::ApplyToImGui()` → 登记页面（当前是 `ShowcaseShell`）
+3. `OnFrame`：`Global::BeginFrame(ui)` → `page.Update(dt)` → `page.Render()` → `Global::EndFrame()`
 4. `OnShutdown`：清空页面（页面持有 `TextureRef`，必须在后端关闭前析构）
-
-### 交互模型
-
-- **不走 ImGui 的 item 机制**：命中测试自己做（子节点优先 + `z_order`），所以重叠、层叠、手柄焦点都可控，
-  也不会踩 `InvisibleButton` / 布局游标那类断言。
-- 焦点导航 `Global::NavigateFocus`：最近邻（主方向投影距离 + 2 倍垂直偏移），方向键/摇杆移动，A / 回车触发 `on_click`。
-- 鼠标悬停遇到 `focus_on_hover = true` 会把焦点带过去，鼠标与手柄共用同一个焦点。
-- `Button` 的悬停/按下用指数平滑（`1 - exp(-speed*dt)`，与帧率无关）。
 
 ## 自定义控件 101
 
@@ -639,6 +680,17 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   鼠标悬停/点击命中 `取消` 且焦点跟随；960x540 窗口下布局与 720p 完全一致（等比缩放）；
   四个 demo 在 `GUI_DEV_EXIT_AFTER` 下退出码均为 0。`src/course` 课程代码与
   `docs/course-*.png` 已移除，仓库结构改为 `framework/` + `component_view/` + `examples/` + `demo.cpp`。
+- 已确认（手柄优先控件库）：mac（Debug/Release）与 Switch 均编译通过；4 个 demo 在
+  `GUI_DEV_EXIT_AFTER` 下退出码均为 0；抓帧逐个核对 16 个 Tab（`docs/showcase-*.png`）：
+  左侧 Tab 选中/光标/指示条动画与滚动、右侧展示区控件可操作、属性面板实时刷新；
+  脚本化输入验证：手柄 ↓ 选 Tab → A 进入内容 → 列表 ↑↓ 内部移动并自动滚动（12 项列表
+  滚到第 4 项、offset 328px）、滑块 ←→/L R/ZL ZR 与大thumb焦点环、虚拟键盘 QWERTY 打字
+  （输入 `q` 两次，预览与缓冲同步）、Dialog 模态 + 遮罩 + Focus Trap、Menu 进入子菜单
+  （Depth 2 + 面包屑）、ImageButton 封面焦点放大与角标。
+- 已知字体问题：`assets/font/MaterialIcons-Regular.ttf` 里 `sports_esports`(U+EAE2) 的
+  字形与预期不符（渲染成一个「A+」形状），已改用 `games`(U+E30F)；其余 34 个 Material
+  码位逐个核对正常。另外 `◀ ▶ ⌫`(U+25C0/U+25B6/U+232B) 这类符号在原字体里缺字形，
+  已统一换成 ASCII 文案。
 - 未验证：NRO 在实机/模拟器上的运行表现（含 HOS 共享字体与 NintendoExt 的实际字形、
   romfsInit 是否成功、Material 图标在实机上的渲染）；暂停菜单在实机上的手感与耗时
   （30/60/120FPS 的时间一致性由公式保证，但没有实机测帧）。

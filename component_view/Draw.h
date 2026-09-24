@@ -25,4 +25,19 @@ void Text(ImDrawList* dl, ImFont* font, float font_size, const ImVec2& pos, ImU3
 // 取当前 ImGui 上下文的主字体
 ImFont* CurrentFont();
 
+// ---- 文本增强 -------------------------------------------------------------
+// 带 1px 描边（四向偏移）的文本：深色背景上更容易读。
+void TextOutlined(ImDrawList* dl, ImFont* font, float font_size, const ImVec2& pos, ImU32 color, ImU32 outline_color,
+                  const char* text, float wrap_width = 0.0f);
+// 按可用宽度裁切，放不下时用 "…" 结尾（返回的是内部轮转缓冲，别跨帧保存）。
+const char* Ellipsize(ImFont* font, float font_size, const char* text, float max_width);
+
+// ---- 形状增强 -------------------------------------------------------------
+// 对勾（复选框勾选动画用，t = 0..1 控制绘制进度）
+void CheckMark(ImDrawList* dl, const Rect& box, ImU32 color, float thickness, float t);
+// 右向三角（列表/菜单展开指示）
+void TriangleRight(ImDrawList* dl, const ImVec2& center, float size, ImU32 color);
+// 竖直/水平渐变填充（进度、滑条高亮用）
+void RoundedRectVerticalGradient(ImDrawList* dl, const Rect& r, ImU32 top, ImU32 bottom, float rounding);
+
 } // namespace gui_dev::cv::Draw

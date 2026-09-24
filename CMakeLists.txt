@@ -143,18 +143,11 @@ target_link_libraries(gui_dev PUBLIC gui_dev_backend)
 # ------------------------------------------------- component_view 组件库 -----
 # 你自己写的组件与页面：只依赖 gui_dev（UiContext / TextureRef / Backend），
 # 不依赖任何示例，mac 与 switch 共用同一份代码。
-add_library(gui_dev_components STATIC
-    component_view/Theme.cpp
-    component_view/Draw.cpp
-    component_view/Global.cpp
-    component_view/Widget.cpp
-    component_view/components/Box.cpp
-    component_view/components/Label.cpp
-    component_view/components/Button.cpp
-    component_view/components/Image.cpp
-    component_view/pages/Page.cpp
-    component_view/pages/ComponentGalleryPage.cpp
-    component_view/pages/PropertyPage.cpp)
+add_library(gui_dev_components STATIC)
+# component_view/ 下新增 .cpp 不需要改这里：GLOB + CONFIGURE_DEPENDS 会自动纳入
+file(GLOB_RECURSE GUI_DEV_COMPONENT_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/component_view/*.cpp")
+target_sources(gui_dev_components PRIVATE ${GUI_DEV_COMPONENT_SOURCES})
 target_include_directories(gui_dev_components PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(gui_dev_components PUBLIC gui_dev)
 
