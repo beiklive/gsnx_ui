@@ -21,5 +21,16 @@ const std::vector<CourseEntry>& CourseEntries();
 // ---- 各课时工厂 ------------------------------------------------------------
 std::unique_ptr<Scene> CreateLesson01Window();
 std::unique_ptr<Scene> CreateLesson02Lifecycle();
+std::unique_ptr<Scene> CreateLesson03FrameLoop();
+std::unique_ptr<Scene> CreateLesson04Hierarchy();
+std::unique_ptr<Scene> CreateLesson05Widget();
+std::unique_ptr<Scene> CreateLesson06Events();
+std::unique_ptr<Scene> CreateLesson07State();
+std::unique_ptr<Scene> CreateLesson08Animation();
+std::unique_ptr<Scene> CreateLesson09Adaptive();
+std::unique_ptr<Scene> CreateLesson10Container();
+std::unique_ptr<Scene> CreateLesson11Popup();
+std::unique_ptr<Scene> CreateLesson12Perf();
+std::unique_ptr<Scene> CreateLesson13Library();
 
 } // namespace gui_dev::course

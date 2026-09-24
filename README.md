@@ -44,8 +44,7 @@ GUI_DEV/
 │   └── main.cpp
 ├── third_party/imgui/          # submodule
 ├── docs/                       # 界面快照（人工核对用，非构建产物）
-│   ├── ui-preview.png
-│   └── pause-{menu,slots,settings,dialog}.png
+│   ├── ui-preview.png / pause-*.png / widget-*.png / course-*.png
 ├── assets/
 │   ├── font/                   # switch_font.ttf / switch_icons.ttf / MaterialIcons-Regular.ttf
 │   └── img/                    # UI 图片（border_gradient.png）
@@ -121,6 +120,34 @@ GUI_DEV_EXIT_AFTER=60 ./build/mac/gui_dev_demo   # 跑满 60 帧后正常退出�
 ```
 
 配合 `Backend::RequestQuit()`（UI 里的「退出」入口也用它）。
+
+## 分课时课程（gui_dev_course）
+
+从"一个窗口怎么起来的"讲到"自己做一个可筛选、虚拟滚动的游戏库列表"。
+每课时 = **讲解（源码文件头）+ 可运行示例 + 练习 + 验收标准**，L/R 切换课时，Esc 退出。
+
+```bash
+cmake --build --preset mac && ./build/mac/gui_dev_course
+```
+
+| 课时 | 主题 | 关键内容 |
+|---|---|---|
+| 1 | 建立窗口 | ImGui 不建窗口 -> 三层结构；BackendConfig 六字段；drawable/scale/logical 实况 |
+| 2 | 生命周期 | 六阶段顺序；所有权（App/Scene 比 Backend 活得久）；退出崩溃复盘；三条规则 |
+| 3 | 帧循环解剖 | 一帧五个动作；立即模式的三个后果；顶点/索引/帧时实况；负载滑杆 |
+| 4 | UI 层级与布局 | Window>Child>Item；布局游标；SameLine/Dummy；嵌套滚动；BeginTable |
+| 5 | 控件制作 | 四步法（量尺寸/占位/自绘/状态）；现场实现分段选择器；五个坑 |
+| 6 | 事件响应 | 事件链路；两套焦点模型；三路输入汇聚；热键边沿检测；长按连发；输入消费 |
+| 7 | 状态管理 | 三种载体取舍；该复位 vs 该保留；ImGuiStorage；Delegate 解耦 |
+| 8 | 动画系统 | 吃 dt 的唯一原则；SmoothTo vs MoveTowards；缓动；**低帧率车道对照实验** |
+| 9 | 布局自适应 | 缩放 vs 自适应两层；调用生产代码展示 5 种分辨率下的真实解析结果 + 缩略图 |
+| 10 | 容器与复合控件 | 外壳+容器+状态；可折叠分组；**故意制造 static 串味 bug** 让你看到 |
+| 11 | 弹层与拖放 | 模态框/右键菜单/悬浮提示；DragDrop 源与目标；拖拽排序 |
+| 12 | 性能与质量 | 三指标；四条硬规则；压力测试滑杆；实测帧率数据；三种验证手段 |
+| 13 | 综合实战 | 虚拟滚动四行核心；筛选/焦点/详情/自适应；自证"只画可见行" |
+
+源码：`src/course/LessonNN_*.cpp`（每课独立文件，加一课 = 一个文件 + 一行注册）。
+界面快照见 `docs/course-lesson*.png`。
 
 ## 自定义控件 101
 

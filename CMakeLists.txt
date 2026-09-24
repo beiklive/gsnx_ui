@@ -162,7 +162,21 @@ add_executable(gui_dev_course
     src/course/main.cpp
     src/course/CourseApp.cpp
     src/course/CourseLessons.cpp
-    src/course/Lesson01_Window.cpp)
+    src/course/CourseLog.cpp
+    src/course/CourseUi.cpp
+    src/course/Lesson01_Window.cpp
+    src/course/Lesson02_Lifecycle.cpp
+    src/course/Lesson03_FrameLoop.cpp
+    src/course/Lesson04_Hierarchy.cpp
+    src/course/Lesson05_Widget.cpp
+    src/course/Lesson06_Events.cpp
+    src/course/Lesson07_State.cpp
+    src/course/Lesson08_Animation.cpp
+    src/course/Lesson09_Adaptive.cpp
+    src/course/Lesson10_Container.cpp
+    src/course/Lesson11_Popup.cpp
+    src/course/Lesson12_Perf.cpp
+    src/course/Lesson13_Library.cpp)
 target_link_libraries(gui_dev_course PRIVATE gui_dev)
 
 if(GUI_DEV_PLATFORM STREQUAL "switch")

@@ -97,6 +97,7 @@
 #include <imgui.h>
 
 #include "course/CourseLessons.h"
+#include "course/CourseUi.h"
 #include "course/CourseLog.h"
 #include "platform/Backend.h"
 #include "ui/Components.h"
@@ -105,52 +106,6 @@
 #include "ui/UiContext.h"
 
 namespace gui_dev::course {
-namespace {
-
-// 小标题 + 正文：课程里反复用，所以抽出来（正式控件请参考 GameMenuButton 的写法）
-void Section(const char* title) {
-    ImGui::Spacing();
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.89f, 0.11f, 0.15f, 1.0f));
-    ImGui::TextUnformatted(title);
-    ImGui::PopStyleColor();
-    ImGui::Separator();
-}
-
-void Note(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.62f, 0.64f, 0.68f, 1.0f));
-    ImGui::TextV(fmt, args);
-    ImGui::PopStyleColor();
-    va_end(args);
-}
-
-// 代码片段：等宽观感靠灰底 + 缩进，不用额外字体（课程不引入新资源）
-void Code(const char* lines) {
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.06f, 0.07f, 0.09f, 1.0f));
-    const float line_count =
-        1.0f + static_cast<float>(std::count(lines, lines + std::strlen(lines), '\n'));
-    ImGui::BeginChild(lines, ImVec2(0.0f, ImGui::GetTextLineHeightWithSpacing() * line_count + 8.0f),
-                      ImGuiChildFlags_None, ImGuiWindowFlags_None);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.70f, 0.85f, 0.72f, 1.0f));
-    ImGui::TextUnformatted(lines);
-    ImGui::PopStyleColor();
-    ImGui::EndChild();
-    ImGui::PopStyleColor();
-}
-
-void KeyValue(const char* key, const char* fmt, ...) {
-    ImGui::TextUnformatted(key);
-    ImGui::SameLine(230.0f);
-    va_list args;
-    va_start(args, fmt);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.93f, 0.93f, 0.96f, 1.0f));
-    ImGui::TextV(fmt, args);
-    ImGui::PopStyleColor();
-    va_end(args);
-}
-
-} // namespace
 
 // ---------------------------------------------------------------------------
 // 课时 1 的界面：把上面的讲解变成可以看、可以验证的东西
@@ -242,11 +197,7 @@ public:
         ImGui::BulletText("为什么 UI 代码里不该出现 SDL_ 开头的调用？");
         ImGui::BulletText("drawable 与 logical 的区别，scale 怎么算的？");
 
-        Components::EndPanel(ui, {
-            {Icons::Glyph(Icons::Button::L), "上一课"},
-            {Icons::Glyph(Icons::Button::R), "下一课"},
-            {Icons::Glyph(Icons::Button::B), "退出"},
-        });
+        EndLesson(ui);
     }
 };
 

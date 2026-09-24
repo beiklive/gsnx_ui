@@ -85,6 +85,7 @@
 #include <imgui.h>
 
 #include "course/CourseLessons.h"
+#include "course/CourseUi.h"
 #include "course/CourseLog.h"
 #include "platform/Backend.h"
 #include "ui/Components.h"
@@ -93,44 +94,6 @@
 #include "ui/UiContext.h"
 
 namespace gui_dev::course {
-namespace {
-
-void Section(const char* title) {
-    ImGui::Spacing();
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.89f, 0.11f, 0.15f, 1.0f));
-    ImGui::TextUnformatted(title);
-    ImGui::PopStyleColor();
-    ImGui::Separator();
-}
-
-void Note(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.62f, 0.64f, 0.68f, 1.0f));
-    ImGui::TextV(fmt, args);
-    ImGui::PopStyleColor();
-    va_end(args);
-}
-
-void Code(const char* lines) {
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.06f, 0.07f, 0.09f, 1.0f));
-    int line_count = 1;
-    for (const char* p = lines; *p != '\0'; ++p) {
-        if (*p == '\n') {
-            ++line_count;
-        }
-    }
-    ImGui::BeginChild(lines, ImVec2(0.0f, ImGui::GetTextLineHeightWithSpacing() *
-                                              static_cast<float>(line_count) + 8.0f),
-                      ImGuiChildFlags_None, ImGuiWindowFlags_None);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.70f, 0.85f, 0.72f, 1.0f));
-    ImGui::TextUnformatted(lines);
-    ImGui::PopStyleColor();
-    ImGui::EndChild();
-    ImGui::PopStyleColor();
-}
-
-} // namespace
 
 // ---------------------------------------------------------------------------
 // 课时 2 的场景：把生命周期"跑给你看"
@@ -250,11 +213,7 @@ public:
         ImGui::BulletText("验收：六个阶段顺序？哪一阶段之后才画得出字？");
         ImGui::BulletText("验收：BackendLiveness 解决的是顺序问题还是泄漏问题？");
 
-        Components::EndPanel(ui, {
-            {Icons::Glyph(Icons::Button::L), "上一课"},
-            {Icons::Glyph(Icons::Button::R), "下一课"},
-            {Icons::Glyph(Icons::Button::B), "退出"},
-        });
+        EndLesson(ui);
     }
 
 private:
