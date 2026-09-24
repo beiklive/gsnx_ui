@@ -123,6 +123,10 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
 
     // 非整数倍缩放时用线性过滤，避免锯齿
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+    // 触摸统一走 SDL_FINGER*（下面自己翻译成 ImGui 鼠标事件）：
+    // 关掉 SDL 的「触摸合成鼠标」避免同一个手指触发两次点击；
+    // 个别平台不认这个 hint 时，下面还有 SDL_TOUCH_MOUSEID 的去重兜底。
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
 
     if (SDL_NumJoysticks() > 0 && SDL_IsGameController(0)) {
         controller_ = SDL_GameControllerOpen(0);
@@ -280,15 +284,37 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
         case SDL_FINGERDOWN:
         case SDL_FINGERMOTION:
         case SDL_FINGERUP: {
-            // 触摸坐标是归一化的，换算到 drawable 像素。Switch 掌机模式会用到。
-            int w = 0;
-            int h = 0;
-            GetDrawableSize(w, h);
-            in.touch.x = e.tfinger.x * static_cast<float>(w);
-            in.touch.y = e.tfinger.y * static_cast<float>(h);
+            // 触摸坐标是归一化的，换算到「逻辑显示空间」（= io.DisplaySize，720p 设计空间）。
+            // 以前这里换算成 drawable 像素、而且根本没喂给 ImGui，所以 Switch 掌机上完全不能触控。
+            ImGuiIO& io = ImGui::GetIO();
+            const float x = e.tfinger.x * io.DisplaySize.x;
+            const float y = e.tfinger.y * io.DisplaySize.y;
+            in.touch.x = x;
+            in.touch.y = y;
             in.touch.down = (e.type != SDL_FINGERUP);
+
+            // 只跟第一根手指（多点触控以最先按下的为准）
+            if (e.type == SDL_FINGERDOWN && !touch_engaged_) {
+                touch_engaged_ = true;
+                touch_finger_ = e.tfinger.fingerId;
+            }
+            if (touch_engaged_ && e.tfinger.fingerId == touch_finger_) {
+                touch_pos_ = ImVec2(x, y);
+                if (e.type == SDL_FINGERUP) {
+                    touch_release_pending_ = true;
+                }
+            }
             break;
         }
+        case SDL_MOUSEMOTION:
+        case SDL_MOUSEBUTTONDOWN:
+        case SDL_MOUSEBUTTONUP:
+            // 如果平台仍然把触摸合成成鼠标事件（SDL_TOUCH_MOUSEID），标记一下，
+            // 说明这个平台不需要我们手动翻译手指事件。
+            if (e.motion.which == SDL_TOUCH_MOUSEID) {
+                touch_synthesizes_mouse_ = true;
+            }
+            break;
         default:
             break;
         }
@@ -379,6 +405,31 @@ void Sdl2Backend::NewImGuiFrame() {
     ImGui::GetStyle().FontScaleMain = 1.0f;
     io.DeltaTime = delta_time_ > 0.0f ? delta_time_ : (1.0f / 60.0f);
 
+    // 鼠标坐标修正：imgui_impl_sdl2 给的是「窗口点数」，而控件命中测试用的是
+    // io.DisplaySize（720p 逻辑空间）。窗口不是 1280x720 时两者差一个比例
+    // （例如 640x360 窗口下 mouse=(98,203) 实际对应逻辑 (196,406)），
+    // 不修正的话小窗口/异形窗口里点击位置会整体偏移。
+    int window_w = 0;
+    int window_h = 0;
+    SDL_GetWindowSize(window_, &window_w, &window_h);
+    if (window_w > 0 && window_h > 0 &&
+        (static_cast<int>(io.DisplaySize.x) != window_w || static_cast<int>(io.DisplaySize.y) != window_h) &&
+        ImGui::IsMousePosValid(&io.MousePos)) {
+        io.AddMousePosEvent(io.MousePos.x * io.DisplaySize.x / static_cast<float>(window_w),
+                            io.MousePos.y * io.DisplaySize.y / static_cast<float>(window_h));
+    }
+
+    // 触摸 → 鼠标：必须在这里喂（ImGui_ImplSDL2_NewFrame 之后、ImGui::NewFrame 之前）。
+    // 放在 PollEvents 里喂会被 imgui_impl_sdl2 的 UpdateMouseData 覆盖（窗口没被真鼠标悬停时
+    // 它会用全局鼠标位置或 -FLT_MAX 覆盖 io.MousePos）。
+    if (touch_engaged_ && !touch_synthesizes_mouse_) {
+        io.AddMousePosEvent(touch_pos_.x, touch_pos_.y);
+        io.AddMouseButtonEvent(0, !touch_release_pending_);
+        if (touch_release_pending_) {
+            touch_release_pending_ = false;
+            touch_engaged_ = false;
+        }
+    }
 
     ImGui::NewFrame();
 }

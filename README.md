@@ -804,6 +804,20 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   demo 内脚本化验证：BUTTON 页 `A:1 → clicked 1 次`、`X:2 + Y:1 → auxTriggered 3 次`。
 - 顺带修掉一个真 bug：`InputAction::ActionX/ActionY/Minus` 之前在枚举里有、但没进 SDL 按键/手柄映射表
   （x / y / - / 手柄 X / Y / BACK 都不响应），现在映射补齐并逐个抓帧确认收到。
+- 已确认（输入链路修复）：三个实测出来的输入 bug ——
+  1) **Switch 触摸完全无效**：`SDL_FINGER*` 以前只记进 `InputFrame.touch`，从没喂给 ImGui，
+     而所有命中测试读的都是 `io.MousePos`；现在在 `NewImGuiFrame()` 里（`ImGui::NewFrame()` 之前，
+     否则会被 `imgui_impl_sdl2` 的 `UpdateMouseData` 覆盖）翻译成 `AddMousePosEvent/AddMouseButtonEvent`，
+     坐标按归一化 × `io.DisplaySize` 换算（跨分辨率/Retina 都对），并关掉 SDL 的触摸合成鼠标 + 用
+     `SDL_TOUCH_MOUSEID` 去重避免双触发。
+  2) **导览页手柄进不去**：外壳窗口带了 `ImGuiWindowFlags_NoNavFocus`，`IsWindowNavFocusable()` 因此
+     返回 false、`g.NavWindow` 恒为 NULL，内置导航永远不激活；去掉该标志并在首帧 `NavInitWindow`
+     之后，手柄/键盘可以直接在页面里移动（实测 `NavActive=1 NavVisible=1 NavId≠0`）。
+  3) **窗口非 720p 时鼠标整体偏移**：`imgui_impl_sdl2` 给的是窗口点数，而命中测试用 `io.DisplaySize`，
+     窗口为 640x360 时坐标差 2 倍；现在在 `NewImGuiFrame()` 里按比例修正（640x360 窗口下点窗口坐标
+     (281,95) 正确命中逻辑坐标 (562,190) 的按钮）。
+  验证方式：脚本化注入 `SDL_FINGERDOWN/MOTION/UP` 与 `SDL_MOUSEMOTION/BUTTON`，抓帧核对
+  「触摸取消勾选复选框」「触摸点击按钮计数 +1」「导航高亮 + NavId≠0」。
 - 已知字体问题：`assets/font/MaterialIcons-Regular.ttf` 里 `sports_esports`(U+EAE2) 的
   字形与预期不符（渲染成一个「A+」形状），已改用 `games`(U+E30F)；其余 34 个 Material
   码位逐个核对正常。另外 `◀ ▶ ⌫`(U+25C0/U+25B6/U+232B) 这类符号在原字体里缺字形，

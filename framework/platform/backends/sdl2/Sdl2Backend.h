@@ -53,6 +53,15 @@ private:
 
     bool quit_ = false;
     bool imgui_backend_inited_ = false;
+    // 触摸：只跟踪第一根手指，把 SDL_FINGER* 翻译成 ImGui 鼠标事件。
+    // 注意：必须在 ImGui::NewFrame() 之前喂（见 NewImGuiFrame），
+    // 否则会被 imgui_impl_sdl2 的鼠标更新覆盖掉。
+    bool touch_engaged_ = false;
+    bool touch_release_pending_ = false;
+    SDL_FingerID touch_finger_ = 0;
+    ImVec2 touch_pos_{0.0f, 0.0f};
+    // 平台是否自己把触摸合成成鼠标事件（SDL_TOUCH_MOUSEID）
+    bool touch_synthesizes_mouse_ = false;
     std::uint64_t perf_counter_ = 0;
     float delta_time_ = 0.0f;
 

@@ -23,10 +23,13 @@ public:
     void OnRender(gui_dev::UiContext& ui) override { (void)ui; }
 };
 
+// 注意：这里**不能**加 ImGuiWindowFlags_NoNavFocus ——
+// ImGui 的 IsWindowNavFocusable() 会因此返回 false，g.NavWindow 永远是 NULL，
+// 内置导航（键盘/手柄）就完全进不来，表现就是「按方向键没反应」。
 constexpr ImGuiWindowFlags kShellFlags =
     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
     ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-    ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+    ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
 
 // 抓帧/CI 用：GUI_DEV_TOUR_TAB=<n> 时，前几帧强制选中第 n 个 Tab
 int ForcedTabIndex() {
@@ -275,6 +278,15 @@ void TourApp::OnFrame(UiContext& ui, float dt) {
         DrawShell();
     }
     ImGui::End();
+
+    // 首次进入时把导航焦点落到这个窗口上（等价于用户按一下方向键），
+    // 这样启动后手柄/键盘直接就能在页面里移动。
+    if (s.frame_count == 2 && ImGui::GetCurrentContext()->NavWindow == nullptr) {
+        if (ImGuiWindow* window = ImGui::FindWindowByName("##imgui_tour")) {
+            ImGui::NavInitWindow(window, true);
+            ImGui::SetWindowFocus("##imgui_tour");
+        }
+    }
     ImGui::PopStyleVar();
 
     // 调试 / 工具窗口（ImGui 自带，按需打开）
