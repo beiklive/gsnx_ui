@@ -1,0 +1,103 @@
+#include "ui/Icons.h"
+
+#include <cstdio>
+
+namespace gui_dev::Icons {
+namespace {
+
+struct Entry {
+    Button button;
+    const char* glyph;
+    const char* label;
+    std::uint32_t code;
+};
+
+// 码位与字形来源的对应关系（与 HOS NintendoExt / switch_icons.ttf 一致）：
+//   A=E0E0 B=E0E1 X=E0E2 Y=E0E3 L=E0E4 R=E0E5 ZL=E0E6 ZR=E0E7
+//   +=E0EF −=E0F0 ↑=E0EB ↓=E0EC ←=E0ED →=E0EE L3=E104 R3=E105
+constexpr Entry kTable[] = {
+    {Button::A, "\uE0E0", "A", 0xE0E0},
+    {Button::B, "\uE0E1", "B", 0xE0E1},
+    {Button::X, "\uE0E2", "X", 0xE0E2},
+    {Button::Y, "\uE0E3", "Y", 0xE0E3},
+    {Button::L, "\uE0E4", "L", 0xE0E4},
+    {Button::R, "\uE0E5", "R", 0xE0E5},
+    {Button::ZL, "\uE0E6", "ZL", 0xE0E6},
+    {Button::ZR, "\uE0E7", "ZR", 0xE0E7},
+    {Button::Plus, "\uE0EF", "+", 0xE0EF},
+    {Button::Minus, "\uE0F0", "\xE2\x88\x92", 0xE0F0}, // 减号 U+2212
+    {Button::Up, "\uE0EB", "\xE2\x86\x91", 0xE0EB},    // ↑
+    {Button::Down, "\uE0EC", "\xE2\x86\x93", 0xE0EC},  // ↓
+    {Button::Left, "\uE0ED", "\xE2\x86\x90", 0xE0ED},  // ←
+    {Button::Right, "\uE0EE", "\xE2\x86\x92", 0xE0EE}, // →
+    {Button::L3, "\uE104", "L3", 0xE104},
+    {Button::R3, "\uE105", "R3", 0xE105},
+};
+
+// 编译期自检：确认源文件/执行字符集是 UTF-8（\uE0E0 必须编码成 EE 83 A0），
+// 否则图标会显示成乱码。任一平台的编译器不满足都要在这里先炸掉。
+constexpr bool IsUtf8_E0E0(const char* s) {
+    return static_cast<unsigned char>(s[0]) == 0xEE && static_cast<unsigned char>(s[1]) == 0x83 &&
+           static_cast<unsigned char>(s[2]) == 0xA0 && s[3] == '\0';
+}
+static_assert(IsUtf8_E0E0(kTable[0].glyph), "执行字符集不是 UTF-8，\\u 转义无法得到正确字节");
+
+static_assert(sizeof(kTable) / sizeof(kTable[0]) == kButtonCount, "图标表与 Button 枚举数量不一致");
+
+// 查表用按钮值直接做下标，因此表顺序必须与枚举一致。
+constexpr bool TableOrderOk() {
+    for (std::size_t i = 0; i < kButtonCount; ++i) {
+        if (static_cast<std::size_t>(kTable[i].button) != i) {
+            return false;
+        }
+    }
+    return true;
+}
+static_assert(TableOrderOk(), "kTable 顺序必须与 Button 枚举一致");
+
+const Entry& Find(Button b) { return kTable[static_cast<std::size_t>(b)]; }
+
+} // namespace
+
+const char* Glyph(Button b) { return Find(b).glyph; }
+
+const char* Label(Button b) { return Find(b).label; }
+
+std::uint32_t Code(Button b) { return Find(b).code; }
+
+const char* CodePoint(Button b) {
+    // 4 槽轮转，避免同一表达式里多次调用互相覆盖。
+    static char buffers[4][8];
+    static unsigned next = 0;
+    char* buffer = buffers[next++ % 4];
+    std::snprintf(buffer, sizeof(buffers[0]), "U+%04X", static_cast<unsigned>(Find(b).code));
+    return buffer;
+}
+
+Button FromAction(InputAction action) {
+    switch (action) {
+    case InputAction::Confirm:
+        return Button::A;
+    case InputAction::Cancel:
+        return Button::B;
+    case InputAction::Menu:
+        return Button::Plus;
+    case InputAction::PageLeft:
+        return Button::L;
+    case InputAction::PageRight:
+        return Button::R;
+    case InputAction::Up:
+        return Button::Up;
+    case InputAction::Down:
+        return Button::Down;
+    case InputAction::Left:
+        return Button::Left;
+    case InputAction::Right:
+        return Button::Right;
+    case InputAction::None:
+    default:
+        return Button::Count;
+    }
+}
+
+} // namespace gui_dev::Icons

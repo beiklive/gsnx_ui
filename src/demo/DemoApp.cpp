@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "ui/Icons.h"
 #include "ui/Theme.h"
 #include "ui/UiContext.h"
 
@@ -46,6 +47,28 @@ void LibraryScene::OnRender(UiContext& ui) {
     if (!Components::BeginPanel(ui, "GBAStation · 统一前端组件", subtitle.c_str())) {
         Components::EndPanel();
         return;
+    }
+
+    // ---- 按键图标（私有区字形自检区）---------------------------------------
+    // Switch: HOS 共享字体 PlSharedFontType_NintendoExt
+    // 桌面  : assets/font/switch_icons.ttf
+    Components::SectionHeader(ui, "按键图标 · U+E0xx / U+E1xx 私有区");
+    {
+        constexpr int kColumns = 8;
+        if (ImGui::BeginTable("##button_icons", kColumns, ImGuiTableFlags_SizingStretchSame)) {
+            for (std::size_t i = 0; i < Icons::kButtonCount; ++i) {
+                const Icons::Button button = static_cast<Icons::Button>(i);
+                ImGui::TableNextColumn();
+
+                ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 2.0f);
+                ImGui::TextColored(Theme::ToVec4(Theme::kAccent), "%s", Icons::Glyph(button));
+                ImGui::PopFont();
+
+                ImGui::TextDisabled("%s", Icons::Label(button));
+                ImGui::TextDisabled("%s", Icons::CodePoint(button));
+            }
+            ImGui::EndTable();
+        }
     }
 
     // ---- 游戏库列表 --------------------------------------------------------
@@ -102,8 +125,14 @@ void LibraryScene::OnRender(UiContext& ui) {
 
     Components::EndPanel();
 
-    // 页脚必须在内容区结束后提交。
-    Components::Footer(ui, {{"A", "启动"}, {"B", "返回"}, {"L/R", "翻页"}, {"+", "菜单"}});
+    // 页脚必须在内容区结束后提交。按键提示统一用图标字形，不再写 "[A]" 这类文本。
+    Components::Footer(ui, {
+        {Icons::Glyph(Icons::Button::A), "启动"},
+        {Icons::Glyph(Icons::Button::B), "返回"},
+        {Icons::Glyph(Icons::Button::L), "上一页"},
+        {Icons::Glyph(Icons::Button::R), "下一页"},
+        {Icons::Glyph(Icons::Button::Plus), "菜单"},
+    });
 }
 
 void DemoApp::Configure(BackendConfig& cfg, PlatformKind kind) const {

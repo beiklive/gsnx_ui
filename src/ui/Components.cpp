@@ -66,6 +66,7 @@ void EndPanel() {
 void Footer(UiContext& ui, const std::vector<std::pair<const char*, const char*>>& hints) {
     (void)ui;
     // 内容区用了负高度（-Gap），所以在窗口 cusor 复位后这里紧跟其后。
+    // key 通常是 Icons::Glyph(...) 的字形，也可以是 "F11" 这类文本按键。
     ImGui::BeginChild("##panel_footer", ImVec2(0.0f, Theme::kFooterHeight), ImGuiChildFlags_None,
                       ImGuiWindowFlags_NoScrollbar);
     ImGui::SetCursorPos(ImVec2(Theme::kGapLarge, (Theme::kFooterHeight - ImGui::GetTextLineHeight()) * 0.5f));
@@ -73,7 +74,7 @@ void Footer(UiContext& ui, const std::vector<std::pair<const char*, const char*>
         if (i > 0) {
             ImGui::SameLine(0.0f, Theme::kGapLarge);
         }
-        ImGui::TextColored(Theme::ToVec4(Theme::kAccent), "[%s]", hints[i].first ? hints[i].first : "");
+        ImGui::TextColored(Theme::ToVec4(Theme::kAccent), "%s", hints[i].first ? hints[i].first : "");
         ImGui::SameLine(0.0f, Theme::kGapSmall);
         ImGui::TextDisabled("%s", hints[i].second ? hints[i].second : "");
     }

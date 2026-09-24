@@ -6,6 +6,8 @@
 #include <imgui_impl_sdl2.h>
 #include <imgui_impl_sdlrenderer2.h>
 
+#include "platform/Fonts.h"
+
 namespace gui_dev {
 namespace {
 
@@ -108,6 +110,10 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
     GetDrawableSize(last_drawable_w_, last_drawable_h_);
     ui_scale_ = ComputeUiScale();
     perf_counter_ = SDL_GetPerformanceCounter();
+
+    // 平台字体服务：Switch 上是 pl:u（共享字体）。失败只丢图标，不阻止启动。
+    // 必须在任何 CollectPlatformFontSources 之前完成。
+    PlatformFontsInit();
     return BackendStatus::Ok;
 }
 
@@ -134,6 +140,8 @@ void Sdl2Backend::Shutdown() {
     if (imgui_backend_inited_) {
         ShutdownImGuiBackend();
     }
+    // 字体服务要在 imgui 之后关：共享字体内存在 plExit 后就失效了。
+    PlatformFontsShutdown();
     if (controller_) {
         SDL_GameControllerClose(controller_);
         controller_ = nullptr;

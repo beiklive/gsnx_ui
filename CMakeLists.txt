@@ -85,6 +85,16 @@ if(GUI_DEV_BACKEND STREQUAL "sdl2")
         src/platform/backends/sdl2/Factory.cpp
         ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
         ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer2.cpp)
+
+    # 字体来源按平台各实现一份（Switch: HOS 共享字体；桌面: assets/font/*.ttf）
+    if(GUI_DEV_PLATFORM STREQUAL "switch")
+        target_sources(gui_dev_backend PRIVATE src/platform/backends/sdl2/SwitchFonts.cpp)
+    else()
+        target_sources(gui_dev_backend PRIVATE src/platform/backends/sdl2/DesktopFonts.cpp)
+    endif()
+    target_compile_definitions(gui_dev_backend PRIVATE
+        GUI_DEV_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+
     target_include_directories(gui_dev_backend PUBLIC src)
     target_link_libraries(gui_dev_backend PUBLIC imgui PkgConfig::SDL2)
 elseif(GUI_DEV_BACKEND STREQUAL "glfw")
@@ -107,6 +117,7 @@ add_library(gui_dev STATIC
     src/core/App.cpp
     src/ui/UiContext.cpp
     src/ui/Theme.cpp
+    src/ui/Icons.cpp
     src/ui/Scene.cpp
     src/ui/Components.cpp)
 target_include_directories(gui_dev PUBLIC src)

@@ -55,6 +55,8 @@ public:
 
 private:
     void RebuildFonts();
+    // 字体重建后自检按键图标字形是否齐全（缺了就打印到 stderr）。
+    void ReportIconCoverage() const;
 
     Backend& backend_;
     InputFrame input_;
