@@ -1,0 +1,19 @@
+# ---- build artifacts ----
+build/
+build-*/
+cmake-build-*/
+CMakeUserPresets.json
+compile_commands.json
+
+# ---- switch ----
+*.nro
+*.nso
+*.elf
+*.map
+dist/
+
+# ---- editor / os ----
+.vscode/
+.idea/
+.cache/
+.DS_Store

@@ -1,0 +1,42 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "mac",
+      "displayName": "macOS (SDL2 backend)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/mac",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "GUI_DEV_PLATFORM": "mac",
+        "GUI_DEV_BACKEND": "sdl2",
+        "PKG_CONFIG_EXECUTABLE": "/opt/homebrew/bin/pkg-config"
+      }
+    },
+    {
+      "name": "mac-release",
+      "inherits": "mac",
+      "displayName": "macOS Release",
+      "binaryDir": "${sourceDir}/build/mac-release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "switch",
+      "displayName": "Nintendo Switch (devkitA64, NRO)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/switch",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/Switch.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "GUI_DEV_PLATFORM": "switch",
+        "GUI_DEV_BACKEND": "sdl2"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "mac", "configurePreset": "mac" },
+    { "name": "mac-release", "configurePreset": "mac-release" },
+    { "name": "switch", "configurePreset": "switch" }
+  ]
+}
