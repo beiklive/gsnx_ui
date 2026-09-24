@@ -136,7 +136,7 @@ cmake --preset mac && cmake --build --preset mac
 |---|---|
 | `component_view/Object.h` | Qt 风格信号槽（`Object` / `Signal<Args...>` / `connect` / `emit`） |
 | `component_view/Types.h` | `Rect` / `EdgeInsets` / `BorderStyle` / `ShadowStyle` / `Transform2D` / 布局枚举 |
-| `component_view/Theme.{h,cpp}` | VSCode Dark+ 调色板 + 720p 手持尺寸基准 + `Theme::ApplyToImGui()` |
+| `component_view/Theme.{h,cpp}` | VSCode Dark+ 调色板（**RGBA/ImVec4**）+ 720p 手持尺寸基准 + `Theme::ApplyToImGui()` |
 | `component_view/Draw.{h,cpp}` | 绘制原语：圆角矩形 / 软阴影 / 文本 / 描边 / 省略号 |
 | `component_view/Widget.{h,cpp}` | 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 溢出滚动 / 焦点动画 / 命中测试 / 输入分发 |
 | `component_view/Global.{h,cpp}` | 全局变量：画布 / 鼠标 / 触摸 / 手柄 / 焦点 / 分区 / 输入消费 |
@@ -159,6 +159,25 @@ void OnBuild() override {
 
 `Box` 提供的链式设置：`moveTo / resize / fillWith / roundCorners / outline / dropShadow`
 （名字不能叫 `border` / `shadow` —— 那是 `Widget` 的成员变量）。
+
+### 颜色一律用 RGBA（ImVec4）
+
+`Theme.h` 里的颜色都是 `ImVec4{ r, g, b, a }`（分量 0..1，w 就是 alpha），和 ImGui 的样式系统同一种类型：
+
+```cpp
+inline constexpr ImVec4 kAccent{0.000, 0.478, 0.800, 1.000}; // #007ACC
+```
+
+配套三个工具（都能编译期求值）：
+
+| 工具 | 用途 |
+|---|---|
+| `Theme::RGBA(0xRRGGBBAA)` | 想按十六进制写时用它，避免 `IM_COL32` 的端序打包差异 |
+| `Theme::U32(color)` / `U32(color, alpha)` | 交给 `ImDrawList` / `Widget` 的 `ImU32` 属性时转换 |
+| `Theme::Alpha(color, k)` / `Theme::Mix(a, b, t)` | 改透明度 / 插值（`ImVec4` 与 `ImU32` 两种重载都在） |
+
+`Theme.h` 里还有一组 `static_assert`，保证每个 RGBA 字面量都能精确还原成原来的十六进制
+（换表示形式不改颜色，写错分量编译期就报错）。
 
 ### 坐标系（先记住这三条）
 

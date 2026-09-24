@@ -33,27 +33,27 @@ void ApplyToImGui() {
     style.WindowPadding = ImVec2(kGap, kGap);
 
     ImVec4* c = style.Colors;
-    c[ImGuiCol_Text] = ImGui::ColorConvertU32ToFloat4(kTextPrimary);
-    c[ImGuiCol_TextDisabled] = ImGui::ColorConvertU32ToFloat4(kTextMuted);
-    c[ImGuiCol_WindowBg] = ImGui::ColorConvertU32ToFloat4(kBgEditor);
+    c[ImGuiCol_Text] = kTextPrimary;
+    c[ImGuiCol_TextDisabled] = kTextMuted;
+    c[ImGuiCol_WindowBg] = kBgEditor;
     c[ImGuiCol_ChildBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-    c[ImGuiCol_PopupBg] = ImGui::ColorConvertU32ToFloat4(kBgSideBar);
-    c[ImGuiCol_Border] = ImGui::ColorConvertU32ToFloat4(kBorder);
-    c[ImGuiCol_FrameBg] = ImGui::ColorConvertU32ToFloat4(kBgWidget);
-    c[ImGuiCol_FrameBgHovered] = ImGui::ColorConvertU32ToFloat4(kBgWidgetHi);
-    c[ImGuiCol_FrameBgActive] = ImGui::ColorConvertU32ToFloat4(kBgInput);
-    c[ImGuiCol_TitleBg] = ImGui::ColorConvertU32ToFloat4(kBgActivity);
-    c[ImGuiCol_TitleBgActive] = ImGui::ColorConvertU32ToFloat4(kBgActivity);
-    c[ImGuiCol_Button] = ImGui::ColorConvertU32ToFloat4(kButton);
-    c[ImGuiCol_ButtonHovered] = ImGui::ColorConvertU32ToFloat4(kAccentHover);
-    c[ImGuiCol_ButtonActive] = ImGui::ColorConvertU32ToFloat4(kButtonActive);
-    c[ImGuiCol_Header] = ImGui::ColorConvertU32ToFloat4(kSelection);
-    c[ImGuiCol_HeaderHovered] = ImGui::ColorConvertU32ToFloat4(kAccent);
-    c[ImGuiCol_HeaderActive] = ImGui::ColorConvertU32ToFloat4(kAccentHover);
-    c[ImGuiCol_CheckMark] = ImGui::ColorConvertU32ToFloat4(kAccent);
-    c[ImGuiCol_SliderGrab] = ImGui::ColorConvertU32ToFloat4(kAccent);
-    c[ImGuiCol_SliderGrabActive] = ImGui::ColorConvertU32ToFloat4(kAccentHover);
-    c[ImGuiCol_Separator] = ImGui::ColorConvertU32ToFloat4(kBorder);
+    c[ImGuiCol_PopupBg] = kBgSideBar;
+    c[ImGuiCol_Border] = kBorder;
+    c[ImGuiCol_FrameBg] = kBgWidget;
+    c[ImGuiCol_FrameBgHovered] = kBgWidgetHi;
+    c[ImGuiCol_FrameBgActive] = kBgInput;
+    c[ImGuiCol_TitleBg] = kBgActivity;
+    c[ImGuiCol_TitleBgActive] = kBgActivity;
+    c[ImGuiCol_Button] = kButton;
+    c[ImGuiCol_ButtonHovered] = kAccentHover;
+    c[ImGuiCol_ButtonActive] = kButtonActive;
+    c[ImGuiCol_Header] = kSelection;
+    c[ImGuiCol_HeaderHovered] = kAccent;
+    c[ImGuiCol_HeaderActive] = kAccentHover;
+    c[ImGuiCol_CheckMark] = kAccent;
+    c[ImGuiCol_SliderGrab] = kAccent;
+    c[ImGuiCol_SliderGrabActive] = kAccentHover;
+    c[ImGuiCol_Separator] = kBorder;
 }
 
 } // namespace gui_dev::cv::Theme

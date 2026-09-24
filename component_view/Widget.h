@@ -114,7 +114,7 @@ public:
     float focus_animation_speed = 16.0f;
     float focus_frame_width = 2.0f;
     float focus_frame_offset = 4.0f;
-    ImU32 focus_frame_color = Theme::kAccent;
+    ImU32 focus_frame_color = Theme::U32(Theme::kAccent);
     float disabled_opacity = 0.45f;
 
     // ---- 每帧由子类设置的即时视觉变换（按压缩放等） ------------------------

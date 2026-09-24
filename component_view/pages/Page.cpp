@@ -54,7 +54,7 @@ void Page::Render() {
         return;
     }
     const Rect canvas = Global::CanvasRect();
-    dl->AddRectFilled(canvas.min, canvas.max, Theme::kBgEditor); // VSCode 底色，不用纯黑
+    dl->AddRectFilled(canvas.min, canvas.max, Theme::U32(Theme::kBgEditor)); // VSCode 底色，不用纯黑
 
     if (root_ != nullptr) {
         root_->DrawTree(dl);

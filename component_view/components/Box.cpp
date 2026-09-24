@@ -6,7 +6,7 @@ namespace gui_dev::cv {
 
 Box::Box() : Widget("box") {
     // 默认给一个可见的底色，免得新建出来「什么都没有」看不出位置
-    background = Theme::kBgWidget;
+    background = Theme::U32(Theme::kBgWidget);
     corner_radius = Theme::kRadius;
 }
 

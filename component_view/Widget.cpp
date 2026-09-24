@@ -646,7 +646,7 @@ void Widget::DrawScrollBar(ImDrawList* dl) {
         const float x = draw_rect_.max.x - inset - thickness;
         const Rect bar = Rect::FromPosSize(ImVec2(x, draw_rect_.min.y + inset + travel * progress),
                                           ImVec2(thickness, bar_h));
-        Draw::RoundedRectFilled(dl, bar, Theme::Alpha(Theme::kTextMuted, scroll_bar_alpha_ * 0.9f), thickness * 0.5f,
+        Draw::RoundedRectFilled(dl, bar, Theme::U32(Theme::Alpha(Theme::kTextMuted, scroll_bar_alpha_ * 0.9f)), thickness * 0.5f,
                                 thickness * 0.5f, thickness * 0.5f, thickness * 0.5f);
     }
     if (scroll_max.x > 0.5f && draw_rect_.Width() > 1.0f) {
@@ -659,7 +659,7 @@ void Widget::DrawScrollBar(ImDrawList* dl) {
         const float y = draw_rect_.max.y - inset - thickness;
         const Rect bar = Rect::FromPosSize(ImVec2(draw_rect_.min.x + inset + travel * progress, y),
                                           ImVec2(bar_w, thickness));
-        Draw::RoundedRectFilled(dl, bar, Theme::Alpha(Theme::kTextMuted, scroll_bar_alpha_ * 0.9f), thickness * 0.5f,
+        Draw::RoundedRectFilled(dl, bar, Theme::U32(Theme::Alpha(Theme::kTextMuted, scroll_bar_alpha_ * 0.9f)), thickness * 0.5f,
                                 thickness * 0.5f, thickness * 0.5f, thickness * 0.5f);
     }
 }
