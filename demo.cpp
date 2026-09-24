@@ -1,11 +1,9 @@
-// demo.cpp —— 手柄优先的控件库 Demo 入口。
+// demo.cpp —— 演示入口（当前从最小状态开始：页面左上角只有一个 128x128 的 Box）。
 //
-// 只做三件事：
-//   1. 把页面挂进 pages_（当前只有一个 ShowcaseShell：左侧 16 个控件 Tab + 右侧展示区）
-//   2. 每帧驱动：Global（输入/画布）→ Page::Update → Page::Render
-//   3. 处理脚本化退出（GUI_DEV_EXIT_AFTER）与窗口尺寸（GUI_DEV_WINDOW）
-//
-// 组件与页面都在 component_view/ 下，这里不实现任何控件。
+// 结构很简单：
+//   1. DemoPage 往页面里放组件（现在只有 Box）
+//   2. DemoApp 每帧驱动：Global（输入/画布）→ Page::Update → Page::Render
+//   3. 保留三个调试开关：GUI_DEV_WINDOW=WxH、GUI_DEV_NO_VSYNC=1、GUI_DEV_EXIT_AFTER=<帧数>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -13,14 +11,40 @@
 
 #include "component_view/Global.h"
 #include "component_view/Theme.h"
-#include "component_view/pages/ShowcaseShell.h"
+#include "component_view/components/Box.h"
+#include "component_view/pages/Page.h"
 #include "core/App.h"
 #include "ui/Scene.h"
 #include "ui/UiContext.h"
 
 namespace {
 
-// 组件页面是即时模式渲染（App::OnFrame 里直接画），不用 Scene 栈；
+using gui_dev::cv::Box;
+using gui_dev::cv::Page;
+
+// ---------------------------------------------------------------- 页面 ----
+
+class DemoPage : public Page {
+public:
+    const char* Title() const override { return "component_view"; }
+
+    void OnBuild() override {
+        // 页面左上角放一个 128x128 的盒子。
+        // moveTo(0, 0) 就是页面的左上角（根节点没有 padding），想挪位置改这两个数即可。
+        box_ = Root().Emplace<Box>("box");
+        box_->moveTo(0.0f, 0.0f);
+        box_->resize(128.0f, 128.0f);
+        box_->fillWith(gui_dev::cv::Theme::kBgWidget);
+        box_->roundCorners(gui_dev::cv::Theme::kRadius);
+    }
+
+private:
+    Box* box_ = nullptr;
+};
+
+// ------------------------------------------------------------------ App ----
+
+// 页面是即时模式渲染（App::OnFrame 里直接画），不用 Scene 栈；
 // 但主循环把「栈空」当作应用结束，所以压一个空壳场景占住栈顶。
 class HostScene : public gui_dev::Scene {
 public:
@@ -37,7 +61,6 @@ public:
         cfg.height = 720;
         cfg.vsync = true;
         cfg.resizable = true;
-
         if (const char* size = std::getenv("GUI_DEV_WINDOW")) {
             int width = 0;
             int height = 0;
@@ -58,10 +81,8 @@ public:
         gui_dev::cv::Theme::ApplyToImGui();
         Scenes().Reset(std::make_unique<HostScene>());
 
-        // ---- 页面登记：16 个控件页都在 ShowcaseShell 里 --------------------
-        auto shell = std::make_unique<gui_dev::cv::ShowcaseShell>();
-        shell->Bind(ui);
-        pages_.push_back(std::move(shell));
+        page_ = std::make_unique<DemoPage>();
+        page_->Bind(ui);
 
         if (const char* value = std::getenv("GUI_DEV_EXIT_AFTER")) {
             exit_after_ = std::atoi(value);
@@ -70,11 +91,9 @@ public:
 
     void OnFrame(gui_dev::UiContext& ui, float dt) override {
         gui_dev::cv::Global::BeginFrame(ui);
-        // 所有按键都交给控件自己处理（Focus 是核心状态，页面不做额外分发）。
-        if (!pages_.empty()) {
-            gui_dev::cv::Page& page = *pages_[static_cast<std::size_t>(page_index_)];
-            page.Update(dt);
-            page.Render();
+        if (page_ != nullptr) {
+            page_->Update(dt);
+            page_->Render();
         }
         gui_dev::cv::Global::EndFrame();
 
@@ -85,13 +104,12 @@ public:
 
     void OnShutdown(gui_dev::UiContext& ui) override {
         (void)ui;
-        // 页面持有纹理：必须在后端关闭前释放，否则退出时会访问已销毁的渲染器。
-        pages_.clear();
+        // 页面可能持有纹理等后端资源：必须在后端关闭前释放
+        page_.reset();
     }
 
 private:
-    std::vector<std::unique_ptr<gui_dev::cv::Page>> pages_;
-    int page_index_ = 0;
+    std::unique_ptr<DemoPage> page_;
     int frame_ = 0;
     int exit_after_ = 0;
 };
