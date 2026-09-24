@@ -13,18 +13,18 @@ namespace {
 struct Card {
     const char* title;
     const char* subtitle;
-    Icons::Button icon;
+    Icons::Material icon;
 };
 
 constexpr Card kCards[] = {
-    {"游戏库", "扫描并启动 ROM", Icons::Button::X},
-    {"存档", "备份与恢复存档", Icons::Button::Y},
-    {"设置", "按键映射 / 画面", Icons::Button::Plus},
-    {"更新", "核心与资源更新", Icons::Button::Minus},
-    {"金手指", "Cheat 代码管理", Icons::Button::ZL},
-    {"截图", "查看与导出截图", Icons::Button::ZR},
-    {"关于", "版本与许可", Icons::Button::L3},
-    {"退出", "返回 HOS", Icons::Button::R3},
+    {"游戏库", "扫描并启动 ROM", Icons::Material::SportsEsports},
+    {"存档", "备份与恢复存档", Icons::Material::Save},
+    {"设置", "按键映射 / 画面", Icons::Material::Settings},
+    {"更新", "核心与资源更新", Icons::Material::Update},
+    {"金手指", "Cheat 代码管理", Icons::Material::Memory},
+    {"截图", "查看与导出截图", Icons::Material::PhotoLibrary},
+    {"关于", "版本与许可", Icons::Material::HelpOutline},
+    {"退出", "返回 HOS", Icons::Material::Close},
 };
 
 constexpr int kCardCount = static_cast<int>(sizeof(kCards) / sizeof(kCards[0]));

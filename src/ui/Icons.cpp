@@ -57,6 +57,81 @@ static_assert(TableOrderOk(), "kTable 顺序必须与 Button 枚举一致");
 
 const Entry& Find(Button b) { return kTable[static_cast<std::size_t>(b)]; }
 
+// ---- Material Icons -------------------------------------------------------
+
+struct MaterialEntry {
+    Material icon;
+    const char* label;
+    std::uint32_t code;
+};
+
+// 码位来自 GBAStation/src/ui/utils/MaterialIcons.hpp，已逐个核对在本字体中存在。
+constexpr MaterialEntry kMaterialTable[] = {
+    {Material::Edit, "edit", 0xE3C9},
+    {Material::Image, "image", 0xE3F4},
+    {Material::InstallApp, "install_app", 0xE884},
+    {Material::Memory, "memory", 0xE322},
+    {Material::Storage, "storage", 0xE1DB},
+    {Material::Delete, "delete", 0xE872},
+    {Material::DeleteSweep, "delete_sweep", 0xE16C},
+    {Material::Favorite, "favorite", 0xE87D},
+    {Material::FavoriteBorder, "favorite_border", 0xE87E},
+    {Material::CheckBox, "check_box", 0xE834},
+    {Material::SelectAll, "select_all", 0xE162},
+    {Material::Close, "close", 0xE5CD},
+    {Material::Play, "play_arrow", 0xE037},
+    {Material::Settings, "settings", 0xE8B8},
+    {Material::Update, "update", 0xE923},
+    {Material::Description, "description", 0xE873},
+    {Material::Search, "search", 0xE8B6},
+    {Material::ImagePlaceholder, "image_placeholder", 0xE3F4},
+    {Material::CheckBoxOutline, "check_box_outline", 0xE835},
+    {Material::Wifi, "wifi", 0xE63E},
+    {Material::WifiOff, "wifi_off", 0xE648},
+    {Material::Save, "save", 0xE161},
+    {Material::Backup, "backup", 0xE864},
+    {Material::Restore, "restore", 0xE8B3},
+    {Material::CloudUpload, "cloud_upload", 0xE2C6},
+    {Material::CloudDownload, "cloud_download", 0xE2C4},
+    {Material::PhotoLibrary, "photo_library", 0xE413},
+    {Material::Folder, "folder", 0xE2C7},
+    {Material::Games, "games", 0xE30F},
+    {Material::SportsEsports, "sports_esports", 0xEAE2},
+    {Material::VideogameAsset, "videogame_asset", 0xEA1F},
+    {Material::PhoneAndroid, "phone_android", 0xE324},
+    {Material::Archive, "archive", 0xE149},
+    {Material::FileGame, "file_game", 0xE338},
+    {Material::HelpOutline, "help_outline", 0xE8FD},
+};
+
+static_assert(sizeof(kMaterialTable) / sizeof(kMaterialTable[0]) == kMaterialCount,
+              "Material 图标表与枚举数量不一致");
+
+constexpr bool MaterialOrderOk() {
+    for (std::size_t i = 0; i < kMaterialCount; ++i) {
+        if (static_cast<std::size_t>(kMaterialTable[i].icon) != i) {
+            return false;
+        }
+    }
+    return true;
+}
+static_assert(MaterialOrderOk(), "kMaterialTable 顺序必须与 Material 枚举一致");
+
+const MaterialEntry& Find(Material m) { return kMaterialTable[static_cast<std::size_t>(m)]; }
+
+// Material 码位全部落在 U+0800..U+FFFF，UTF-8 固定 3 字节。
+// 手写 35 条 \uXXXX 转义没必要，直接按码位编码更不容易错。
+const char* Utf8FromBmpCodePoint(std::uint32_t code) {
+    static char buffers[8][4];
+    static unsigned next = 0;
+    char* buffer = buffers[next++ % 8];
+    buffer[0] = static_cast<char>(0xE0u | ((code >> 12) & 0x0Fu));
+    buffer[1] = static_cast<char>(0x80u | ((code >> 6) & 0x3Fu));
+    buffer[2] = static_cast<char>(0x80u | (code & 0x3Fu));
+    buffer[3] = '\0';
+    return buffer;
+}
+
 } // namespace
 
 const char* Glyph(Button b) { return Find(b).glyph; }
@@ -99,5 +174,11 @@ Button FromAction(InputAction action) {
         return Button::Count;
     }
 }
+
+const char* Glyph(Material m) { return Utf8FromBmpCodePoint(Find(m).code); }
+
+const char* Label(Material m) { return Find(m).label; }
+
+std::uint32_t Code(Material m) { return Find(m).code; }
 
 } // namespace gui_dev::Icons

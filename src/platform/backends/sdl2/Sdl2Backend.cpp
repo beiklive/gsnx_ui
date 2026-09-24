@@ -8,6 +8,7 @@
 
 #include "platform/AssetPaths.h"
 #include "platform/Fonts.h"
+#include "platform/Platform.h"
 #include "platform/backends/sdl2/PngLoader.h"
 
 namespace gui_dev {
@@ -113,9 +114,9 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
     ui_scale_ = ComputeUiScale();
     perf_counter_ = SDL_GetPerformanceCounter();
 
-    // 平台字体服务：Switch 上是 pl:u（共享字体）。失败只丢图标，不阻止启动。
-    // 必须在任何 CollectPlatformFontSources 之前完成。
-    PlatformFontsInit();
+    // 平台服务：Switch 上是 pl:u（共享字体）与 romfs（打包资源）。
+    // 失败只丢字体/图标，不阻止启动；必须在字体收集与纹理加载之前完成。
+    PlatformServicesInit();
     return BackendStatus::Ok;
 }
 
@@ -142,8 +143,8 @@ void Sdl2Backend::Shutdown() {
     if (imgui_backend_inited_) {
         ShutdownImGuiBackend();
     }
-    // 字体服务要在 imgui 之后关：共享字体内存在 plExit 后就失效了。
-    PlatformFontsShutdown();
+    // 平台服务要在 imgui 之后关：共享字体内存在 plExit 后就失效了。
+    PlatformServicesShutdown();
     if (controller_) {
         SDL_GameControllerClose(controller_);
         controller_ = nullptr;

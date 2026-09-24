@@ -28,15 +28,17 @@ GUI_DEV/
 │   │   └── Components.{h,cpp}  # 页骨架 / 可聚焦 Box / 列表 / 开关 / 进度 / 弹窗
 │   ├── platform/               # ★ 平台层：唯一的平台接缝
 │   │   ├── Backend.h           # 后端接口 + PlatformKind + Texture
-│   │   ├── Fonts.h             # 字体来源接口（文本 / 按键图标）
+│   │   ├── Fonts.h             # 字体来源接口（主字体 / 按键图标 / Material 图标）
+│   │   ├── Platform.h          # 平台服务生命周期（pl、romfs）
 │   │   ├── AssetPaths.h        # assets/ 相对路径解析
 │   │   ├── Input.h             # 抽象输入动作（Up/Confirm/...）
-│   │   └── backends/sdl2/      # SDL2 后端 + 工厂 + 字体/资产/PNG 解码
+│   │   └── backends/sdl2/      # SDL2 后端 + 工厂 + 平台实现 + PNG 解码
 │   ├── demo/                   # 示例 App
 │   └── main.cpp
 ├── third_party/imgui/          # submodule
+├── docs/ui-preview.png         # 界面快照（人工核对用，非构建产物）
 ├── assets/
-│   ├── font/                   # 字体（switch_icons.ttf 已入库）
+│   ├── font/                   # switch_font.ttf / switch_icons.ttf / MaterialIcons-Regular.ttf
 │   └── img/                    # UI 图片（border_gradient.png）
 └── build/                      # 构建产物（已 gitignore）
 ```
@@ -154,8 +156,36 @@ if (tex.Valid()) ImGui::Image(tex.ImGuiRef(), tex.Size());
   与源码目录；Switch 查 `sdmc:/switch/GUI_DEV/assets/` 与 `romfs:/`。
 - 解码：**libpng**（mac homebrew / Switch portlibs 都自带）。没用 SDL_image
   （mac 上没装），也没 vendored stb_image。
-- Switch 构建会把 `assets/img/` 拷到 `dist/assets/img/`，随 NRO 一起丢到
-  `sdmc:/switch/GUI_DEV/assets/` 即可。字体目录不进 romfs（10MB+ 会撑爆 NRO）。
+- Switch romfs 只打包 `img/` 与 `font/MaterialIcons-Regular.ttf`：
+  `switch_font.ttf`(10.9MB) 与 `switch_icons.ttf` 用不到（走 pl 共享字体），不进 romfs，
+  否则 NRO 会从 7.6MB 涨到 18MB+。要换图可以直接改 `sdmc:/switch/GUI_DEV/assets/` 覆盖 romfs。
+
+## 字体栈
+
+三类字形，来源按平台不同，但 `src/ui` 只认 `FontSource`：
+
+| 内容 | mac（`assets/font/`） | Switch |
+|---|---|---|
+| 主文本字体 | `switch_font.ttf`（HOS 转出，与实机排版一致） | pl `PlSharedFontType_Standard` |
+| 中文补充 | ——（主字体已含 CJK） | pl `PlSharedFontType_ChineseSimplified` |
+| 按键图标 | `switch_icons.ttf`（NintendoExt 转出） | pl `PlSharedFontType_NintendoExt` |
+| Material 图标 | `MaterialIcons-Regular.ttf` | 同左，**打包进 NRO 的 romfs** |
+
+全部通过 `assets/` 或 pl 加载，没有字体文件时最后兜底到系统 CJK 字体、再兜底到 imgui 内置字体。
+
+### 合并字体必须声明 GlyphExcludeRanges
+
+`FontSource::content` 声明这个源负责哪类字形（`Text` / `ButtonIcons` / `MaterialIcons`），
+`UiContext` 据此给每个源算出 `ImFontConfig::GlyphExcludeRanges`。
+
+不声明会踩一个很隐蔽的坑：**合并字体时同一码位由「第一个能提供它的源」胜出**，而
+NintendoExt / `switch_icons.ttf` 覆盖了整整 **1022 个私用区码位**（大量空白占位字形），
+其中 **553 个与 MaterialIcons 重叠**。结果是 `save`(U+E161)、`play_arrow`(U+E037)、
+`storage`(U+E1DB)、`archive`(U+E149)、`select_all`(U+E162)、`delete_sweep`(U+E16C)
+等一大批 Material 图标会被渲染成 NintendoExt 的空方块。
+
+规则：每个源排除「其它源拥有的、且不属于自己」的码位（见 `UiContext::RebuildFonts`）。
+`exclusion_` 成员必须活到字体销毁——imgui 只存 `GlyphExcludeRanges` 指针。
 
 ## 按键图标（任天堂私用区）
 
@@ -186,9 +216,28 @@ Components::EndPanel(ui, {{Icons::Glyph(Icons::Button::B), "返回"}});
 
 - 私用区码位属于字体协议，**只能通过 `Icons::Glyph()` 使用**，不要手写 UTF-8 字节。
 - `Icons.cpp` 有 `static_assert` 校验执行字符集是 UTF-8（`\uE0E0` → `EE 83 A0`）。
-- 字体重建后 `UiContext` 会做覆盖率自检，缺字形直接打到 stderr：`按键图标 16/16 全部就绪`
-  或 `按键图标缺字形：X, Y（共 16 个）`。
+- 字体重建后 `UiContext` 会做覆盖率自检，缺字形直接打到 stderr：
+
+```text
+[gui_dev] 字形自检：按键图标 全部就绪（共 16），Material 图标 全部就绪（共 35）
+```
+
 - 图标字形走 imgui 1.92 的动态光栅化，**不要**传 glyph ranges，也不要手工 `Build()` 图集。
+
+## Material 图标
+
+```cpp
+#include "ui/Icons.h"
+ImGui::TextUnformatted(Icons::Glyph(Icons::Material::Save));   // 软盘
+ImGui::TextUnformatted(Icons::Glyph(Icons::Material::Settings));
+```
+
+- 35 个码位与 `GBAStation/src/ui/utils/MaterialIcons.hpp` 一致，并已逐个核对存在；
+  全部通过渲染目录逐个确认字形正确（不要凭名字猜码位，本字体有 PUA 段与 NintendoExt 重叠）。
+- `Glyph(Material)` 由码位在运行时编码成 UTF-8（BMP 固定 3 字节），返回内部轮转缓冲，
+  仅用于当帧绘制；跨帧保存请自行 `std::string`。
+- `MaterialIcons-Regular.ttf` **必须随应用发布**：Switch 上打进 NRO 的 romfs（见下），
+  mac 上从 `assets/font/` 读。
 
 ## 已接入的上游约束
 
@@ -212,10 +261,12 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
 ## 状态
 
 - 已确认：mac（Debug/Release）与 Switch（NRO）均可编译通过；mac 端连续运行无崩溃、无
-  imgui 断言；`border_gradient.png` 加载为 512×4 纹理；按键图标运行时自检
-  `16/16 全部就绪`；抓帧核对过：画布铺满 1280×720、8 个 Box 栅格排布、焦点 Box 的
-  流光边框完整闭合、注入一次方向键右后焦点正确移到下一项。
-- 未验证：NRO 在实机/模拟器上的运行表现（含 HOS NintendoExt 字形与 pl 共享字体）；
-  Switch 端主字体仍回退到 imgui 内置字体，非私用区的中文会缺字形；Switch 端尚未接入
-  libnx 分辨率切换（手持↔底座）与 HOME 键退出，钩子已留在
-  `Backend::DisplayGeneration()` 与 `Backend::ShouldQuit()`。
+  imgui 断言；抓帧核对过：画布铺满 1280×720、8 个 Box 栅格排布、焦点 Box 的流光边框
+  完整闭合、注入一次方向键右后焦点正确右移、主字体为 HOS `switch_font.ttf`、
+  16 个按键图标与 35 个 Material 图标逐个渲染正确；Switch NRO 内已确认含
+  `font/MaterialIcons-Regular.ttf` 与 `img/border_gradient.png` 的 romfs。
+  界面快照见 `docs/ui-preview.png`。
+- 未验证：NRO 在实机/模拟器上的运行表现（含 HOS 共享字体与 NintendoExt 的实际字形、
+  romfsInit 是否成功、Material 图标在实机上的渲染）。
+- 已知取舍：`assets/font/switch_font.ttf` 10.9MB 进了 git。仓库体积敏感的话建议转
+  Git LFS 或按需本地放置（mac 端缺它会退回系统 CJK 字体，不影响 Switch）。

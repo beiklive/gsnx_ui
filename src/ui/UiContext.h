@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <imgui.h>
 #include <imgui_stdlib.h>
@@ -55,11 +56,13 @@ public:
 
 private:
     void RebuildFonts();
-    // 字体重建后自检按键图标字形是否齐全（缺了就打印到 stderr）。
-    void ReportIconCoverage() const;
+    // 字体重建后自检按键图标 / Material 图标的字形是否齐全（缺了打印到 stderr）。
+    void ReportGlyphCoverage() const;
 
     Backend& backend_;
     InputFrame input_;
+    // 各字体源的 GlyphExcludeRanges 存储：imgui 只存指针，必须活到字体销毁。
+    std::vector<std::vector<ImWchar>> exclusion_;
     std::uint32_t last_display_generation_ = 0;
     bool fonts_built_ = false;
 };

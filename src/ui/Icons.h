@@ -52,4 +52,56 @@ const char* CodePoint(Button b);
 // 无对应图标时返回 Button::Count。
 Button FromAction(InputAction action);
 
+// ---- Material Icons -------------------------------------------------------
+// 谷歌 Material 图标，字形来自 assets/font/MaterialIcons-Regular.ttf
+// （Switch 上打包进 NRO 的 romfs）。码位与 GBAStation/src/ui/utils/MaterialIcons.hpp
+// 一致，并已逐个核对存在。
+enum class Material : std::uint8_t {
+    Edit,
+    Image,
+    InstallApp,
+    Memory,
+    Storage,
+    Delete,
+    DeleteSweep,
+    Favorite,
+    FavoriteBorder,
+    CheckBox,
+    SelectAll,
+    Close,
+    Play,
+    Settings,
+    Update,
+    Description,
+    Search,
+    ImagePlaceholder,
+    CheckBoxOutline,
+    Wifi,
+    WifiOff,
+    Save,
+    Backup,
+    Restore,
+    CloudUpload,
+    CloudDownload,
+    PhotoLibrary,
+    Folder,
+    Games,
+    SportsEsports,
+    VideogameAsset,
+    PhoneAndroid,
+    Archive,
+    FileGame,
+    HelpOutline,
+    Count,
+};
+
+inline constexpr std::size_t kMaterialCount = static_cast<std::size_t>(Material::Count);
+
+// 字形（UTF-8）。返回指向内部轮转缓冲的指针，仅用于当帧绘制。
+const char* Glyph(Material m);
+// 可读名称："settings"
+const char* Label(Material m);
+// 码位数值，用于字体覆盖率自检。
+std::uint32_t Code(Material m);
+
 } // namespace gui_dev::Icons

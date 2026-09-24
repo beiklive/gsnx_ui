@@ -92,11 +92,11 @@ if(GUI_DEV_BACKEND STREQUAL "sdl2")
         ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
         ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer2.cpp)
 
-    # 字体来源按平台各实现一份（Switch: HOS 共享字体；桌面: assets/font/*.ttf）
+    # 字体来源按平台各实现一份（Switch: pl 共享字体 + romfs；桌面: assets/font/*.ttf）
     if(GUI_DEV_PLATFORM STREQUAL "switch")
-        target_sources(gui_dev_backend PRIVATE src/platform/backends/sdl2/SwitchFonts.cpp)
+        target_sources(gui_dev_backend PRIVATE src/platform/backends/sdl2/SwitchPlatform.cpp)
     else()
-        target_sources(gui_dev_backend PRIVATE src/platform/backends/sdl2/DesktopFonts.cpp)
+        target_sources(gui_dev_backend PRIVATE src/platform/backends/sdl2/DesktopPlatform.cpp)
     endif()
     target_compile_definitions(gui_dev_backend PRIVATE
         GUI_DEV_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
@@ -142,22 +142,24 @@ if(GUI_DEV_PLATFORM STREQUAL "switch")
     set(NACP_AUTHOR "GBAStation")
     set(NACP_VERSION "${PROJECT_VERSION}")
 
-    set(GUI_DEV_NRO_ICON "")
+    # romfs 只放 Switch 端真正需要的运行时资源：
+    #   img/  界面图片
+    #   font/MaterialIcons-Regular.ttf  谷歌图标字体（必须随 NRO 发布）
+    # 不放 font/switch_font.ttf(10.9MB) 与 switch_icons.ttf：Switch 走 pl 共享字体。
+    set(GUI_DEV_ROMFS_DIR "${CMAKE_BINARY_DIR}/romfs")
+    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets/img" DESTINATION "${GUI_DEV_ROMFS_DIR}")
+    file(MAKE_DIRECTORY "${GUI_DEV_ROMFS_DIR}/font")
+    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets/font/MaterialIcons-Regular.ttf"
+         DESTINATION "${GUI_DEV_ROMFS_DIR}/font")
+
+    set(GUI_DEV_NRO_ARGS OUTPUT "${CMAKE_BINARY_DIR}/dist/gui_dev_demo.nro"
+        ROMFS "${GUI_DEV_ROMFS_DIR}")
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
-        set(GUI_DEV_NRO_ICON "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
+        list(APPEND GUI_DEV_NRO_ARGS ICON "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
     endif()
+    nx_create_nro(gui_dev_demo ${GUI_DEV_NRO_ARGS})
 
-    if(GUI_DEV_NRO_ICON)
-        nx_create_nro(gui_dev_demo
-            OUTPUT "${CMAKE_BINARY_DIR}/dist/gui_dev_demo.nro"
-            ICON "${GUI_DEV_NRO_ICON}")
-    else()
-        nx_create_nro(gui_dev_demo
-            OUTPUT "${CMAKE_BINARY_DIR}/dist/gui_dev_demo.nro")
-    endif()
-
-    # 把运行时图片拷到 NRO 旁边，方便一起丢到 sdmc:/switch/GUI_DEV/assets/
-    # （assets 里的 10MB 字体不进 romfs，否则 NRO 会爆）。
+    # 图片额外拷一份到 NRO 旁边，方便用 sdmc:/switch/GUI_DEV/assets/ 覆盖 romfs 里的版本。
     add_custom_command(TARGET gui_dev_demo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/assets/img"
