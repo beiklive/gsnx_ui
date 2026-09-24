@@ -23,7 +23,7 @@ void SliderPage::Build(Widget* host, UiContext& ui) {
     volume_->SetSize(680.0f, 52.1f);
     volume_->SetStep(1.0f, 10.0f, 25.0f);
     volume_->show_percent = true;
-    volume_->on_changed = [this](Slider& slider, float value) {
+    connect(volume_, &Slider::valueChanged, this, [this](float value) {
         if (status_ != nullptr) {
             char buffer[96];
             std::snprintf(buffer, sizeof(buffer), "音量已应用：%d%%", static_cast<int>(value));
@@ -32,7 +32,7 @@ void SliderPage::Build(Widget* host, UiContext& ui) {
         if (meter_ != nullptr) {
             meter_->SetValue(value);
         }
-    };
+    });
 
     speed_ = column->Emplace<Slider>("快进倍速", 2.0f, 0.5f, 8.0f);
     speed_->SetName("slider_speed");
@@ -40,13 +40,13 @@ void SliderPage::Build(Widget* host, UiContext& ui) {
     speed_->SetStep(0.5f, 2.0f, 4.0f);
     speed_->show_percent = false; // 显示原始值
     speed_->fill_color = Theme::kOrange;
-    speed_->on_changed = [this](Slider& slider, float value) {
+    connect(speed_, &Slider::valueChanged, this, [this](float value) {
         if (status_ != nullptr) {
             char buffer[96];
             std::snprintf(buffer, sizeof(buffer), "倍速已应用：%.1fx", value);
             status_->text = buffer;
         }
-    };
+    });
 
     // 与进度条联动，直观看到数值变化
     Box* meter_row = helpers::Row(column, 14.0f);

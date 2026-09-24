@@ -1,7 +1,7 @@
 // Menu：游戏内菜单（垂直/水平、嵌套子菜单、分隔符、图标、快捷键提示、分页、LR 导航）。
 //
 //   ↑ ↓ / ← →   移动光标（方向由 vertical 决定）
-//   A           激活：普通项回调 on_activate；有子菜单的进入子菜单
+//   A           激活：普通项 emit triggered(index)；有子菜单的进入子菜单
 //   B           返回上一级子菜单（在根菜单时不消费，交回页面）
 //   L / R       切换菜单分区（sections > 1 时显示分页指示）
 //   ZL / ZR     第一项 / 最后一项
@@ -54,8 +54,10 @@ public:
     ImU32 shortcut_color = Theme::kTextMuted;
     ImU32 indicator_color = Theme::kAccent;
 
-    std::function<void(Menu&, int)> on_activate;
-    std::function<void(Menu&, int)> on_focus_changed;
+signals:
+    Signal<int> triggered;   // A 激活某项
+    Signal<int> highlighted; // 光标项变化
+public:
 
     // ---- 构建 --------------------------------------------------------------
     Menu& SetTitle(std::string value);

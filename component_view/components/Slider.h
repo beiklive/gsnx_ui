@@ -3,7 +3,7 @@
 //   ← →        调整（步进 = step）
 //   L / R      快速调整（fast_step）
 //   ZL / ZR    大步调整（page_step）
-//   A          确认（把当前值写回并触发 on_changed）
+//   A          确认（触发 valueChanged / sliderReleased）
 //   B          取消（回到聚焦时的值）
 // 视觉：Track / Fill / Thumb / 焦点放大 / 数值百分比 / 平滑数值动画。
 #pragma once
@@ -41,8 +41,10 @@ public:
     ImU32 label_color = Theme::kTextPrimary;
     ImU32 value_color = Theme::kTextMuted;
 
-    std::function<void(Slider&, float)> on_changed;
-
+signals:
+    Signal<float> valueChanged;    // Qt 命名
+    Signal<float> sliderReleased;  // A 应用 / B 回滚后
+public:
     Slider& SetRange(float min_value, float max_value);
     Slider& SetValue(float next, bool notify = false);
     Slider& SetLabel(std::string value);

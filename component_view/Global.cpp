@@ -68,19 +68,15 @@ void SetFocus(Widget* widget) {
     if (focused == widget) {
         return;
     }
+    // 只改状态：focusIn/focusOut 由 Widget::UpdateInteraction 检测跳变后发射，
+    // 保证「手动 SetFocus」和「导航自动换焦点」走同一条信号路径。
     Widget* previous = focused;
     focused = widget;
     if (previous != nullptr) {
         previous->focused = false;
-        if (previous->on_blur) {
-            previous->on_blur(*previous);
-        }
     }
     if (focused != nullptr) {
         focused->focused = true;
-        if (focused->on_focus) {
-            focused->on_focus(*focused);
-        }
     }
 }
 

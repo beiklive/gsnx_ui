@@ -36,10 +36,10 @@ void ListPage::Build(Widget* host, UiContext& ui) {
                            std::string(6 + (i * 3) % 9, ' ') + std::to_string(2048 + i * 128) + " KB");
     }
     vertical_->SetItemDisabled(3, true);
-    vertical_->on_activate = [this](List& list, int index) {
+    connect(vertical_, &List::itemActivated, this, [this](int index) {
         activated_ = index;
-        list.SetSelectedIndex(index);
-    };
+        vertical_->SetSelectedIndex(index);
+    });
 
     Box* column = helpers::Column(row, 12.0f);
     column->SetSize(0.0f, 210.0f);

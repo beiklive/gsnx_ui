@@ -34,7 +34,7 @@ void DialogPage::Build(Widget* host, UiContext& ui) {
         button->Secondary().FitContent(14.0f, 40.6f);
         const int buttons = scenario.buttons;
         const bool vertical = scenario.vertical;
-        button->on_click = [this, buttons, vertical](Widget&) {
+        connect(button, &Button::clicked, this, [this, buttons, vertical] {
             if (dialog_ == nullptr || overlay_ == nullptr) {
                 return;
             }
@@ -54,7 +54,7 @@ void DialogPage::Build(Widget* host, UiContext& ui) {
             overlay_->background = Theme::kScrim;
             ++open_count_;
             dialog_->Open();
-        };
+        });
     }
 
     Box* info = helpers::Column(host, 8.0f);
@@ -84,14 +84,14 @@ void DialogPage::BuildOverlay(Widget* overlay) {
     dialog_->SetSize(520.0f, 260.0f);
     dialog_->anchor = ImVec2(0.5f, 0.5f);
     dialog_->pivot = ImVec2(0.5f, 0.5f);
-    dialog_->on_result = [this](Dialog&, int result) {
+    connect(dialog_, &Dialog::finished, this, [this](int result) {
         last_result_ = result < 0 ? "取消（-1）" : ("按钮 #" + std::to_string(result));
         if (overlay_ != nullptr) {
             overlay_->visible = false;
         }
         Global::modal = nullptr;
         Global::SetFocus(host() != nullptr ? host()->FirstFocusable() : nullptr);
-    };
+    });
 }
 
 bool DialogPage::OnAction(InputAction action) {

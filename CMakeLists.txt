@@ -151,6 +151,12 @@ target_sources(gui_dev_components PRIVATE ${GUI_DEV_COMPONENT_SOURCES})
 target_include_directories(gui_dev_components PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(gui_dev_components PUBLIC gui_dev)
 
+# 信号槽语义测试（纯头文件，不依赖 SDL / ImGui）
+add_executable(gui_dev_signal_test tests/qt_signal_test.cpp)
+target_include_directories(gui_dev_signal_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+enable_testing()
+add_test(NAME qt_signal_style COMMAND gui_dev_signal_test)
+
 # 组件演示：入口就是仓库根目录的 demo.cpp
 add_executable(gui_dev_demo demo.cpp)
 target_link_libraries(gui_dev_demo PRIVATE gui_dev_components)

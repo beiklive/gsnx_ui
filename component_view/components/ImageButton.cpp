@@ -92,7 +92,7 @@ ImTextureRef ImageButton::ResolveTexture() const {
     if (!enabled && image_disabled.GetTexID() != ImTextureID_Invalid) {
         return image_disabled;
     }
-    if (pressed && image_pressed.GetTexID() != ImTextureID_Invalid) {
+    if (down && image_pressed.GetTexID() != ImTextureID_Invalid) {
         return image_pressed;
     }
     if (selected && image_selected.GetTexID() != ImTextureID_Invalid) {
@@ -116,7 +116,7 @@ ImU32 ImageButton::ResolveTint() const {
 
 void ImageButton::OnUpdate(float dt) {
     hover_mix_ = SmoothTo(hover_mix_, (hovered || focused) && enabled ? 1.0f : 0.0f, transition_speed, dt);
-    press_mix_ = SmoothTo(press_mix_, (pressed && enabled) ? 1.0f : 0.0f, transition_speed * 1.5f, dt);
+    press_mix_ = SmoothTo(press_mix_, (down && enabled) ? 1.0f : 0.0f, transition_speed * 1.5f, dt);
 
     // 焦点缩放 + 按压缩放叠加
     const float scale = focus_scale_amount + (1.0f - focus_scale_amount) * (1.0f - focus_mix);

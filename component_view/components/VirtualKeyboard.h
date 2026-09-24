@@ -3,7 +3,7 @@
 // 全部由手柄操作，**绝不调用系统键盘**：
 //   ↑ ↓ ← →   在按键之间移动焦点（行内错位也用最近邻，不会跳错）
 //   A         输入当前字符 / 触发功能键
-//   B         取消（on_cancel）
+//   B         取消（emit rejected()）
 //   X         退格     Y         空格
 //   L / R     切换字符页（字母 / 符号 / 数字）
 //   ZL / ZR   切换 Shift（大小写） / 循环字符页
@@ -59,9 +59,12 @@ public:
     ImU32 key_text_focus = Theme::kTextBright;
     ImU32 preview_bg = Theme::kBgInput;
 
-    std::function<void(const std::string&)> on_accept;
-    std::function<void()> on_cancel;
-    std::function<void(const std::string&)> on_changed;
+signals:
+    Signal<const std::string&> textEdited; // 每次编辑（Qt 命名：QLineEdit::textEdited）
+    Signal<const std::string&> accepted;   // 确定
+    Signal<> rejected;                     // 取消
+    Signal<int> pageChanged;               // 字符页切换
+public:
 
     // ---- 状态 API ----------------------------------------------------------
     void SetInitial(std::string text);

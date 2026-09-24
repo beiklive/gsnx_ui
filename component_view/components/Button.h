@@ -38,9 +38,15 @@ public:
     float press_scale = 0.97f; // 按下时的缩放
     float press_translate = 1.5f; // 按下时向下位移
 
-    // 辅助操作（X / Y）
-    std::function<void(Widget&)> on_aux;
-    std::function<void(Widget&)> on_aux2;
+    // 选中态（Qt 的 checkable / checked）
+    bool checkable = false;
+    bool checked = false;
+
+signals:
+    // Qt 命名：clicked/down/released 继承自 Widget，这里是按钮自己的信号
+    Signal<bool> toggled;   // checkable 且状态变化时发射
+    Signal<int> auxTriggered; // X = 0，Y = 1（手柄辅助键）
+public:
 
     // ---- 预设 --------------------------------------------------------------
     Button& Primary();
@@ -53,6 +59,10 @@ public:
     Button& SetHint(std::string glyph);
     Button& SetFontSize(float value);
     Button& SetIconGap(float value);
+    // Qt 风格：setCheckable / setChecked / isChecked
+    Button& setCheckable(bool value);
+    Button& setChecked(bool value);
+    bool isChecked() const { return checked; }
     Button& FitContent(float horizontal_padding = 12.0f, float height = Theme::kControlHeight);
 
 protected:

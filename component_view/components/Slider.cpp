@@ -47,8 +47,8 @@ Slider& Slider::SetValue(float next, bool notify) {
         return *this;
     }
     value = clamped;
-    if (notify && on_changed) {
-        on_changed(*this, value);
+    if (notify) {
+        emit valueChanged(value);
     }
     return *this;
 }
@@ -132,17 +132,15 @@ bool Slider::OnPadAction(InputAction action) {
         Nudge(page_step);
         return true;
     case InputAction::Confirm:
-        if (on_changed) {
-            on_changed(*this, value);
-        }
+        emit valueChanged(value);
+        emit sliderReleased(value);
         adjusting_ = false;
         return true;
     case InputAction::Cancel:
         if (revert_on_cancel && value != focus_on_value_) {
             value = focus_on_value_;
-            if (on_changed) {
-                on_changed(*this, value);
-            }
+            emit valueChanged(value);
+            emit sliderReleased(value);
             return true;
         }
         return false;

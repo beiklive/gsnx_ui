@@ -46,8 +46,8 @@ TabBar& TabBar::SetIndex(int value, bool notify) {
         return *this;
     }
     index_ = next;
-    if (notify && on_changed) {
-        on_changed(*this, index_);
+    if (notify) {
+        emit currentChanged(index_);
     }
     return *this;
 }
@@ -150,6 +150,7 @@ bool TabBar::OnPadAction(InputAction action) {
         return false;
     case InputAction::Confirm:
         SetIndex(cursor_, true);
+        emit tabBarClicked(cursor_);
         return true;
     case InputAction::PageLeft:
         if (wrap_pages) {

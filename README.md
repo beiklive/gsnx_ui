@@ -22,6 +22,7 @@ GUI_DEV/
 │   ├── platform/               # Backend 接口 + 抽象输入 + SDL2 后端
 │   └── gamemenu/               # 暂停菜单 UI 层（Persona 式视觉语言）
 ├── component_view/             # ★ 组件与页面（你的工作区）
+│   ├── Object.h                # ★ Qt 风格信号槽：Object / Signal / connect / emit
 │   ├── Global.{h,cpp}          # 全局变量：画布 / 鼠标 / 手柄 / 焦点 / 分区 / 输入消费
 │   ├── Theme.{h,cpp}           # VSCode Dark+ 调色板与 720p 尺寸规范
 │   ├── Types.h                 # Rect / EdgeInsets / BorderStyle / ShadowStyle / Transform2D / 枚举
@@ -35,6 +36,8 @@ GUI_DEV/
 │   ├── flow_box/               # framework/ui 组件预览（流光焦点框）
 │   ├── pause_menu/             # 暂停菜单 Demo（Persona 式动态菜单）
 │   └── widget_lessons/         # 自定义控件 8 例
+├── tests/
+│   └── qt_signal_test.cpp      # 信号槽语义测试（ctest）
 ├── third_party/imgui/          # submodule
 ├── docs/                       # 界面快照（人工核对用，非构建产物）
 ├── assets/
@@ -211,6 +214,56 @@ CHECKBOX · RADIO · SLIDER · PROGRESS · INPUT · KEYBOARD · DIALOG · MENU`
 
 焦点动画（缩放/位移）会作为 `Transform2D` 下发给整棵子树，所以容器聚焦时子节点一起缩放，
 文字与圆角按同一个缩放系数绘制。
+
+### 回调：Qt 风格信号槽
+
+所有回调都写成 Qt 风格：信号是成员、`emit` 发射、`connect(sender, &Sender::signal, receiver, &Receiver::slot)`
+连接。实现在 `component_view/Object.h`（约 250 行，不需要 moc）：
+
+```cpp
+class Button : public Widget {
+    ...
+signals:
+    Signal<bool> toggled;     // 信号就是成员，可以带任意参数
+    Signal<int> auxTriggered; // X = 0，Y = 1
+public slots:
+    void setChecked(bool value);   // 槽就是普通成员函数（slots 是空宏，只做标记）
+};
+
+// 发射（emit 是空宏，等价于 toggled(checked)）
+emit toggled(checked);
+
+// 连接：成员函数槽 / 无参槽 / 带 context 的 lambda
+connect(button, &Button::clicked, this, &MyPage::OnConfirm);
+connect(button, &Button::toggled, this, [this](bool on) { status_ = on; });
+```
+
+**接收者析构自动断开**：接收者继承 `cv::Object`（`Widget` / `Page` / `ControlPage` 都是），
+它的连接都登记在 `Object::registry_` 里，析构时统一置为失效 —— 相当于 Qt 的接收者生命周期规则，
+不用手写 `disconnect` 也不会野指针。信号槽语义有独立测试：
+
+```bash
+cmake --build --preset mac --target gui_dev_signal_test && ./build/mac/gui_dev_signal_test
+# 或：ctest --test-dir build/mac
+```
+
+| 组件 | 信号（Qt 命名） |
+|---|---|
+| Widget（基类） | `clicked` / `pressed` / `released` / `hoverEntered` / `hoverLeft` / `focusIn` / `focusOut` / `enabledChanged` |
+| Button | + `toggled(bool)` / `auxTriggered(int)` |
+| Checkbox | `toggled(bool)` / `stateChanged(int)` |
+| RadioGroup | `currentChanged(int)` / `toggled(int)` |
+| Slider | `valueChanged(float)` / `sliderReleased(float)` |
+| Progress | `valueChanged(float)` |
+| List | `currentIndexChanged(int)` / `itemActivated(int)` / `itemClicked(int)` |
+| TabBar | `currentChanged(int)` / `tabBarClicked(int)` |
+| Menu | `triggered(int)` / `highlighted(int)` |
+| InputField | `editingRequested()` / `editingFinished()` / `textChanged(const std::string&)` |
+| VirtualKeyboard | `textEdited(const std::string&)` / `accepted(const std::string&)` / `rejected()` / `pageChanged(int)` |
+| Dialog | `finished(int)` / `accepted()` / `rejected()` |
+
+状态访问器也按 Qt 命名：`isDown()` / `hasFocus()` / `isHovered()` / `isEnabled()` / `isVisible()` /
+`isChecked()`。发射端写成 `emit 信号名(参数)`；因为 `emit` 是空宏，**不要**写 `.emit(...)`。
 
 ### 加一个组件
 
@@ -707,6 +760,12 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   列表页同屏可见 6 行（行高 25px）、键盘 5 行完整显示（键高 30px）、属性面板四组全部完整；
   mac Debug/Release 与 Switch 均编译通过，四个 demo `GUI_DEV_EXIT_AFTER` 退出码 0，
   960x720 / 1600x900 / 640x360 窗口均不崩。
+- 已确认（Qt 风格信号槽）：`component_view/Object.h` 实现 `Signal<Args...>` + `connect/emit/disconnect`，
+  接收者继承 `Object` 析构时自动断开；`tests/qt_signal_test.cpp`（10 项）覆盖成员函数槽、无参槽、
+  context+lambda、手动断开、接收者先析构、发送者先析构、一信号多接收者，`ctest` 全绿；
+  demo 内脚本化验证：BUTTON 页 `A:1 → clicked 1 次`、`X:2 + Y:1 → auxTriggered 3 次`。
+- 顺带修掉一个真 bug：`InputAction::ActionX/ActionY/Minus` 之前在枚举里有、但没进 SDL 按键/手柄映射表
+  （x / y / - / 手柄 X / Y / BACK 都不响应），现在映射补齐并逐个抓帧确认收到。
 - 已知字体问题：`assets/font/MaterialIcons-Regular.ttf` 里 `sports_esports`(U+EAE2) 的
   字形与预期不符（渲染成一个「A+」形状），已改用 `games`(U+E30F)；其余 34 个 Material
   码位逐个核对正常。另外 `◀ ▶ ⌫`(U+25C0/U+25B6/U+232B) 这类符号在原字体里缺字形，

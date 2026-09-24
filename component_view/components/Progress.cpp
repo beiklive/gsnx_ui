@@ -20,7 +20,11 @@ Progress::Progress(float initial, float min_v, float max_v) : Progress() {
 }
 
 Progress& Progress::SetValue(float next) {
-    value = Clampf(next, Minf(min_value, max_value), Maxf(min_value, max_value));
+    const float clamped = Clampf(next, Minf(min_value, max_value), Maxf(min_value, max_value));
+    if (clamped != value) {
+        value = clamped;
+        emit valueChanged(Percent());
+    }
     return *this;
 }
 

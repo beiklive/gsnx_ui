@@ -68,9 +68,7 @@ List& List::SetFocusIndex(int value, bool ensure_visible) {
     }
     if (next != index_) {
         index_ = next;
-        if (on_focus_changed) {
-            on_focus_changed(*this, index_);
-        }
+        emit currentIndexChanged(index_);
     }
     if (ensure_visible) {
         EnsureRectVisible(ItemRect(index_));
@@ -226,9 +224,8 @@ bool List::OnPadAction(InputAction action) {
     case InputAction::Confirm:
         if (index_ >= 0 && index_ < ItemCount() && !items_[static_cast<std::size_t>(index_)].disabled) {
             selected_ = index_;
-            if (on_activate) {
-                on_activate(*this, index_);
-            }
+            emit itemActivated(index_);
+            emit itemClicked(index_);
             return true;
         }
         return true;

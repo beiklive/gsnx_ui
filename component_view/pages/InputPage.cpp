@@ -21,7 +21,7 @@ void InputPage::Build(Widget* host, UiContext& ui) {
     name_->SetSize(600.0f, 67.9f);
     name_->SetPlaceholder("请输入名称");
     name_->hint = "A 打开虚拟键盘";
-    name_->on_edit_requested = [this](InputField& field) { OpenKeyboard(&field); };
+    connect(name_, &InputField::editingRequested, this, [this] { OpenKeyboard(name_); });
 
     password_ = column->Emplace<InputField>("金手指密钥", "");
     password_->SetName("input_password");
@@ -29,7 +29,7 @@ void InputPage::Build(Widget* host, UiContext& ui) {
     password_->SetPassword(true);
     password_->SetPlaceholder("（密码）");
     password_->hint = "A 编辑 · X 清空 · Y 退格";
-    password_->on_edit_requested = [this](InputField& field) { OpenKeyboard(&field); };
+    connect(password_, &InputField::editingRequested, this, [this] { OpenKeyboard(password_); });
 
     readonly_ = column->Emplace<InputField>("只读字段", "sdmc:/switch/GUI_DEV/");
     readonly_->SetName("input_readonly");
@@ -68,7 +68,7 @@ void InputPage::BuildOverlay(Widget* overlay) {
     keyboard_->SetName("overlay_keyboard");
     keyboard_->SetSize(900.0f, 420.0f);
     keyboard_->SetPosition(148.2f, 93.6f);
-    keyboard_->on_accept = [this](const std::string& value) {
+    connect(keyboard_, &VirtualKeyboard::accepted, this, [this](const std::string& value) {
         if (target_ != nullptr) {
             target_->SetText(value, true);
             target_->editing = false;
@@ -80,8 +80,8 @@ void InputPage::BuildOverlay(Widget* overlay) {
         if (target_ != nullptr) {
             Global::SetFocus(target_);
         }
-    };
-    keyboard_->on_cancel = [this]() {
+    });
+    connect(keyboard_, &VirtualKeyboard::rejected, this, [this] {
         if (target_ != nullptr) {
             target_->editing = false;
             Global::SetFocus(target_);
@@ -90,12 +90,12 @@ void InputPage::BuildOverlay(Widget* overlay) {
             overlay_->visible = false;
         }
         Global::modal = nullptr;
-    };
-    keyboard_->on_changed = [this](const std::string& value) {
+    });
+    connect(keyboard_, &VirtualKeyboard::textEdited, this, [this](const std::string& value) {
         if (status_ != nullptr) {
             status_->text = "编辑中：" + value;
         }
-    };
+    });
 }
 
 void InputPage::OnUpdate(float dt) {

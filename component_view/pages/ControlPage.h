@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "component_view/Object.h"
 #include "component_view/Types.h"
 #include "component_view/Widget.h"
 #include "platform/Input.h"
@@ -42,9 +43,9 @@ inline PropRow Row(std::string name, std::string value, bool highlight = false) 
     return row;
 }
 
-class ControlPage {
+class ControlPage : public Object {
 public:
-    virtual ~ControlPage() = default;
+    ~ControlPage() override = default;
 
     // ---- 元信息 ------------------------------------------------------------
     virtual const char* Name() const = 0;    // Tab 标题（大写）

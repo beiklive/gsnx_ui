@@ -25,13 +25,14 @@
 
 #include <imgui.h>
 
+#include "component_view/Object.h"
 #include "component_view/Theme.h"
 #include "component_view/Types.h"
 #include "platform/Input.h"
 
 namespace gui_dev::cv {
 
-class Widget {
+class Widget : public Object {
 public:
     Widget();
     explicit Widget(std::string widget_name);
@@ -122,19 +123,29 @@ public:
 
     // ---- 交互状态（每帧刷新，只读） ----------------------------------------
     bool hovered = false;
-    bool pressed = false;
-    bool clicked = false;
-    bool focused = false;
+    bool down = false;    // 鼠标/按钮按下中（Qt 的 isDown()）
+    bool focused = false; // 持有手柄焦点（Qt 的 hasFocus()）
     bool selected = false; // 由容器/页面设置：当前选中项
     float focus_mix = 0.0f; // 焦点动画进度 0..1（平滑）
 
-    // ---- 事件 --------------------------------------------------------------
-    std::function<void(Widget&)> on_click;
-    std::function<void(Widget&)> on_press;
-    std::function<void(Widget&)> on_hover_enter;
-    std::function<void(Widget&)> on_hover_leave;
-    std::function<void(Widget&)> on_focus;
-    std::function<void(Widget&)> on_blur;
+    // ---- 信号（Qt 风格：emit clicked(); / connect(w, &Widget::clicked, ...)）----
+signals:
+    Signal<> clicked;      // 确认（A / 鼠标左键 / 键盘回车）
+    Signal<> pressed;      // 按下开始
+    Signal<> released;     // 按下结束（无论是否命中）
+    Signal<> hoverEntered; // 鼠标进入（桌面端才有意义）
+    Signal<> hoverLeft;
+    Signal<> focusIn;      // 获得手柄焦点
+    Signal<> focusOut;     // 失去手柄焦点
+    Signal<> enabledChanged;
+
+    // ---- 只读状态访问器（Qt 命名） ----------------------------------------
+    bool isDown() const { return down; }
+    bool hasFocus() const { return focused; }
+    bool isHovered() const { return hovered; }
+    bool isSelected() const { return selected; }
+    bool isEnabled() const { return enabled; }
+    bool isVisible() const { return visible; }
 
     // ---- 树 ----------------------------------------------------------------
     Widget* parent = nullptr;
@@ -199,6 +210,12 @@ public:
     // ---- 焦点 --------------------------------------------------------------
     void RequestFocus();
     void YieldFocus();
+    // Qt 风格的便捷连接：button->onClicked(this, &Page::OnConfirm);
+    template <typename Context, typename Callable>
+    Connection onClicked(Context* context, Callable callable) {
+        return connect(this, &Widget::clicked, context, std::move(callable));
+    }
+
     // 子树里第一个可聚焦组件（对话框/页面切换后接管焦点用）
     Widget* FirstFocusable();
     // 给整棵子树的组件设置焦点分区
@@ -314,10 +331,6 @@ public:
         opacity = value;
         return *this;
     }
-    Widget& SetOnClick(std::function<void(Widget&)> callback) {
-        on_click = std::move(callback);
-        return *this;
-    }
 
 protected:
     // ---- 子类接口 ----------------------------------------------------------
@@ -349,6 +362,7 @@ private:
     void DrawFocusFrame(ImDrawList* dl);
     void DrawScrollBar(ImDrawList* dl);
     void UpdateInteraction(float dt);
+    void emitWidgetPressed();
     void DrawChildren(ImDrawList* dl);
     void DrawTree(ImDrawList* dl, const Transform2D& parent_transform);
 

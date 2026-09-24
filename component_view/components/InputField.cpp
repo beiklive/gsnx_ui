@@ -98,8 +98,8 @@ void InputField::SetText(std::string value, bool notify) {
     }
     cursor = CharCount();
     selection_start = selection_end = -1;
-    if (notify && on_changed) {
-        on_changed(*this, text);
+    if (notify) {
+        emit textChanged(text);
     }
 }
 
@@ -118,9 +118,7 @@ void InputField::Insert(const std::string& value) {
         text = text.substr(0, trimmed[static_cast<std::size_t>(max_length)]);
         cursor = max_length;
     }
-    if (on_changed) {
-        on_changed(*this, text);
-    }
+    emit textChanged(text);
 }
 
 void InputField::Backspace() {
@@ -139,9 +137,7 @@ void InputField::Backspace() {
     const std::size_t to = offsets[static_cast<std::size_t>(cursor)];
     text.erase(from, to - from);
     --cursor;
-    if (on_changed) {
-        on_changed(*this, text);
-    }
+    emit textChanged(text);
 }
 
 void InputField::DeleteForward() {
@@ -152,9 +148,7 @@ void InputField::DeleteForward() {
     const std::size_t from = offsets[static_cast<std::size_t>(cursor)];
     const std::size_t to = offsets[static_cast<std::size_t>(cursor + 1)];
     text.erase(from, to - from);
-    if (on_changed) {
-        on_changed(*this, text);
-    }
+    emit textChanged(text);
 }
 
 void InputField::MoveCursor(int delta_chars) {
@@ -177,9 +171,7 @@ void InputField::Clear() {
     text.clear();
     cursor = 0;
     selection_start = selection_end = -1;
-    if (on_changed) {
-        on_changed(*this, text);
-    }
+    emit textChanged(text);
 }
 
 void InputField::SelectAll() {
@@ -208,9 +200,7 @@ void InputField::DeleteSelection() {
     text.erase(from, to - from);
     cursor = selection_start;
     selection_start = selection_end = -1;
-    if (on_changed) {
-        on_changed(*this, text);
-    }
+    emit textChanged(text);
 }
 
 ImVec2 InputField::MeasureContent(const ImVec2& available) {
@@ -247,9 +237,7 @@ bool InputField::OnPadAction(InputAction action) {
     case InputAction::Confirm:
         if (!read_only) {
             editing = true;
-            if (on_edit_requested) {
-                on_edit_requested(*this);
-            }
+            emit editingRequested();
             return true;
         }
         return false;
@@ -262,6 +250,7 @@ bool InputField::OnPadAction(InputAction action) {
     case InputAction::Cancel:
         if (editing) {
             editing = false;
+            emit editingFinished();
             return true;
         }
         return false;

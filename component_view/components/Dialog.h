@@ -41,8 +41,10 @@ public:
     ImU32 button_focus_color = Theme::kAccentHover;
     ImU32 cancel_color = Theme::kBgWidget;
 
-    // 打开/关闭时回调（result = 按钮索引，-1 表示取消退出）
-    std::function<void(Dialog&, int)> on_result;
+signals:
+    Signal<int> finished;  // 按钮索引（-1 = 取消退出），Qt 命名：QDialog::finished
+    Signal<> accepted;
+    Signal<> rejected;
 
     void Open();
     void Close(int result = -1);

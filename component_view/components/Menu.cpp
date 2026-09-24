@@ -121,8 +121,8 @@ Menu& Menu::SetCursor(int value, bool notify) {
     }
     if (next != cursor_) {
         cursor_ = next;
-        if (notify && on_focus_changed) {
-            on_focus_changed(*this, cursor_);
+        if (notify) {
+            emit highlighted(cursor_);
         }
     }
     EnsureRectVisible(EntryRect(cursor_));
@@ -188,9 +188,7 @@ void Menu::ActivateCurrent() {
         return;
     }
     entry.selected = !entry.selected;
-    if (on_activate) {
-        on_activate(*this, cursor_);
-    }
+    emit triggered(cursor_);
 }
 
 bool Menu::GoBack() {

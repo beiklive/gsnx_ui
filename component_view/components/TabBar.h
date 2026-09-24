@@ -46,7 +46,10 @@ public:
     ImU32 text_color_active = Theme::kTextBright;
     ImU32 indicator_color = Theme::kAccent;
 
-    std::function<void(TabBar&, int)> on_changed;
+signals:
+    Signal<int> currentChanged;  // 选中项变化
+    Signal<int> tabBarClicked;   // 光标项被确认（A）
+public:
 
     TabBar& AddTab(std::string text, std::string icon = std::string(), bool disabled = false);
     int TabCount() const { return static_cast<int>(tabs_.size()); }

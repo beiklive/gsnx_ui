@@ -55,14 +55,14 @@ void ImageButtonPage::Build(Widget* host, UiContext& ui) {
         if (cover.badge[0] != '\0') {
             button->SetBadge(cover.badge);
         }
-        button->on_click = [this, name = std::string(cover.title)](Widget&) {
+        connect(button, &ImageButton::clicked, this, [this, name = std::string(cover.title)] {
             selected_ = 0;
             for (std::size_t i = 0; i < covers_.size(); ++i) {
                 if (covers_[i]->name == "cover:" + name) {
                     selected_ = static_cast<int>(i);
                 }
             }
-        };
+        });
         covers_.push_back(button);
     }
 

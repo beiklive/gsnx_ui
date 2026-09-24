@@ -51,10 +51,10 @@ void MenuPage::Build(Widget* host, UiContext& ui) {
     menu_->AddEntry("存储路径", Icons::Glyph(Icons::Material::Storage));
     menu_->LeaveSubmenu();
 
-    menu_->on_activate = [this](Menu& menu, int index) {
+    connect(menu_, &Menu::triggered, this, [this](int index) {
         ++activate_count_;
-        last_action_ = menu.EntryLabel(index);
-    };
+        last_action_ = menu_->EntryLabel(index);
+    });
 
     Box* info = helpers::Column(row, 10.0f);
     info->SetSize(500.0f, 236.0f);

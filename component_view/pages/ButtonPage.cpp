@@ -20,9 +20,9 @@ void ButtonPage::Build(Widget* host, UiContext& ui) {
     primary_ = states->Emplace<Button>("NORMAL");
     primary_->SetName("btn_normal");
     primary_->FitContent(15.6f, 37.4f);
-    primary_->on_click = [this](Widget&) { ++confirm_count_; };
-    primary_->on_aux = [this](Widget&) { ++aux_count_; };
-    primary_->on_aux2 = [this](Widget&) { ++aux_count_; };
+    // Qt 风格：connect(sender, &Sender::signal, context, lambda)
+    connect(primary_, &Button::clicked, this, [this] { ++confirm_count_; });
+    connect(primary_, &Button::auxTriggered, this, [this](int) { ++aux_count_; });
 
     Button* focused_demo = states->Emplace<Button>("FOCUSED");
     focused_demo->SetName("btn_focused");
@@ -30,20 +30,20 @@ void ButtonPage::Build(Widget* host, UiContext& ui) {
     focused_demo->focus_scale = 1.08f;
     focused_demo->focus_frame = true;
 
-    Button* pressed = states->Emplace<Button>("PRESSED");
-    pressed->SetName("btn_pressed");
-    pressed->Secondary().FitContent(15.6f, 37.4f);
-    pressed->press_scale = 0.9f;      // 按住 A 时明显缩小
-    pressed->press_translate = 4.0f;
+    Button* down = states->Emplace<Button>("PRESSED");
+    down->SetName("btn_pressed");
+    down->Secondary().FitContent(15.6f, 37.4f);
+    down->press_scale = 0.9f;      // 按住 A 时明显缩小
+    down->press_translate = 4.0f;
 
     selected_ = states->Emplace<Button>("SELECTED");
     selected_->SetName("btn_selected");
     selected_->Secondary().FitContent(15.6f, 37.4f);
     selected_->selected = true;
-    selected_->on_click = [this](Widget& widget) {
-        widget.selected = !widget.selected;
+    connect(selected_, &Button::clicked, this, [this] {
+        selected_->selected = !selected_->selected;
         ++confirm_count_;
-    };
+    });
 
     disabled_ = states->Emplace<Button>("DISABLED");
     disabled_->SetName("btn_disabled");
@@ -69,7 +69,7 @@ void ButtonPage::Build(Widget* host, UiContext& ui) {
         button->Ghost().FitContent(9.4f, 34.3f);
         button->SetIcon(Icons::Glyph(item.glyph));
         button->icon_gap = 3.7f;
-        button->on_click = [this](Widget&) { ++confirm_count_; };
+        connect(button, &Button::clicked, this, [this] { ++confirm_count_; });
     }
 
     // 第三行：提示与状态
@@ -115,9 +115,9 @@ void ButtonPage::FillProperties(std::vector<PropSection>& out) const {
                                Row("Disabled", "DISABLED 不可聚焦"),
                            });
     PushSection(out, "Events", {
-                                Row("on_click", std::to_string(confirm_count_) + " 次"),
-                                Row("on_aux (X)", std::to_string(aux_count_) + " 次"),
-                                Row("on_aux2 (Y)", std::to_string(aux_count_) + " 次"),
+                                Row("clicked()", std::to_string(confirm_count_) + " 次"),
+                                Row("auxTriggered(0) X", std::to_string(aux_count_) + " 次"),
+                                Row("auxTriggered(1) Y", std::to_string(aux_count_) + " 次"),
                             });
     PushSection(out, "Navigation", {
                                      Row("焦点位置", focus_name, true),

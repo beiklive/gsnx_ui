@@ -30,8 +30,10 @@ public:
     ImU32 label_color_focus = Theme::kTextBright;
     float transition_speed = 16.0f;
 
-    std::function<void(Checkbox&, bool)> on_changed;
-
+signals:
+    Signal<bool> toggled;      // Qt 命名
+    Signal<int> stateChanged;  // 0 = Unchecked，2 = Checked（对齐 Qt::CheckState）
+public:
     Checkbox& SetLabel(std::string value);
     Checkbox& SetChecked(bool value, bool notify = false);
     Checkbox& Toggle(bool notify = true);
@@ -74,8 +76,10 @@ public:
     ImU32 label_color_focus = Theme::kTextBright;
     ImU32 highlight_bg = Theme::kListRowFocus;
 
-    std::function<void(RadioGroup&, int)> on_changed;
-
+signals:
+    Signal<int> currentChanged; // 选定项变化（-1 表示没有选中）
+    Signal<int> toggled;        // 同 currentChanged，Qt 命名的别名
+public:
     RadioGroup& AddOption(std::string text, std::string detail = std::string(), bool disabled = false);
     int OptionCount() const { return static_cast<int>(options_.size()); }
     int Value() const { return value_; }

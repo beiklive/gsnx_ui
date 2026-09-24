@@ -36,11 +36,11 @@ void ScrollPage::Build(Widget* host, UiContext& ui) {
         card->FitContent(12.5f, 37.4f);
         card->size.x = 0.0f; // 撑满滚动容器宽度
         card->icon = Icons::Glyph(i % 2 == 0 ? Icons::Material::Storage : Icons::Material::Memory);
-        card->on_click = [this, i](Widget&) {
+        connect(card, &Button::clicked, this, [this, i] {
             if (status_ != nullptr) {
                 status_->text = "点击了第 " + std::to_string(i + 1) + " 项";
             }
-        };
+        });
         cards_.push_back(card);
     }
 

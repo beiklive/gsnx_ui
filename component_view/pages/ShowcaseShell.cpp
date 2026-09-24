@@ -34,7 +34,7 @@ void ShowcaseShell::OnBuild() {
     for (const auto& page : pages_) {
         tabs_->AddTab(page->Name(), page->Icon());
     }
-    tabs_->on_changed = [this](TabBar&, int index) { SelectTab(index, true); };
+    connect(tabs_, &TabBar::currentChanged, this, [this](int index) { SelectTab(index, true); });
 
     // ---- 右侧页头 ----------------------------------------------------------
     title_label_ = Root().Emplace<Label>("", Theme::kFontTitle, Theme::kTextBright);

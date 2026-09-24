@@ -27,11 +27,12 @@ void KeyboardPage::Build(Widget* host, UiContext& ui) {
     keyboard_->max_length = 24;
     keyboard_->SetPrompt("键盘页 · 内嵌模式");
     keyboard_->SetInitial("Hello GUI_DEV");
-    keyboard_->on_accept = [this](const std::string& value) { last_action_ = "确定：" + value; };
-    keyboard_->on_cancel = [this]() {
+    connect(keyboard_, &VirtualKeyboard::accepted, this,
+            [this](const std::string& value) { last_action_ = "确定：" + value; });
+    connect(keyboard_, &VirtualKeyboard::rejected, this, [this] {
         keyboard_->SetInitial("Hello GUI_DEV");
         last_action_ = "取消：已还原到初始值";
-    };
+    });
 
     log_ = helpers::Caption(host, "", Theme::kFontSmall, Theme::kTeal);
 }

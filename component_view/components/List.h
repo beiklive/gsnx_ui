@@ -51,8 +51,11 @@ public:
     ImU32 row_focus_color = Theme::kListRowFocus;
     ImU32 row_selected_color = Theme::kSelection;
 
-    std::function<void(List&, int)> on_activate;
-    std::function<void(List&, int)> on_focus_changed;
+signals:
+    Signal<int> currentIndexChanged; // 光标（焦点项）变化
+    Signal<int> itemActivated;       // A 激活某一项
+    Signal<int> itemClicked;         // 同 itemActivated（鼠标/手柄统一）
+public:
 
     List& AddItem(std::string text, std::string icon = std::string(), std::string detail = std::string());
     List& SetItemDisabled(int index, bool value = true);

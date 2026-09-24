@@ -51,8 +51,9 @@ void Checkbox::Apply(bool value, bool notify) {
         return;
     }
     checked = value;
-    if (notify && on_changed) {
-        on_changed(*this, checked);
+    if (notify) {
+        emit toggled(checked);
+        emit stateChanged(checked ? 2 : 0);
     }
 }
 
@@ -140,8 +141,9 @@ RadioGroup& RadioGroup::SetValue(int value, bool notify) {
     }
     value_ = next;
     cursor_ = next;
-    if (notify && on_changed) {
-        on_changed(*this, value_);
+    if (notify) {
+        emit currentChanged(value_);
+        emit toggled(value_);
     }
     return *this;
 }

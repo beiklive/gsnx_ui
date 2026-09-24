@@ -76,8 +76,11 @@ void Dialog::Close(int result) {
     if (Global::modal == this) {
         Global::modal = nullptr;
     }
-    if (on_result) {
-        on_result(*this, result);
+    emit finished(result);
+    if (result == default_button) {
+        emit accepted();
+    } else if (result == cancel_button) {
+        emit rejected();
     }
 }
 

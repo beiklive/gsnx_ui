@@ -1,6 +1,7 @@
 #include "component_view/components/Button.h"
 
 #include <cmath>
+#include <string>
 
 #include "component_view/Draw.h"
 #include "component_view/Global.h"
@@ -152,7 +153,7 @@ void Button::OnUpdate(float dt) {
         hover_target = hovered ? 1.0f : (focused ? 0.35f : 0.0f);
     }
     hover_mix_ = SmoothTo(hover_mix_, hover_target, transition_speed, dt);
-    press_mix_ = SmoothTo(press_mix_, (pressed && enabled) ? 1.0f : 0.0f, transition_speed * 1.4f, dt);
+    press_mix_ = SmoothTo(press_mix_, (down && enabled) ? 1.0f : 0.0f, transition_speed * 1.4f, dt);
 
     // 按压缩放/位移
     const float scale = 1.0f + (press_scale - 1.0f) * press_mix_;
@@ -165,23 +166,43 @@ void Button::OnUpdate(float dt) {
     }
     ImU32 fill = Theme::Mix(color_normal, color_hover, hover_mix_);
     fill = Theme::Mix(fill, color_pressed, press_mix_);
-    if (selected) {
+    if (selected || (checkable && checked)) {
         fill = Theme::Mix(fill, color_selected, 0.85f);
     }
     background = fill;
 }
 
+Button& Button::setCheckable(bool value) {
+    checkable = value;
+    return *this;
+}
+
+Button& Button::setChecked(bool value) {
+    if (checked == value) {
+        return *this;
+    }
+    checked = value;
+    selected = value;
+    emit toggled(checked);
+    return *this;
+}
+
 bool Button::OnPadAction(InputAction action) {
+    // A / 鼠标左键：checkable 时切换并发 toggled，否则发基类的 clicked
+    if (action == InputAction::Confirm) {
+        if (checkable) {
+            setChecked(!checked);
+            return true;
+        }
+        return false;
+    }
     if (action == InputAction::ActionX) {
-        if (on_aux) {
-            on_aux(*this);
-            return true;
-        }
-    } else if (action == InputAction::ActionY) {
-        if (on_aux2) {
-            on_aux2(*this);
-            return true;
-        }
+        emit auxTriggered(0);
+        return true;
+    }
+    if (action == InputAction::ActionY) {
+        emit auxTriggered(1);
+        return true;
     }
     return false;
 }

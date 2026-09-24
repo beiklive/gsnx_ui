@@ -37,13 +37,13 @@ void CheckboxPage::Build(Widget* host, UiContext& ui) {
     boxes_[3]->SetEnabled(false);
     boxes_[3]->SetLabel(kLabels[3] + std::string("（已禁用）"));
 
-    master_->on_changed = [this](Checkbox&, bool value) {
+    connect(master_, &Checkbox::toggled, this, [this](bool value) {
         for (std::size_t i = 0; i < boxes_.size(); ++i) {
             if (boxes_[i]->enabled) {
                 boxes_[i]->SetChecked(value, false);
             }
         }
-    };
+    });
 
     Box* info = helpers::Column(row, 10.0f);
     info->SetSize(400.0f, 150.0f);

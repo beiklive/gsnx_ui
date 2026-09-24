@@ -156,9 +156,7 @@ void VirtualKeyboard::InsertText(const std::string& value) {
         caret_ = CharCount();
     }
     layout_dirty_ = true;
-    if (on_changed) {
-        on_changed(buffer);
-    }
+    emit textEdited(buffer);
 }
 
 void VirtualKeyboard::Backspace() {
@@ -174,9 +172,7 @@ void VirtualKeyboard::Backspace() {
         return;
     }
     layout_dirty_ = true;
-    if (on_changed) {
-        on_changed(buffer);
-    }
+    emit textEdited(buffer);
 }
 
 void VirtualKeyboard::DeleteForward() {
@@ -189,9 +185,7 @@ void VirtualKeyboard::DeleteForward() {
     }
     buffer.erase(ByteOffsetOf(buffer, caret_), ByteOffsetOf(buffer, caret_ + 1) - ByteOffsetOf(buffer, caret_));
     layout_dirty_ = true;
-    if (on_changed) {
-        on_changed(buffer);
-    }
+    emit textEdited(buffer);
 }
 
 void VirtualKeyboard::MoveCaret(int delta) {
@@ -210,9 +204,7 @@ void VirtualKeyboard::ClearBuffer() {
     caret_ = 0;
     selection_start_ = selection_end_ = -1;
     layout_dirty_ = true;
-    if (on_changed) {
-        on_changed(buffer);
-    }
+    emit textEdited(buffer);
 }
 
 ImVec2 VirtualKeyboard::MeasureContent(const ImVec2& available) {
@@ -364,14 +356,10 @@ void VirtualKeyboard::ActivateKey(const Key& key) {
         ClearBuffer();
         break;
     case Key::Kind::Cancel:
-        if (on_cancel) {
-            on_cancel();
-        }
+        emit rejected();
         break;
     case Key::Kind::Confirm:
-        if (on_accept) {
-            on_accept(buffer);
-        }
+        emit accepted(buffer);
         break;
     }
 }
@@ -397,9 +385,7 @@ bool VirtualKeyboard::OnPadAction(InputAction action) {
         ActivateKey(keys_[static_cast<std::size_t>(cursor_)]);
         return true;
     case InputAction::Cancel:
-        if (on_cancel) {
-            on_cancel();
-        }
+        emit rejected();
         return true;
     case InputAction::ActionX:
         Backspace();
@@ -408,9 +394,7 @@ bool VirtualKeyboard::OnPadAction(InputAction action) {
         InsertText(" ");
         return true;
     case InputAction::Menu:
-        if (on_accept) {
-            on_accept(buffer);
-        }
+        emit accepted(buffer);
         return true;
     case InputAction::Minus:
         Backspace();
@@ -418,10 +402,12 @@ bool VirtualKeyboard::OnPadAction(InputAction action) {
     case InputAction::PageLeft:
         page = page == Page::Letters ? Page::Numbers : (page == Page::Numbers ? Page::Symbols : Page::Letters);
         layout_dirty_ = true;
+        emit pageChanged(static_cast<int>(page));
         return true;
     case InputAction::PageRight:
         page = page == Page::Letters ? Page::Symbols : (page == Page::Symbols ? Page::Numbers : Page::Letters);
         layout_dirty_ = true;
+        emit pageChanged(static_cast<int>(page));
         return true;
     case InputAction::TriggerLeft:
         shift = !shift;
@@ -430,6 +416,7 @@ bool VirtualKeyboard::OnPadAction(InputAction action) {
     case InputAction::TriggerRight:
         page = page == Page::Letters ? Page::Symbols : (page == Page::Symbols ? Page::Numbers : Page::Letters);
         layout_dirty_ = true;
+        emit pageChanged(static_cast<int>(page));
         return true;
     default:
         return false;

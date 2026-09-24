@@ -5,7 +5,7 @@
 //   Cursor / Selection / 光标闪烁
 //
 // 手柄：
-//   A   请求编辑 —— 页面接到 on_edit_requested 后打开 VirtualKeyboard
+//   A   请求编辑 —— 页面接到 editingRequested() 后打开 VirtualKeyboard
 //   X   清空
 //   Y   退格
 //   B   取消编辑（退出编辑态）
@@ -52,8 +52,17 @@ public:
     ImU32 cursor_color = Theme::kTextBright;
     ImU32 selection_color = Theme::kSelection;
 
-    std::function<void(InputField&)> on_edit_requested;
-    std::function<void(InputField&, const std::string&)> on_changed;
+signals:
+    Signal<> editingRequested;        // A：请求打开虚拟键盘（页面自己弹键盘）
+    Signal<> editingFinished;         // B / 键盘确定：结束编辑
+    Signal<const std::string&> textChanged; // Qt 命名
+    Signal<> returnPressed;
+public:
+    // Qt 风格便捷连接
+    template <typename Context, typename Callable>
+    Connection onTextChanged(Context* context, Callable callable) {
+        return connect(this, &InputField::textChanged, context, std::move(callable));
+    }
 
     // ---- 文本操作（虚拟键盘直接调用） --------------------------------------
     void SetText(std::string value, bool notify = true);

@@ -32,6 +32,9 @@ public:
     ImU32 label_color = Theme::kTextPrimary;
     ImU32 text_color = Theme::kTextBright;
 
+signals:
+    Signal<float> valueChanged; // 进度变化（0..1 的比例）
+public:
     Progress& SetValue(float next);
     Progress& SetRange(float min_v, float max_v);
     Progress& SetLabel(std::string text);

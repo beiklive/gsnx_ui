@@ -445,15 +445,20 @@ void Widget::UpdateInteraction(float dt) {
     if (is_hovered != hovered) {
         hovered = is_hovered;
         if (hovered) {
-            if (on_hover_enter) {
-                on_hover_enter(*this);
-            }
-        } else if (on_hover_leave) {
-            on_hover_leave(*this);
+            emit hoverEntered();
+        } else {
+            emit hoverLeft();
         }
     }
+    const bool was_focused = focused;
     focused = (Global::focused == this);
-    clicked = false;
+    if (focused != was_focused) {
+        if (focused) {
+            emit focusIn();
+        } else {
+            emit focusOut();
+        }
+    }
 
     // 焦点动画：Focus 是核心状态，缩放/位移/焦点框都从 focus_mix 推出来
     const float focus_target = (focused && enabled) ? 1.0f : 0.0f;
@@ -467,25 +472,21 @@ void Widget::UpdateInteraction(float dt) {
     if (hovered && enabled && Global::mouse_pressed[0]) {
         Global::pressed = this;
         Global::active = this;
-        if (on_press) {
-            on_press(*this);
-        }
+        emitWidgetPressed();
     }
-    pressed = (Global::pressed == this) && Global::mouse_down[0];
+    down = (Global::pressed == this) && Global::mouse_down[0];
 
     if (Global::pressed == this && Global::mouse_released[0]) {
         Global::pressed = nullptr;
         Global::active = nullptr;
-        pressed = false;
+        down = false;
         if (hovered && enabled) {
-            clicked = true;
             if (!OnPadAction(InputAction::Confirm)) {
                 Activate();
-                if (on_click) {
-                    on_click(*this);
-                }
+                emit clicked();
             }
         }
+        emit released();
     }
 
     // 手柄按键：只有持有焦点的组件才收键；Confirm 先给子类消费，没人要才当点击。
@@ -503,11 +504,8 @@ void Widget::UpdateInteraction(float dt) {
         }
         if (Global::pad.Pressed(InputAction::Confirm) && Global::Available(InputAction::Confirm)) {
             if (!OnPadAction(InputAction::Confirm)) {
-                clicked = true;
                 Activate();
-                if (on_click) {
-                    on_click(*this);
-                }
+                emit clicked();
             }
             Global::MarkConsumed(InputAction::Confirm);
         }
@@ -531,6 +529,10 @@ void Widget::UpdateTree(float dt) {
     if (visible) {
         OnUpdate(dt);
     }
+}
+
+void Widget::emitWidgetPressed() {
+    emit pressed();
 }
 
 void Widget::RequestFocus() {

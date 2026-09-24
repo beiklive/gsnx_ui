@@ -23,10 +23,10 @@ namespace gui_dev::cv {
 
 class Box;
 
-class Page {
+class Page : public Object {
 public:
     Page();
-    virtual ~Page();
+    ~Page() override;
 
     Page(const Page&) = delete;
     Page& operator=(const Page&) = delete;

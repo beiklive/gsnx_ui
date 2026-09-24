@@ -63,7 +63,7 @@ void ProgressPage::Build(Widget* host, UiContext& ui) {
     toggle_->SetName("progress_toggle");
     toggle_->Secondary().FitContent(14.0f, 34.3f);
     toggle_->SetIcon(Icons::Glyph(Icons::Button::A));
-    toggle_->on_click = [this](Widget&) { running_ = !running_; };
+    connect(toggle_, &Button::clicked, this, [this] { running_ = !running_; });
 
     status_ = helpers::Caption(host, "", Theme::kFontSmall, Theme::kTeal);
 }
