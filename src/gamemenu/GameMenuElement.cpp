@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <ctime>
 
 namespace gui_dev::gamemenu {
 namespace {
@@ -17,7 +18,66 @@ inline float PressShrink(float press, float amount) {
     return amount * std::sin(kPi * Clamp01(press));
 }
 
+// 错位色块的随机源：xorshift32。
+// 序列起点按进程启动时间播种，于是每次运行的错位形状都不同，
+// 但同一次运行内可复现（便于对比截图）。无堆分配、无平台依赖。
+std::uint32_t NextPlateSeed() {
+    static std::uint32_t state = [] {
+        const auto now = static_cast<std::uint32_t>(std::time(nullptr));
+        return (now * 2654435761u) | 1u;
+    }();
+    state ^= state << 13;
+    state ^= state >> 17;
+    state ^= state << 5;
+    return state;
+}
+
+float RandomRange(std::uint32_t& state, float lo, float hi) {
+    state ^= state << 13;
+    state ^= state >> 17;
+    state ^= state << 5;
+    const float unit = static_cast<float>(state & 0x00FFFFFFu) / 16777216.0f;
+    return lo + (hi - lo) * unit;
+}
+
 } // namespace
+
+void AccentPlate::Reset() {
+    rng = NextPlateSeed();
+    dx = 0.0f;
+    dy = 0.0f;
+    extend = 0.0f;
+    skew_jitter = 0.0f;
+    target_dx = 0.0f;
+    target_dy = 0.0f;
+    target_extend = 0.0f;
+    target_skew_jitter = 0.0f;
+}
+
+void AccentPlate::Reroll(const GameMenuTheme& theme) {
+    target_dx = RandomRange(rng, theme.plate_offset_x_min, theme.plate_offset_x_max);
+    target_dy = RandomRange(rng, theme.plate_offset_y_min, theme.plate_offset_y_max);
+    target_extend = RandomRange(rng, theme.plate_extend_min, theme.plate_extend_max);
+    target_skew_jitter = RandomRange(rng, -theme.plate_skew_jitter, theme.plate_skew_jitter);
+}
+
+void AccentPlate::Update(float dt, const GameMenuTheme& theme) {
+    const float speed = theme.plate_smoothing;
+    dx = SmoothTo(dx, target_dx, speed, dt);
+    dy = SmoothTo(dy, target_dy, speed, dt);
+    extend = SmoothTo(extend, target_extend, speed, dt);
+    skew_jitter = SmoothTo(skew_jitter, target_skew_jitter, speed, dt);
+}
+
+AccentPlate::Shape AccentPlate::Apply(const Rect& rect, float base_skew) const {
+    Shape shape;
+    shape.rect = MakeRect(rect.min.x + dx, rect.min.y + dy, rect.Width() + extend, rect.Height());
+    shape.skew = base_skew + skew_jitter;
+    if (shape.skew < 0.0f) {
+        shape.skew = 0.0f;
+    }
+    return shape;
+}
 
 // ---------------------------------------------------------------- 焦点框 ----
 
@@ -61,19 +121,23 @@ void GameMenuButton::Configure(const char* label, Icons::Material icon, MenuButt
 
 void GameMenuButton::Reset() {
     anim_.Reset();
+    plate_.Reset();
     was_focused_ = false;
 }
 
-void GameMenuButton::Update(float dt, bool focused, const MenuAnimationConfig& cfg) {
+void GameMenuButton::Update(float dt, bool focused, const GameMenuTheme& theme) {
+    const MenuAnimationConfig& cfg = theme.animation;
     // 焦点切换：固定时长推进，几何量再套 EaseOutBack 产生轻微弹性（需求 §6.8）
     anim_.focus = MoveTowards(anim_.focus, focused ? 1.0f : 0.0f, cfg.focus_duration, dt);
-    // 获得焦点的那一帧触发一次扫描高光（只触发一次，不循环，需求 §10）
+    // 获得焦点的那一帧：触发一次扫描高光（只触发一次，需求 §10）+ 重掷错位色块
     if (focused && !was_focused_) {
         anim_.sweep = 1.0f;
         anim_.flash = 1.0f;
+        plate_.Reroll(theme);
     }
     was_focused_ = focused;
 
+    plate_.Update(dt, theme);
     anim_.press = DecayOnce(anim_.press, cfg.press_duration, dt);
     anim_.sweep = DecayOnce(anim_.sweep, cfg.sweep_duration, dt);
     anim_.flash = DecayOnce(anim_.flash, cfg.flash_duration, dt);
@@ -110,9 +174,9 @@ Rect GameMenuButton::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, ImV
 
     // ---- 红色扩张层：向右下偏移的红色背板（Persona 式错位板）----
     if (focus01 > 0.01f) {
-        const Rect plate = rect.Offset(theme.accent_plate_offset * focus01,
-                                       theme.accent_plate_offset * 0.55f * focus01);
-        AddSkewFilled(draw_list, plate, theme.skew, WithAlpha(theme.red, 0.95f * focus01));
+        // 随机错位色块：形状在聚焦时掷出，随 focus 淡入（可正可负、可宽可窄）
+        const AccentPlate::Shape shape = plate_.Apply(rect, theme.skew);
+        AddSkewFilled(draw_list, shape.rect, shape.skew, WithAlpha(theme.red, 0.95f * focus01));
     }
     // ---- 黑色主体 ----
     AddSkewFilled(draw_list, rect, theme.skew, theme.panel_deep);
@@ -231,7 +295,8 @@ void GameMenuTab::Reset() {
     was_selected_ = false;
 }
 
-void GameMenuTab::Update(float dt, bool selected, const MenuAnimationConfig& cfg) {
+void GameMenuTab::Update(float dt, bool selected, const GameMenuTheme& theme) {
+    const MenuAnimationConfig& cfg = theme.animation;
     anim_.focus = MoveTowards(anim_.focus, selected ? 1.0f : 0.0f, cfg.focus_duration, dt);
     if (selected && !was_selected_) {
         anim_.flash = 1.0f;
@@ -271,7 +336,8 @@ void GameMenuSelector::OnValueChanged(int direction) {
     direction_ = direction;
 }
 
-void GameMenuSelector::Update(float dt, const MenuAnimationConfig& cfg) {
+void GameMenuSelector::Update(float dt, const GameMenuTheme& theme) {
+    const MenuAnimationConfig& cfg = theme.animation;
     slide_ = DecayOnce(slide_, cfg.sweep_duration, dt);
 }
 
@@ -312,14 +378,21 @@ void GameMenuSelector::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, c
 void MenuOptionRow::Reset() {
     anim.Reset();
     selector.Reset();
+    plate.Reset();
     toggle = ToggleOn() ? 1.0f : 0.0f;
+    was_focused = false;
 }
 
-void MenuOptionRow::Update(float dt, const MenuAnimationConfig& cfg) {
-    // 焦点由外部传入 Draw，这里只推进反馈类动画
+void MenuOptionRow::Update(float dt, bool focused, const GameMenuTheme& theme) {
+    const MenuAnimationConfig& cfg = theme.animation;
     anim.flash = DecayOnce(anim.flash, cfg.flash_duration, dt);
-    selector.Update(dt, cfg);
+    selector.Update(dt, theme);
     toggle = SmoothTo(toggle, ToggleOn() ? 1.0f : 0.0f, 18.0f, dt);
+    if (focused && !was_focused) {
+        plate.Reroll(theme); // 换行聚焦时同样换一个错位形状
+    }
+    was_focused = focused;
+    plate.Update(dt, theme);
 }
 
 void MenuOptionRow::Change(int direction) {
@@ -353,8 +426,8 @@ void MenuOptionRow::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, cons
     const float f = focused ? 1.0f : 0.0f;
     Rect row = rect.Offset(10.0f * f, 0.0f);
     if (focused) {
-        Rect plate = row.Offset(6.0f, 4.0f);
-        AddSkewFilled(draw_list, plate, theme.skew * 0.6f, WithAlpha(theme.red, 0.9f));
+        const AccentPlate::Shape shape = plate.Apply(row, theme.skew * 0.6f);
+        AddSkewFilled(draw_list, shape.rect, shape.skew, WithAlpha(theme.red, 0.9f));
         AddSkewFilled(draw_list, row, theme.skew * 0.6f, theme.panel_deep);
         AddSkewBorder(draw_list, row, theme.skew * 0.6f, theme.white, 2.0f);
     } else {
@@ -398,15 +471,19 @@ void MenuOptionRow::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, cons
 
 void GameMenuSaveSlot::Reset() {
     anim_.Reset();
+    plate_.Reset();
     was_focused_ = false;
 }
 
-void GameMenuSaveSlot::Update(float dt, bool focused, const MenuAnimationConfig& cfg) {
+void GameMenuSaveSlot::Update(float dt, bool focused, const GameMenuTheme& theme) {
+    const MenuAnimationConfig& cfg = theme.animation;
     anim_.focus = MoveTowards(anim_.focus, focused ? 1.0f : 0.0f, cfg.focus_duration, dt);
     if (focused && !was_focused_) {
         anim_.sweep = 1.0f;
+        plate_.Reroll(theme);
     }
     was_focused_ = focused;
+    plate_.Update(dt, theme);
     anim_.sweep = DecayOnce(anim_.sweep, cfg.sweep_duration, dt);
     anim_.press = DecayOnce(anim_.press, cfg.press_duration, dt);
 }
@@ -429,8 +506,8 @@ Rect GameMenuSaveSlot::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, c
     const Rect thumb = MakeRect(card.min.x + 10.0f, card.min.y + 9.0f, card.Width() - 20.0f,
                                 card.Height() - footer_h - 16.0f);
     if (anim_.focus > 0.01f) {
-        AddSkewFilled(draw_list, card.Offset(7.0f * anim_.focus, 5.0f * anim_.focus), theme.skew * 0.6f,
-                      WithAlpha(theme.red, 0.95f * anim_.focus));
+        const AccentPlate::Shape shape = plate_.Apply(card, theme.skew * 0.6f);
+        AddSkewFilled(draw_list, shape.rect, shape.skew, WithAlpha(theme.red, 0.95f * anim_.focus));
     }
     AddSkewFilled(draw_list, card, theme.skew * 0.6f, theme.panel_deep);
     AddSkewBorder(draw_list, card, theme.skew * 0.6f,

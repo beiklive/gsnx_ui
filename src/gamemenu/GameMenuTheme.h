@@ -66,7 +66,18 @@ struct GameMenuTheme {
     float arrow_size = 9.0f;
 
     // 装饰（也放主题里，避免绘制代码里散落尺寸）
-    float accent_plate_offset = 11.0f; // 红色错位背板偏移
+    // 红色错位色块：**每次获得焦点重新掷一次**，让每个条目/每次聚焦都不一样
+    // （Persona 式「不规则边缘 + 轻微位移」）。取值范围都写在这里。
+    // 注意：色块压在按钮下面，只有露出来的边才可见 —— 所以
+    // row_gap 必须留得下 plate_offset_y 的最大值，否则变化会被下一个按钮盖住。
+    float plate_offset_x_min = -18.0f; // 负值 = 往左错位（左边缘也参与变化）
+    float plate_offset_x_max = 12.0f;
+    float plate_offset_y_min = 5.0f;   // 向下错位 = 底部露出的高度
+    float plate_offset_y_max = 18.0f;
+    float plate_extend_min = -6.0f;    // 宽度额外伸缩（负 = 比本体窄）
+    float plate_extend_max = 24.0f;
+    float plate_skew_jitter = 8.0f;    // 斜切量的随机浮动
+    float plate_smoothing = 15.0f;     // 换形状时的过渡速度（SmoothTo）
     float focus_tick_length = 16.0f;   // 焦点框四角 L 形长度
     float sweep_width = 62.0f;         // 扫描高光条宽度
 
@@ -84,9 +95,9 @@ struct GameMenuTheme {
     int slot_columns_narrow = 2;
     int slot_columns_wide = 3;
     float row_height = 56.0f;
-    float row_gap = 8.0f;
-    float group_gap = 19.0f;   // 分组之间（用分隔线，不用文字）
-    float panel_padding = 28.0f;
+    float row_gap = 12.0f;     // 留出红色错位块向下露出的空间
+    float group_gap = 14.0f;   // 分组之间（用分隔线，不用文字）
+    float panel_padding = 24.0f;
 
     // 字号（720p 设计空间）
     float title_size = 36.0f;

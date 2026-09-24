@@ -258,7 +258,7 @@ void GameMenuHost::Draw(ImDrawList* draw_list, const Rect& screen) {
 
     // 内容区：标题条 + 副标题行都要让开（否则第一项会压住副标题）
     const float header_h = theme_->title_size + 34.0f;
-    const float content_top = header_h + theme_->small_size + 24.0f;
+    const float content_top = header_h + theme_->small_size + 20.0f;
     const Rect content = MakeRect(panel.min.x + theme_->panel_padding,
                                   panel.min.y + content_top,
                                   panel.Width() - theme_->panel_padding * 2.0f,

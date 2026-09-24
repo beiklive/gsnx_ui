@@ -87,7 +87,7 @@ void MainMenuView::Update(GameMenuContext& ctx) {
             focus_ = i; // 悬停把焦点吸过去
             focused = true;
         }
-        items_[i].Update(ctx.dt, focused, ctx.theme->animation);
+        items_[i].Update(ctx.dt, focused, *ctx.theme);
     }
     focus_frame_.Update(ctx.dt, item_rects_[focus_], ctx.theme->animation);
 }

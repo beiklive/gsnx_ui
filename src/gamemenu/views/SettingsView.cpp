@@ -186,10 +186,10 @@ void SettingsView::Update(GameMenuContext& ctx) {
     }
 
     for (int i = 0; i < category_count_; ++i) {
-        tabs_[i].Update(ctx.dt, i == category_, cfg);
+        tabs_[i].Update(ctx.dt, i == category_, *ctx.theme);
     }
     for (int i = 0; i < option_count_; ++i) {
-        rows_[i].Update(ctx.dt, cfg);
+        rows_[i].Update(ctx.dt, i == focus_, *ctx.theme);
     }
 
     // 鼠标辅助：点分类切分类，点选项行聚焦，点左右区域改值

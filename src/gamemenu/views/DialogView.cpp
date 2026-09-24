@@ -32,7 +32,7 @@ void DialogView::OnEnter(GameMenuContext& ctx) {
 void DialogView::Update(GameMenuContext& ctx) {
     enter_ = AdvanceOnce(enter_, ctx.theme->animation.enter_duration, ctx.dt);
     for (int i = 0; i < button_count_; ++i) {
-        buttons_[i].Update(ctx.dt, i == focus_, ctx.theme->animation);
+        buttons_[i].Update(ctx.dt, i == focus_, *ctx.theme);
     }
     focus_frame_.Update(ctx.dt, button_rects_[focus_], ctx.theme->animation);
 

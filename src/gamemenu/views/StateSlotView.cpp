@@ -61,11 +61,11 @@ void StateSlotView::Update(GameMenuContext& ctx) {
             focus_ = i;
         }
         if (hovered && clicked) {
-            slots_[i].Update(ctx.dt, true, ctx.theme->animation);
+            slots_[i].Update(ctx.dt, true, *ctx.theme);
             OnAction(ctx, InputAction::Confirm);
             clicked = false;
         } else {
-            slots_[i].Update(ctx.dt, i == focus_, ctx.theme->animation);
+            slots_[i].Update(ctx.dt, i == focus_, *ctx.theme);
         }
     }
     focus_frame_.Update(ctx.dt, slot_rects_[focus_], ctx.theme->animation);
