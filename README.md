@@ -180,7 +180,7 @@ void OnBuild() override {
 | 边框 | 1px 灰白 `rgb(190,190,195)` | `setBorder(width, color)` |
 | 圆角 | 5px | `setCornerRadius(px)` |
 | 阴影 | 右下 `offset(4,4)` / blur 10 / `rgba(0,0,0,120)` | `setShadow(offset, blur, color)` |
-| 聚焦框 | 完整闭合的流光框，与按钮留 **2px** 边距，宽 2px | `setFlowingFocus(bool)` + `focus_margin / focus_width / focus_saturation / focus_brightness / focus_phase_offset` |
+| 聚焦框 | 完整闭合的流光框，与按钮留 **2px** 边距，宽 **3px** | `setFlowingFocus(bool)` + `focus_margin / focus_width / focus_saturation / focus_brightness / focus_phase_offset` |
 | 内容留白 | 8px | `setContentPadding(px)` |
 | 图标格 | 正方形，边长 = 内容区高度（四周留白相同） | `setIconCellSize(px)` |
 | LR 间隔 | 120px 固定宽，内容居中、超长滚动 | `setSlotWidth(px)` |
@@ -199,13 +199,13 @@ void OnBuild() override {
 | 7 | `ValueButton` | `(icon, "文字")` | 图标 + 文字 | `[L] 数值 [R]`：同上；`setup(初值, 最小, 最大, 步长, 小数位)`，L/R 调值，`valueChanged(float)` |
 
 说明行（subtitle）除 `TextButton` 外都支持：`setSubtitle("小字", true)` / `showSubtitle(false)`。
-有主文字时主文字在上、说明行在下，两块整体垂直居中，`text_align` 决定水平位置。开关说明行都不会让文字上下跳。
+有主文字时主文字在上、说明行在下，两块整体垂直居中，`text_align` 决定水平位置。
+**关掉说明行后主文字会重新回到按钮的竖直中线**（文字块按自己的高度居中，不跟着图标格的高度走）。
 
 **图标一律按「墨迹」居中**（`Draw::GlyphInkExtent` 取字形的可见上下边界）：行盒下方带 descender
 空白，按行盒居中图标会看起来偏上；按墨迹居中后图标正落在按钮的竖直中线上。
 
-**聚焦时图标和文字（主文字 + 说明行）直接放大 1.1 倍**，不做过渡动画（`ContentScale()`）。
-LR 选择器里的 L/R 图标保持原尺寸，只有间隔里的文字/数字放大，这样整行不会抖。
+**聚焦不改变尺寸**：图标和文字保持原尺寸，聚焦视觉只由流光框表达（`focus_width` 默认 3px）。
 
 `IconButton` 只有**圆角正方形**和**圆形**两种形态（圆形时圆角 = 边长的一半），宽度等于边长，
 不再是通栏按钮。它的说明行**不在按钮里画，而是画在按钮外面**（`setSubtitle` 的开关照样有效）：
@@ -795,10 +795,15 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
 - 已确认（Button 第三轮调整）：① 图标改成按「墨迹」居中（行盒下方有 descender 空白，按行盒居中会偏上）——
   实测 `无线网络` 图标墨迹中心 169.5 vs 按钮中心 170；② `IconButton` 的说明行改到按钮外面：默认下方
   （间距 4px），下方不够就等距放上方（把按钮放到 y=640 时实测说明行在 625.5~636），上下都不够就不显示
-  （`caption_gap=600` 时无任何说明文字）；③ 聚焦时图标和文字（主文字 + 说明行）**直接**放大 1.1 倍、
-  不做过渡动画——实测数值 `65` 的墨迹 13.0→14.5、图标 21.5→23.5，居中不变（cy 355.2→355.8）；
-  聚焦那一帧（`focus_mix` 才 0.121、聚焦框还在动画）内容就已经是 1.100，确认没有过渡。
+  （`caption_gap=600` 时无任何说明文字）；③（当时做过、第四轮已按要求去掉）聚焦放大 1.1 倍。
   快照：`docs/buttons-demo{,-compact}.png`。
+- 已确认（Button 第四轮调整）：① **聚焦不再缩放**（实测把 `65` 与图标的墨迹在聚焦/未聚焦两态逐项比对，
+  完全一致：13.0×9.0 / 21.5×21.5）；② 流光框宽度 2px → **3px**（`Global::component_style.focus_width`，
+  抓帧看到顶部彩带从 5 行（物理）变成 8 行，含 AA）；③ **修掉"关掉说明行后主文字不回到居中"的 bug**：
+  原来文字块的位置按"图标格高度"算（`block_y = center - block_h/2`，图标格 = 内容区高度），
+  关掉说明行后主文字就停在偏上 8px 的位置；现在按文字块自己的高度居中。
+  实测（说明行关）：无线网络主文字墨迹中心 169.5 / 存储路径 231.5 vs 按钮中心 170 / 232；
+  普通按钮（无说明行）主文字墨迹中心 y=45.5、x=217 vs 按钮中心 (46, 218)。
 - 顺带修掉一个框架输入 bug（长按功能的前提）：`PadState::held` 原来是"每帧清零"，SDL 只在按下那一刻
   发一次 KEYDOWN，所以按住不放时 `held` 只有第一帧为真、`Held()` 根本没法用（`Input.h` 注释里
   写的是电平语义）。现在后端把上一帧的按住状态继承下来再叠加本帧事件，`held` 变回真正的电平；

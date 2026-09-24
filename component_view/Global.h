@@ -42,7 +42,7 @@ struct ComponentStyle {
     ImVec4 shadow_color = Theme::rgba(0, 0, 0, 120);
     // 流光聚焦框
     float focus_margin = 2.0f;      // 聚焦框与控件之间的边距
-    float focus_width = 2.0f;       // 聚焦框粗细
+    float focus_width = 3.0f;       // 聚焦框粗细（比原来 2px 再加 1px）
     float focus_flow_speed = 0.28f; // 每秒流动多少圈
     float focus_saturation = 0.75f; // 流光颜色饱和度（0 = 白灰流光）
     float focus_brightness = 1.0f;
