@@ -100,7 +100,7 @@ protected:
 
     float mainFontSize() const { return font_size > 0.0f ? font_size : Theme::kFontBody; }
     float subFontSize() const { return subtitle_size > 0.0f ? subtitle_size : Theme::kFontSmall; }
-    // 聚焦时图标和文字（主文字 + 说明行）放大 1.1 倍，跟 focus_mix 平滑过渡
+    // 聚焦时图标和文字（主文字 + 说明行）直接放大 1.1 倍（不做过渡动画）
     float ContentScale() const;
     float MainSize() const { return mainFontSize() * ContentScale(); }
     float SubSize() const { return subFontSize() * ContentScale(); }

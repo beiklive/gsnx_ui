@@ -161,8 +161,8 @@ bool Button::CaptionOutside() const {
 }
 
 float Button::ContentScale() const {
-    // 聚焦时放大 1.1 倍，跟着焦点动画平滑过渡
-    return 1.0f + 0.1f * Clampf(focus_mix, 0.0f, 1.0f);
+    // 聚焦就是 1.1 倍，不做过渡动画
+    return focused ? 1.1f : 1.0f;
 }
 
 Button::LeftBlock Button::computeLeftBlock(const Rect& content) const {
