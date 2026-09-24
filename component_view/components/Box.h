@@ -28,6 +28,9 @@ public:
     Box& outline(float width, ImU32 color);  // 边框
     Box& dropShadow(float blur, ImU32 color); // 阴影
 
+    // 重新套用全局约定样式（Global::component_style：1px 灰白边框 / 5px 圆角 / 右下阴影）
+    Box& applyComponentStyle();
+
     // ---- 焦点 --------------------------------------------------------------
     // Box 有两种身份，按需要选：
     //   容器：不调 makeFocusable()，它只负责排版/背景，焦点落在子节点上

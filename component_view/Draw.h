@@ -25,6 +25,20 @@ void Text(ImDrawList* dl, ImFont* font, float font_size, const ImVec2& pos, ImU3
 // 取当前 ImGui 上下文的主字体
 ImFont* CurrentFont();
 
+// ---- 流光聚焦框 -----------------------------------------------------------
+// 沿圆角矩形边界画一圈「颜色在流动」的闭合边框：
+//   rect       要框住的矩形（调用方自己按 margin 外扩）
+//   thickness  边框粗细
+//   phase      相位（0..1 循环，用 Global::time * speed 喂进来）
+//   saturation / brightness  HSV 的 S/V（饱和度 0 = 白灰流光）
+//   radius     圆角半径（默认 <0 时按 thickness*2 估；正常应传控件圆角 + 外扩量，才会贴着按钮的圆角走）
+// 实现：把圆角矩形按弧长采样成点列，逐段画填充四边形，每段的色相 = 弧长比例 + phase
+void FlowingRing(ImDrawList* dl, const Rect& rect, float thickness, float phase, float saturation = 0.75f,
+                 float brightness = 1.0f, float alpha = 1.0f, float step = 3.0f, float radius = -1.0f);
+
+// HSV -> ImU32（h/s/v 都是 0..1），流光用
+ImU32 Hsv(float h, float s, float v, float alpha = 1.0f);
+
 // ---- 文本增强 -------------------------------------------------------------
 // 带 1px 描边（四向偏移）的文本：深色背景上更容易读。
 void TextOutlined(ImDrawList* dl, ImFont* font, float font_size, const ImVec2& pos, ImU32 color, ImU32 outline_color,

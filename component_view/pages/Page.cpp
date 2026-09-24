@@ -13,6 +13,8 @@ Box& Page::Root() {
     if (root_ == nullptr) {
         root_ = std::make_unique<Box>("page_root");
         root_->background = 0;                  // 背景由 Page::Render 统一铺
+        root_->border.width = 0.0f;             // 整页容器不画边框
+        root_->shadow.enabled = false;          // 阴影会铺满整块矩形，透明根节点会把页面压暗
         root_->corner_radius = 0.0f;
         root_->padding = EdgeInsets{};          // 不留边距：(0,0) 就是页面左上角
         root_->layout = LayoutMode::Free;       // 子节点用 position 自己定位

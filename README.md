@@ -123,7 +123,7 @@ GUI_DEV_EXIT_AFTER=60 ./build/mac/gui_dev_demo   # 跑满 60 帧后正常退出�
 
 ## component_view 组件库（重建中）
 
-组件库已清空重做，现在只剩最基础的一层：**一个 128x128 的 Box 在页面左上角**。
+组件库已清空重做，现在有两层：**Box（矩形底 / 容器 / 可聚焦控件）** 和 **Button（7 种形态）**。
 
 ```bash
 cmake --preset mac && cmake --build --preset mac
@@ -137,28 +137,77 @@ cmake --preset mac && cmake --build --preset mac
 | `component_view/Object.h` | Qt 风格信号槽（`Object` / `Signal<Args...>` / `connect` / `emit`） |
 | `component_view/Types.h` | `Rect` / `EdgeInsets` / `BorderStyle` / `ShadowStyle` / `Transform2D` / 布局枚举 |
 | `component_view/Theme.{h,cpp}` | VSCode Dark+ 调色板（**RGBA/ImVec4**）+ 720p 手持尺寸基准 + `Theme::ApplyToImGui()` |
-| `component_view/Draw.{h,cpp}` | 绘制原语：圆角矩形 / 软阴影 / 文本 / 描边 / 省略号 |
+| `component_view/Draw.{h,cpp}` | 绘制原语：圆角矩形 / 软阴影 / 文本 / 描边 / 省略号 / 流光框 |
 | `component_view/Widget.{h,cpp}` | 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 溢出滚动 / 焦点动画 / 命中测试 / 输入分发 |
-| `component_view/Global.{h,cpp}` | 全局变量：画布 / 鼠标 / 触摸 / 手柄 / 焦点 / 分区 / 输入消费 |
-| `component_view/components/Box.{h,cpp}` | **当前唯一的组件**：矩形底 + 圆角 / 边框 / 阴影 |
+| `component_view/Global.{h,cpp}` | 全局变量：画布 / 鼠标 / 触摸 / 手柄 / 焦点 / 分区 / 输入消费 / 约定样式 |
+| `component_view/components/Box.{h,cpp}` | 矩形底 + 圆角 / 边框 / 阴影；可当容器，也可 `makeFocusable()` 当控件 |
+| `component_view/components/Button.{h,cpp}` | 按钮 7 种形态（见下节） |
 | `component_view/pages/Page.{h,cpp}` | 页面基类：root Box 铺满画布 + 布局/命中/更新/绘制 |
 | `demo.cpp` | 演示入口：登记页面、每帧驱动、三个调试开关 |
 
 ### 现在的 demo 长什么样
 
+左列 7 个按钮，右侧一个可聚焦 Box：
+
 ```cpp
 // demo.cpp
 void OnBuild() override {
-    box_ = Root().Emplace<Box>("box");
-    box_->moveTo(0.0f, 0.0f);      // 页面左上角（根节点没有 padding）
-    box_->resize(128.0f, 128.0f);  // 尺寸
-    box_->fillWith(Theme::kBgWidget);
-    box_->roundCorners(Theme::kRadius);
+    TextButton* plain = Root().Emplace<TextButton>("普通按钮");
+    plain->setSubtitle("文字居中显示；这行小字可以用 showSubtitle(false) 关掉");
+    plain->moveTo(20.0f, 20.0f);
+    plain->resize(396.0f, 52.0f);
+
+    box_ = Root().Emplace<Box>("box");   // 可聚焦容器
+    box_->moveTo(440.0f, 20.0f);
+    box_->resize(128.0f, 128.0f);
+    box_->makeFocusable();
 }
 ```
 
 `Box` 提供的链式设置：`moveTo / resize / fillWith / roundCorners / outline / dropShadow`
 （名字不能叫 `border` / `shadow` —— 那是 `Widget` 的成员变量）。
+
+### Button：7 种形态 + 全局约定样式
+
+约定（定义在 `Global::component_style`，改全局变量后每个按钮调 `applyComponentStyle()` 生效，
+单个按钮可以用链式接口覆盖）：
+
+| 约定 | 默认值 | 单实例覆盖 |
+|---|---|---|
+| 边框 | 1px 灰白 `rgb(190,190,195)` | `setBorder(width, color)` |
+| 圆角 | 5px | `setCornerRadius(px)` |
+| 阴影 | 右下 `offset(4,4)` / blur 10 / `rgba(0,0,0,120)` | `setShadow(offset, blur, color)` |
+| 聚焦框 | 完整闭合的流光框，与按钮留 **2px** 边距，宽 2px | `setFlowingFocus(bool)` + `focus_margin / focus_width / focus_saturation / focus_brightness / focus_phase_offset` |
+| 内容留白 | 8px | `setContentPadding(px)` |
+
+流光框的相位跟 `Global::time` 走（`focus_flow_speed` 控制流速），颜色是沿圆角边框按弧长流动的 HSV，
+所以四边一直是闭合的，不会出现"只有上下两条线"的聚焦效果。
+
+| # | 类 | 构造 | 左侧 | 右侧 |
+|---|---|---|---|---|
+| 1 | `TextButton` | `("文字")` | 文字水平居中 | — |
+| 2 | `IconTextButton` | `(icon, "文字")` | 图标（正方形，四周留白相同）+ 文字，都靠左 | — |
+| 3 | `IconButton` | `(icon)` | 只有图标 | — |
+| 4 | `ToggleButton` | `(icon, "文字")` | 图标 + 文字 | 开 / 关（开=蓝、关=灰），A/点击切换，`toggled(bool)` |
+| 5 | `CustomButton` | `(icon, "文字")` | 图标 + 文字 | 自定义文字：`setRightText(text, color)` |
+| 6 | `OptionButton` | `(icon, "文字")` | 图标 + 文字 | `[L] 选项 [R]`，`setOptions({...})`，L/R 切换，`selectionChanged(int)` |
+| 7 | `ValueButton` | `(icon, "文字")` | 图标 + 文字 | `[L] 数值 [R]`，`setup(初值, 最小, 最大, 步长, 小数位)`，L/R 调值，`valueChanged(float)` |
+
+说明行（subtitle）是所有形态共用的接口：`setSubtitle("小字", true)` / `showSubtitle(false)`，
+打开时在主文字下面加一行 `Theme::kFontSmall` 的浅色小字。**开关都不会让文字块上下跳**——
+文字块整体垂直居中，`text_align` 决定水平位置（`TextButton` 默认 `Center`，其余默认 `Left`）。
+
+按键对应关系（`framework/platform/backends/sdl2/Sdl2Backend.cpp` 的映射表）：
+手柄 `L/R`（PageLeft/PageRight）＝ 键盘 `Q/E`；`+`（Menu）＝ 键盘 `Tab` / `=`，
+demo 里用 `+` 一键开关所有按钮的说明行。
+
+验收用的脚本化输入（按键逐帧注入 + 终端打信号，帧抓取用的是临时探针，不留在树里）：
+
+```bash
+GUI_DEV_TRACE_SIGNAL=1 GUI_DEV_EXIT_AFTER=120 \
+GUI_DEV_CAPTURE_SCRIPT="D:5,Q:1,E:1,D:1,E:2" ./build/mac/gui_dev_demo
+# [signal] option index = 2 / 0   value = 70 / 75
+```
 
 ### 颜色一律写成 rgb() / rgba()（分量 0..255）
 
@@ -179,8 +228,8 @@ inline constexpr ImVec4 kScrim  = rgba(8, 8, 10, 200);   // #08080AC8（带 alph
 `Widget::SetBackground` 和 `Box::fillWith` 都有 `ImVec4` 重载，所以平时直接
 `box->fillWith(Theme::kBgWidget)` 就行，只有画 draw list 时才需要 `Theme::U32(...)`。
 
-`Theme.h` 末尾有一组 `static_assert`，保证每个 `rgb()/rgba()` 都能精确还原成注释里的十六进制
-（换写法不改颜色，写错分量编译期就报错）。
+`Theme.h` 末尾有一组 `static_assert`，只校验**写法**（`rgb()`/`rgba()`/`U32()`/夹取/带 alpha 的
+`U32` 都能精确还原成 `IM_COL32(...)`）。调色板的具体数值故意不锁死——那几个值是随时可以调的。
 
 ### 焦点与导航（Box 既能当容器，也能当控件）
 
@@ -516,6 +565,10 @@ GUI_DEV_DEBUG_LAYOUT=1 ./build/mac/gui_dev_demo
 
 ## 可聚焦 Box（流光聚焦）
 
+> 这一节讲的是 **framework 层** 的 `Components::FocusableBox`（贴图版流光，给宿主内核/启动器用）。
+> `component_view` 里的 `Box` / `Button` 不依赖贴图，流光框是 `Draw::FlowingRing` 直接按弧长采样算出来的
+> （见上面「Button：7 种形态」）。两套并存，别混着改。
+
 游戏机 UI 的焦点是**显式索引**（手柄方向键选择），不是 ImGui 的 nav 焦点，
 所以 `focused` 由调用方传入，组件只负责画。
 
@@ -700,6 +753,21 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   Widget/Global）+ 一个最小 `Box` + `Page` 宿主；`demo.cpp` 现在只在页面左上角 `(0,0)` 放一个
   128x128 的 Box（`docs/` 里旧的 showcase-*.png 已一并删除）。清空前那套 16 个控件 / 16 个 Tab
   的实现都在 git 历史里（`35ec70d` 及之前），需要哪一块可以直接 `git show` 取回来。
+- 已确认（Button 7 种形态 + 约定样式）：`Global::component_style` 统一 1px 灰白边框 / 5px 圆角 /
+  右下软阴影 / 与控件留 2px 的完整闭合流光框，单实例都能链式覆盖；7 种形态（纯文字、图标+文字、
+  纯图标、开关、自定义右侧文字、LR 选项、LR 数值）逐个抓帧核对，脚本化验收（`GUI_DEV_TRACE_SIGNAL=1`
+  打信号）：A 键开关 `开→关`、Q/E（手柄 L/R）选项 `2→0`（wrap）、数值 `70→75`（步长 5）、
+  `+`(Tab) 一键开关说明行且文字块仍垂直居中；抓帧见 `docs/buttons-demo.png`（说明行开）与
+  `docs/buttons-demo-compact.png`（说明行关）。
+- 顺带修掉两个真 bug：
+  1) **整页被自己的阴影压暗**：`Box` 构造里会 `applyComponentStyle()` 打开阴影，而软阴影的每一层
+     都是**实心矩形**（靠多层低 alpha 叠出模糊），页面根 Box 是透明的 → 白底实测只有 `(186,186,186)`；
+     现在 `Page::Root()` 显式关掉根节点的边框与阴影，白底恢复 `(255,255,255)`。
+  2) **焦点控件吞掉页面级快捷键**：`Widget::UpdateInteraction` 以前对 `kDispatched` 里的按键
+     **无条件** `MarkConsumed`，普通按钮会把 `Menu`(`+`/Tab) 吃掉，页面永远收不到；现在只有
+     `OnPadAction()` 返回 true 才消费，与 B 键的处理方式一致。
+  另外 `Draw::FlowingRing` 增加了 `radius` 参数（原来固定按 `thickness*2` 估），流光框现在用
+  `按钮圆角 + 外扩量`，圆角与按钮轮廓平行。
 - 已确认（720p 手持基准）：把字号/行高/间距/面板几何整体从「桌面比例」压到手持尺度
   （正文 22→17、标题 34→26、控件高 44→34、列表行 46→32、键盘键 42→30、HUD 46→36、
   左列 236→186）；

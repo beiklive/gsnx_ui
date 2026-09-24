@@ -22,6 +22,7 @@ void BeginFrame(UiContext& ui) {
     draw_list = ImGui::GetForegroundDrawList();
 
     delta_time = ui.DeltaTime();
+    time += delta_time;
     pad = ui.Pad();
     compact = canvas_size.x < 900.0f;
     platform_name = PlatformName();

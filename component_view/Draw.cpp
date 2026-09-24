@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <vector>
 
 #include "component_view/Theme.h"
 
@@ -245,6 +246,153 @@ void RoundedRectVerticalGradient(ImDrawList* dl, const Rect& r, ImU32 top, ImU32
     }
     dl->AddRectFilledMultiColor(r.min, r.max, top, top, bottom, bottom);
     (void)rounding;
+}
+
+ImU32 Hsv(float h, float s, float v, float alpha) {
+    h = h - std::floor(h); // 循环到 0..1
+    s = Clampf(s, 0.0f, 1.0f);
+    v = Clampf(v, 0.0f, 1.0f);
+    const float c = v * s;
+    const float x = c * (1.0f - std::fabs(std::fmod(h * 6.0f, 2.0f) - 1.0f));
+    const float m = v - c;
+    float r = 0.0f;
+    float g = 0.0f;
+    float b = 0.0f;
+    const int sector = static_cast<int>(h * 6.0f) % 6;
+    switch (sector) {
+    case 0: r = c; g = x; break;
+    case 1: r = x; g = c; break;
+    case 2: g = c; b = x; break;
+    case 3: g = x; b = c; break;
+    case 4: r = x; b = c; break;
+    default: r = c; b = x; break;
+    }
+    return IM_COL32(static_cast<int>((r + m) * 255.0f + 0.5f), static_cast<int>((g + m) * 255.0f + 0.5f),
+                    static_cast<int>((b + m) * 255.0f + 0.5f), static_cast<int>(Clampf(alpha, 0.0f, 1.0f) * 255.0f + 0.5f));
+}
+
+namespace {
+
+struct RingSample {
+    ImVec2 pos;
+    ImVec2 normal; // 指向外侧
+};
+
+// 把圆角矩形边界按「周长均匀」采样，供流光边框使用
+void BuildRingPath(const Rect& r, float radius, float step, std::vector<RingSample>& out) {
+    out.clear();
+    const float max_radius = Minf(Minf(r.Width(), r.Height()) * 0.5f, Maxf(radius, 0.0f));
+    const float x0 = r.min.x;
+    const float y0 = r.min.y;
+    const float x1 = r.max.x;
+    const float y1 = r.max.y;
+
+    const float straight_w = Maxf(x1 - x0 - 2.0f * max_radius, 0.0f);
+    const float straight_h = Maxf(y1 - y0 - 2.0f * max_radius, 0.0f);
+    const float arc_len = 0.5f * 3.14159265358979f * max_radius;
+    const float perimeter = 2.0f * (straight_w + straight_h) + 4.0f * arc_len;
+    if (perimeter <= 0.0f) {
+        return;
+    }
+    const int count = static_cast<int>(Clampf(perimeter / Maxf(step, 1.0f), 24.0f, 1024.0f));
+
+    auto push = [&](const ImVec2& pos, const ImVec2& normal) { out.push_back(RingSample{pos, normal}); };
+
+    // 从左上角圆弧起点开始，顺时针：上边 -> 右上角 -> 右边 -> 右下角 -> 下边 -> 左下角 -> 左边 -> 左上角
+    const struct {
+        ImVec2 center;
+        float start_angle;
+    } corners[4] = {
+        {ImVec2(x1 - max_radius, y0 + max_radius), -1.5707963f}, // 右上
+        {ImVec2(x1 - max_radius, y1 - max_radius), 0.0f},        // 右下
+        {ImVec2(x0 + max_radius, y1 - max_radius), 1.5707963f},  // 左下
+        {ImVec2(x0 + max_radius, y0 + max_radius), 3.1415926f},  // 左上
+    };
+
+    for (int i = 0; i <= count; ++i) {
+        const float s = perimeter * static_cast<float>(i) / static_cast<float>(count);
+        float travelled = s;
+        const float seg_straight_w = straight_w;
+        const float seg_straight_h = straight_h;
+        // 上边
+        if (travelled <= seg_straight_w) {
+            push(ImVec2(x0 + max_radius + travelled, y0), ImVec2(0.0f, -1.0f));
+            continue;
+        }
+        travelled -= seg_straight_w;
+        if (travelled <= arc_len) {
+            const float a = corners[0].start_angle + (travelled / Maxf(arc_len, 0.001f)) * 1.5707963f;
+            const ImVec2 n(std::cos(a), std::sin(a));
+            push(ImVec2(corners[0].center.x + n.x * max_radius, corners[0].center.y + n.y * max_radius), n);
+            continue;
+        }
+        travelled -= arc_len;
+        // 右边
+        if (travelled <= seg_straight_h) {
+            push(ImVec2(x1, y0 + max_radius + travelled), ImVec2(1.0f, 0.0f));
+            continue;
+        }
+        travelled -= seg_straight_h;
+        if (travelled <= arc_len) {
+            const float a = corners[1].start_angle + (travelled / Maxf(arc_len, 0.001f)) * 1.5707963f;
+            const ImVec2 n(std::cos(a), std::sin(a));
+            push(ImVec2(corners[1].center.x + n.x * max_radius, corners[1].center.y + n.y * max_radius), n);
+            continue;
+        }
+        travelled -= arc_len;
+        // 下边
+        if (travelled <= seg_straight_w) {
+            push(ImVec2(x1 - max_radius - travelled, y1), ImVec2(0.0f, 1.0f));
+            continue;
+        }
+        travelled -= seg_straight_w;
+        if (travelled <= arc_len) {
+            const float a = corners[2].start_angle + (travelled / Maxf(arc_len, 0.001f)) * 1.5707963f;
+            const ImVec2 n(std::cos(a), std::sin(a));
+            push(ImVec2(corners[2].center.x + n.x * max_radius, corners[2].center.y + n.y * max_radius), n);
+            continue;
+        }
+        travelled -= arc_len;
+        // 左边
+        if (travelled <= seg_straight_h) {
+            push(ImVec2(x0, y1 - max_radius - travelled), ImVec2(-1.0f, 0.0f));
+            continue;
+        }
+        travelled -= seg_straight_h;
+        const float a = corners[3].start_angle + (Clampf(travelled / Maxf(arc_len, 0.001f), 0.0f, 1.0f)) * 1.5707963f;
+        const ImVec2 n(std::cos(a), std::sin(a));
+        push(ImVec2(corners[3].center.x + n.x * max_radius, corners[3].center.y + n.y * max_radius), n);
+    }
+}
+
+} // namespace
+
+void FlowingRing(ImDrawList* dl, const Rect& rect, float thickness, float phase, float saturation, float brightness,
+                 float alpha, float step, float radius) {
+    if (alpha <= 0.002f) {
+        return;
+    }
+    if (dl == nullptr || !rect.Valid() || thickness <= 0.0f) {
+        return;
+    }
+    std::vector<RingSample> path;
+    BuildRingPath(rect, radius >= 0.0f ? radius : thickness * 2.0f, step, path);
+    if (path.size() < 3) {
+        return;
+    }
+    const float half = thickness * 0.5f;
+    const std::size_t count = path.size() - 1; // 首尾闭合，最后一个点和第一个重合
+    for (std::size_t i = 0; i < count; ++i) {
+        const RingSample& a = path[i];
+        const RingSample& b = path[i + 1];
+        const float t = static_cast<float>(i) / static_cast<float>(count);
+        const ImU32 color = Hsv(t + phase, saturation, brightness, alpha);
+        const ImVec2 a0(a.pos.x + a.normal.x * half, a.pos.y + a.normal.y * half);
+        const ImVec2 a1(a.pos.x - a.normal.x * half, a.pos.y - a.normal.y * half);
+        const ImVec2 b0(b.pos.x + b.normal.x * half, b.pos.y + b.normal.y * half);
+        const ImVec2 b1(b.pos.x - b.normal.x * half, b.pos.y - b.normal.y * half);
+        dl->AddQuadFilled(a0, b0, b1, a1, color);
+    }
 }
 
 } // namespace gui_dev::cv::Draw

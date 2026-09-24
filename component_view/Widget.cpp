@@ -497,8 +497,8 @@ void Widget::UpdateInteraction(float dt) {
             InputAction::PageLeft,   InputAction::PageRight,   InputAction::TriggerLeft, InputAction::TriggerRight,
         };
         for (InputAction action : kDispatched) {
-            if (Global::pad.Pressed(action) && Global::Available(action)) {
-                OnPadAction(action);
+            // 只有真正处理了这个按键才消费：没处理的（例如普通按钮的 Menu）留给页面级快捷键
+            if (Global::pad.Pressed(action) && Global::Available(action) && OnPadAction(action)) {
                 Global::MarkConsumed(action);
             }
         }

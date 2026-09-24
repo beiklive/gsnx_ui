@@ -8,6 +8,7 @@
 
 #include <imgui.h>
 
+#include "component_view/Theme.h"
 #include "component_view/Types.h"
 #include "platform/Input.h"
 
@@ -27,8 +28,33 @@ inline ImVec2 canvas_pos{0.0f, 0.0f};
 inline ImVec2 canvas_size{1280.0f, 720.0f};
 inline ImDrawList* draw_list = nullptr;
 
+// ---- 全局部件样式（所有 Box / Button 建好时套用；单个实例可以再用链式接口覆盖） ----
+// 约定：1px 灰白边框、5px 圆角、向右下角的阴影、流光聚焦框与控件留 2px 边距。
+struct ComponentStyle {
+    // 边框
+    ImVec4 border_color = Theme::rgb(190, 190, 195); // 灰白
+    float border_width = 1.0f;
+    // 圆角
+    float corner_radius = 5.0f;
+    // 阴影（右下角）
+    ImVec2 shadow_offset{4.0f, 4.0f};
+    float shadow_blur = 10.0f;
+    ImVec4 shadow_color = Theme::rgba(0, 0, 0, 120);
+    // 流光聚焦框
+    float focus_margin = 2.0f;      // 聚焦框与控件之间的边距
+    float focus_width = 2.0f;       // 聚焦框粗细
+    float focus_flow_speed = 0.28f; // 每秒流动多少圈
+    float focus_saturation = 0.75f; // 流光颜色饱和度（0 = 白灰流光）
+    float focus_brightness = 1.0f;
+    // 内容
+    float content_padding = 8.0f; // 内容到边框的留白（图标四周等距就是靠它）
+};
+inline ComponentStyle component_style;
+
 // ---- 帧信息 --------------------------------------------------------------
 inline float delta_time = 1.0f / 60.0f;
+// 应用启动以来的秒数（流光/呼吸这类动画用它，保证与帧率无关）
+inline float time = 0.0f;
 inline int frame_index = 0;
 inline float ui_scale = 1.0f;
 inline bool compact = false;

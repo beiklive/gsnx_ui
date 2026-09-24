@@ -2,12 +2,27 @@
 
 #include <utility>
 
+#include "component_view/Global.h"
+
 namespace gui_dev::cv {
 
 Box::Box() : Widget("box") {
     // 默认给一个可见的底色，免得新建出来「什么都没有」看不出位置
     background = Theme::U32(Theme::kBgWidget);
-    corner_radius = Theme::kRadius;
+    applyComponentStyle();
+}
+
+Box& Box::applyComponentStyle() {
+    // 约定样式来自全局变量，改 Global::component_style 后调这个（或重建）即可生效
+    const Global::ComponentStyle& style = Global::component_style;
+    border.width = style.border_width;
+    border.color = Theme::U32(style.border_color);
+    corner_radius = style.corner_radius;
+    shadow.enabled = true;
+    shadow.offset = style.shadow_offset;
+    shadow.blur = style.shadow_blur;
+    shadow.color = Theme::U32(style.shadow_color);
+    return *this;
 }
 
 Box::Box(std::string widget_name) : Box() {
