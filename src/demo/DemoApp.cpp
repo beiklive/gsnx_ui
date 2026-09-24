@@ -45,7 +45,7 @@ void LibraryScene::OnRender(UiContext& ui) {
                                  "  display=" + std::to_string(w) + "x" + std::to_string(h) + "  v" + version_;
 
     if (!Components::BeginPanel(ui, "GBAStation · 统一前端组件", subtitle.c_str())) {
-        Components::EndPanel();
+        Components::EndPanel(ui);
         return;
     }
 
@@ -123,10 +123,8 @@ void LibraryScene::OnRender(UiContext& ui) {
         }
     }
 
-    Components::EndPanel();
-
-    // 页脚必须在内容区结束后提交。按键提示统一用图标字形，不再写 "[A]" 这类文本。
-    Components::Footer(ui, {
+    // 页脚在 EndPanel 内绘制（画布内绝对定位到最底部），按键提示统一用图标字形。
+    Components::EndPanel(ui, {
         {Icons::Glyph(Icons::Button::A), "启动"},
         {Icons::Glyph(Icons::Button::B), "返回"},
         {Icons::Glyph(Icons::Button::L), "上一页"},

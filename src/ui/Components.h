@@ -2,8 +2,8 @@
 #pragma once
 
 #include <cstddef>
-#include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <imgui.h>
@@ -14,13 +14,18 @@ class UiContext;
 
 namespace Components {
 
-// 页面骨架：页头（标题 + 版本/状态）与页脚（按键提示）。
-// 内容区已自动 BeginChild，结尾处自动 EndChild。
+// 页面骨架：铺满屏幕的根画布 + 页头 + 可滚动内容区 + 底部按键提示。
+//
+// 用法（页脚必须在 EndPanel 里提交，因为它要画在画布内）：
+//   Components::BeginPanel(ui, "标题", "副标题");
+//   ... 内容 ...
+//   Components::EndPanel(ui, {{Icons::Glyph(Icons::Button::A), "确定"}});
+//
+// BeginPanel 会把内容区（body child）打开，因此 BeginPanel 与 EndPanel 之间
+// 绘制的一切都在可滚动内容区里；EndPanel 内部负责收尾与页脚定位。
 bool BeginPanel(UiContext& ui, const char* title, const char* subtitle = nullptr);
-void EndPanel();
-
-// 页脚按键提示，例如 {{"A", "确定"}, {"B", "返回"}}。
-void Footer(UiContext& ui, const std::vector<std::pair<const char*, const char*>>& hints);
+void EndPanel(UiContext& ui,
+              const std::vector<std::pair<const char*, const char*>>& footer_hints = {});
 
 // 分区标题，带一条分隔线。
 void SectionHeader(UiContext& ui, const char* label);

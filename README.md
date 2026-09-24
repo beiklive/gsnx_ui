@@ -81,6 +81,25 @@ main/demo  ->  gui_dev  ->  gui_dev_backend  ->  imgui
 **新增界面**：继承 `Scene`，重写 `OnRender`，用 `Components::*` 拼装；
 页面跳转用 `SceneStack::Push/Pop`。
 
+## 页面画布：直接画在屏幕上
+
+`Components::BeginPanel` / `EndPanel` 是**铺满整屏的根画布**，不是浮动窗口：
+
+- 每帧显式 `SetNextWindowPos(0,0)` + `SetNextWindowSize(DisplaySize)` —— 不指定尺寸
+  时 ImGui 会按内容自动撑成一个浮窗。
+- `NoDecoration | NoMove | NoBringToFrontOnFocus | NoNavFocus`，窗口圆角/边框压成 0。
+- 页头（52px）+ 可滚动内容区 + 页脚（40px）都在画布内，页脚用绝对定位贴到
+  `画布高度 - 40`，因此不会有元素溢出屏幕。
+- **页脚只能在画布内绘制**：`EndPanel(ui, hints)` 内部完成。如果在 `ImGui::End()`
+  之后再调绘制函数，会落到 ImGui 的隐藏 fallback 窗口上，屏幕角落就会多出一块浮动的方块。
+
+核对布局（Switch 上拿不到截图时尤其有用）：
+
+```bash
+GUI_DEV_DEBUG_LAYOUT=1 ./build/mac/gui_dev_demo
+# [gui_dev] root canvas pos=(0,0) size=(1280,720) display=(1280,720)
+```
+
 ## 按键图标（任天堂私用区）
 
 图标字形按平台取，**码位一致**，所以 UI 代码不需要分支：
@@ -93,7 +112,8 @@ main/demo  ->  gui_dev  ->  gui_dev_backend  ->  imgui
 ```cpp
 #include "ui/Icons.h"
 ImGui::TextUnformatted(Icons::Glyph(Icons::Button::A));   // 字形
-Components::Footer(ui, {{Icons::Glyph(Icons::Button::B), "返回"}});
+// 页脚提示在 EndPanel 里提交（页脚要画在画布内）
+Components::EndPanel(ui, {{Icons::Glyph(Icons::Button::B), "返回"}});
 ```
 
 | 按键 | 码位 | 按键 | 码位 |

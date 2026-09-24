@@ -1,6 +1,7 @@
 #include "ui/Components.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <utility>
 
 #include "ui/Theme.h"
@@ -18,20 +19,54 @@ void PushSelectedStyle() {
 
 void PopSelectedStyle() { ImGui::PopStyleColor(3); }
 
+// 根画布：铺满整个屏幕，无标题栏/边框/圆角/阴影/拖动/缩放。
+// 这是「直接画在屏幕上」而不是「浮在屏幕上的一扇窗」——所有页面都画在它里面，
+// 因此不需要也没有 ImGui 的窗口外壳。
+constexpr ImGuiWindowFlags kRootWindowFlags =
+    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
+    ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+
+// 设 GUI_DEV_DEBUG_LAYOUT=1 时打印根画布矩形。Switch 上拿不到截图，
+// 只能靠这些数字核对布局是否真的铺满屏幕。
+void DebugLogRootCanvas() {
+    static const bool enabled = std::getenv("GUI_DEV_DEBUG_LAYOUT") != nullptr;
+    if (!enabled) {
+        return;
+    }
+    const ImVec2 pos = ImGui::GetWindowPos();
+    const ImVec2 size = ImGui::GetWindowSize();
+    static ImVec2 last_pos(-1.0f, -1.0f);
+    static ImVec2 last_size(-1.0f, -1.0f);
+    if (pos.x == last_pos.x && pos.y == last_pos.y && size.x == last_size.x && size.y == last_size.y) {
+        return;
+    }
+    last_pos = pos;
+    last_size = size;
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    std::fprintf(stderr, "[gui_dev] root canvas pos=(%.0f,%.0f) size=(%.0f,%.0f) display=(%.0f,%.0f)\n",
+                 static_cast<double>(pos.x), static_cast<double>(pos.y), static_cast<double>(size.x),
+                 static_cast<double>(size.y), static_cast<double>(display.x),
+                 static_cast<double>(display.y));
+}
+
 } // namespace
 
 bool BeginPanel(UiContext& ui, const char* title, const char* subtitle) {
+    (void)ui;
+    // 尺寸必须每帧显式指定：不指定的话 ImGui 会按内容自动撑成一个浮窗。
+    ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+    ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 
     const std::string root_id = std::string("##panel_") + (title ? title : "root");
-    const bool open = ImGui::Begin(
-        root_id.c_str(), nullptr,
-        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus |
-            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar);
-    ImGui::PopStyleVar();
+    const bool open = ImGui::Begin(root_id.c_str(), nullptr, kRootWindowFlags);
+    ImGui::PopStyleVar(3);
+    DebugLogRootCanvas();
 
-    // ---- 页头（顶到窗口最上方，因此用 Group 压掉窗口 padding）---------------
+    // ---- 页头（顶到画布最上方，因此用 Group 压掉窗口 padding）----------------
     ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
     ImGui::BeginGroup();
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.09f, 0.10f, 0.12f, 1.0f));
@@ -49,36 +84,41 @@ bool BeginPanel(UiContext& ui, const char* title, const char* subtitle) {
 
     ImGui::Separator();
 
-    // ---- 内容区（自动滚动）-------------------------------------------------
+    // ---- 内容区（自动滚动）：负高度 = 剩余空间 - 页脚预留 --------------------
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(Theme::kGapLarge, Theme::kGapLarge));
-    ImGui::BeginChild("##panel_body", ImVec2(0.0f, -Theme::kGap), ImGuiChildFlags_None,
-                      ImGuiWindowFlags_None);
+    ImGui::BeginChild("##panel_body", ImVec2(0.0f, -(Theme::kGap + Theme::kFooterHeight)),
+                      ImGuiChildFlags_None, ImGuiWindowFlags_None);
     return open;
 }
 
-void EndPanel() {
-    ImGui::EndChild();
+void EndPanel(UiContext& ui, const std::vector<std::pair<const char*, const char*>>& footer_hints) {
+    (void)ui;
+    ImGui::EndChild();    // panel_body
     ImGui::PopStyleVar(); // panel_body padding
     ImGui::EndGroup();
-    ImGui::End();
-}
 
-void Footer(UiContext& ui, const std::vector<std::pair<const char*, const char*>>& hints) {
-    (void)ui;
-    // 内容区用了负高度（-Gap），所以在窗口 cusor 复位后这里紧跟其后。
-    // key 通常是 Icons::Glyph(...) 的字形，也可以是 "F11" 这类文本按键。
+    // 页脚在画布内绝对定位到最底部。必须在这里（仍处于画布内）绘制：
+    // 如果在 ImGui::End() 之后再画，会落到 ImGui 的隐藏 fallback 窗口上，
+    // 表现为屏幕角落多出一块浮动的方块。
+    const float footer_y = ImGui::GetWindowSize().y - Theme::kFooterHeight;
+    ImGui::SetCursorPos(ImVec2(0.0f, footer_y > 0.0f ? footer_y : 0.0f));
     ImGui::BeginChild("##panel_footer", ImVec2(0.0f, Theme::kFooterHeight), ImGuiChildFlags_None,
                       ImGuiWindowFlags_NoScrollbar);
-    ImGui::SetCursorPos(ImVec2(Theme::kGapLarge, (Theme::kFooterHeight - ImGui::GetTextLineHeight()) * 0.5f));
-    for (std::size_t i = 0; i < hints.size(); ++i) {
+    // key 通常是 Icons::Glyph(...) 字形，也可以是 "F11" 这类文本按键。
+    ImGui::SetCursorPos(ImVec2(Theme::kGapLarge,
+                               (Theme::kFooterHeight - ImGui::GetTextLineHeight()) * 0.5f));
+    for (std::size_t i = 0; i < footer_hints.size(); ++i) {
         if (i > 0) {
             ImGui::SameLine(0.0f, Theme::kGapLarge);
         }
-        ImGui::TextColored(Theme::ToVec4(Theme::kAccent), "%s", hints[i].first ? hints[i].first : "");
+        ImGui::TextColored(Theme::ToVec4(Theme::kAccent), "%s",
+                           footer_hints[i].first ? footer_hints[i].first : "");
         ImGui::SameLine(0.0f, Theme::kGapSmall);
-        ImGui::TextDisabled("%s", hints[i].second ? hints[i].second : "");
+        ImGui::TextDisabled("%s", footer_hints[i].second ? footer_hints[i].second : "");
     }
     ImGui::EndChild();
+
+    ImGui::End();
 }
 
 void SectionHeader(UiContext& ui, const char* label) {
