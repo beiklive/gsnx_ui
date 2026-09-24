@@ -47,6 +47,13 @@ void FormatStamp(char* buffer, std::size_t size, int save_index) {
     std::snprintf(buffer, size, "存档 #%d", save_index + 1);
 }
 
+// 游戏画面始终占满整屏（真实模拟器也是如此），菜单只是叠在上面；
+// 这里只把 HUD 条让出来。玩家方块放在偏右，保证菜单打开时仍然可见。
+gamemenu::Rect GameRegion() {
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    return MakeRect(0.0f, 0.0f, display.x, display.y - kHudHeight);
+}
+
 } // namespace
 
 // ------------------------------------------------------------------ 场景 ----
@@ -82,20 +89,25 @@ void PauseScene::OnUpdate(UiContext& ui, float dt) {
         game_.time += dt;
         game_.play_seconds += dt;
         game_.ship_angle += dt * 1.4f;
-        // 小球在左侧 62% 区域内弹跳（右上是菜单的视觉区域）
-        const float limit_x = 1180.0f - 30.0f;
-        const float limit_y = 720.0f - kHudHeight - 30.0f;
+        // 小球只在右侧游戏区域内弹跳（左侧是菜单面板）
+        const gamemenu::Rect region = GameRegion();
+        const float limit_min_x = region.min.x + 36.0f;
+        const float limit_max_x = region.max.x - 36.0f;
+        const float limit_min_y = 36.0f;
+        const float limit_max_y = region.max.y - 30.0f;
         for (int i = 0; i < 3; ++i) {
             game_.balls[i].x += game_.ball_vel[i].x * dt;
             game_.balls[i].y += game_.ball_vel[i].y * dt;
-            if (game_.balls[i].x < 30.0f || game_.balls[i].x > limit_x) {
+            if (game_.balls[i].x < limit_min_x || game_.balls[i].x > limit_max_x) {
                 game_.ball_vel[i].x = -game_.ball_vel[i].x;
-                game_.balls[i].x = game_.balls[i].x < 30.0f ? 30.0f : limit_x;
+                game_.balls[i].x =
+                    game_.balls[i].x < limit_min_x ? limit_min_x : limit_max_x;
                 game_.score += 10;
             }
-            if (game_.balls[i].y < 30.0f || game_.balls[i].y > limit_y) {
+            if (game_.balls[i].y < limit_min_y || game_.balls[i].y > limit_max_y) {
                 game_.ball_vel[i].y = -game_.ball_vel[i].y;
-                game_.balls[i].y = game_.balls[i].y < 30.0f ? 30.0f : limit_y;
+                game_.balls[i].y =
+                    game_.balls[i].y < limit_min_y ? limit_min_y : limit_max_y;
                 game_.score += 10;
             }
         }
@@ -151,8 +163,9 @@ void PauseScene::DrawFakeGame(ImDrawList* draw_list, const Rect& screen) {
         draw_list->AddLine(ImVec2(0.0f, y), ImVec2(screen.max.x, y), IM_COL32(0x4F, 0xA3, 0xFF, 0x0E));
     }
 
-    // "玩家"：旋转的红色方框
-    const ImVec2 center(420.0f, 300.0f);
+    // "玩家"：旋转的红色方框（偏右，避免被左侧菜单面板盖住）
+    const gamemenu::Rect region = GameRegion();
+    const ImVec2 center(region.max.x * 0.62f, region.max.y * 0.42f);
     const float size = 46.0f;
     ImVec2 corners[4];
     for (int i = 0; i < 4; ++i) {
@@ -174,7 +187,7 @@ void PauseScene::DrawFakeGame(ImDrawList* draw_list, const Rect& screen) {
 void PauseScene::DrawHud(ImDrawList* draw_list, const Rect& screen) {
     const Rect bar = MakeRect(0.0f, screen.max.y - kHudHeight, screen.Width(), kHudHeight);
     draw_list->AddRectFilled(bar.min, bar.max, IM_COL32(0x0A, 0x0B, 0x0F, 0xF0));
-    AddSkewFilled(draw_list, MakeRect(0.0f, bar.min.y, 340.0f, 4.0f), 30.0f,
+    AddSkewFilled(draw_list, MakeRect(bar.max.x - 340.0f, bar.min.y, 340.0f, 4.0f), 30.0f,
                   IM_COL32(0xE2, 0x1B, 0x25, 0xFF));
 
     char play[16];
@@ -184,14 +197,15 @@ void PauseScene::DrawHud(ImDrawList* draw_list, const Rect& screen) {
 
     char line[128];
     const bool paused = menu_.Visible();
-    std::snprintf(line, sizeof(line), "%s   %s   %s   存档 %d",
-                  paused ? "|| PAUSED" : ">  RUNNING", play, score, save_count_);
+    std::snprintf(line, sizeof(line), "存档 %d   %s   %s   %s", save_count_, score, play,
+                  paused ? "|| PAUSED" : ">  RUNNING");
 
+    // 面板在左侧，HUD 右对齐避免被盖住
     const float size = 20.0f;
-    gamemenu::AddTextLeftVCentered(draw_list, ImVec2(24.0f, bar.Center().y),
-                                   paused ? IM_COL32(0xE2, 0x1B, 0x25, 0xFF)
-                                          : IM_COL32(0xF5, 0xF5, 0xF7, 0xE0),
-                                   size, line);
+    gamemenu::AddTextRight(draw_list, ImVec2(bar.max.x - 28.0f, bar.Center().y - size * 0.5f),
+                           paused ? IM_COL32(0xE2, 0x1B, 0x25, 0xFF)
+                                  : IM_COL32(0xF5, 0xF5, 0xF7, 0xE0),
+                           size, line);
 }
 
 void PauseScene::DrawHotkeyHints(ImDrawList* draw_list, const Rect& screen) {
@@ -199,21 +213,21 @@ void PauseScene::DrawHotkeyHints(ImDrawList* draw_list, const Rect& screen) {
     const char* hint =
         "ZL+ZR (Z+C) 菜单   ↑↓←→ 移动   A (Enter) 确认   B (Esc) 返回   L/R (Q/E) 翻页   "
         "+ (Tab) 直接返回游戏";
-    gamemenu::AddTextLeftVCentered(draw_list, ImVec2(24.0f, y), IM_COL32(0xB0, 0xB6, 0xC0, 0xB0), 15.0f,
-                                   hint);
+    const float right = screen.max.x - 28.0f;
+    gamemenu::AddTextRight(draw_list, ImVec2(right, y - 8.0f), IM_COL32(0xB0, 0xB6, 0xC0, 0xB0),
+                           15.0f, hint);
 
     if (toast_timer_ > 0.0f) {
         const float a = gamemenu::Clamp01(toast_timer_ / 0.7f);
-        gamemenu::AddTextLeftVCentered(draw_list, ImVec2(24.0f, y - 26.0f),
-                                       ColorWithAlpha(IM_COL32(0xE2, 0x1B, 0x25, 0xFF), a), 18.0f,
-                                       toast_);
+        gamemenu::AddTextRight(draw_list, ImVec2(right, y - 34.0f),
+                               ColorWithAlpha(IM_COL32(0xE2, 0x1B, 0x25, 0xFF), a), 18.0f, toast_);
     }
 
     if (loaded_slot_ >= 0) {
         char text[64];
         std::snprintf(text, sizeof(text), "已读取槽位 %d", loaded_slot_ + 1);
-        gamemenu::AddTextLeftVCentered(draw_list, ImVec2(24.0f, y - 48.0f),
-                                       IM_COL32(0xF5, 0xF5, 0xF7, 0xB0), 15.0f, text);
+        gamemenu::AddTextRight(draw_list, ImVec2(right, y - 56.0f),
+                               IM_COL32(0xF5, 0xF5, 0xF7, 0xB0), 15.0f, text);
     }
 }
 

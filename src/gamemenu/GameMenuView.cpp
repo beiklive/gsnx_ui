@@ -240,11 +240,11 @@ void GameMenuHost::Draw(ImDrawList* draw_list, const Rect& screen) {
         views_.back()->DrawScreenOverlay(ctx_, draw_list, screen);
     }
 
-    // ---- 面板几何：位置/尺寸都来自自适应布局，从屏幕右侧外滑入 ----
+    // ---- 面板几何：位置/尺寸都来自自适应布局，从屏幕**左侧**外滑入 ----
     const float panel_w = ctx_.layout.panel_width;
     const float panel_h = ctx_.layout.panel_height;
     const float offscreen = panel_w + theme_->skew * 2.0f + 90.0f;
-    const float panel_x = ctx_.layout.panel_x + (1.0f - slide) * offscreen;
+    const float panel_x = ctx_.layout.panel_x - (1.0f - slide) * offscreen;
 
     const Rect panel = MakeRect(panel_x, ctx_.layout.panel_y, panel_w, panel_h);
 

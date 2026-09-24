@@ -37,13 +37,14 @@ GameMenuLayout ResolveGameMenuLayout(const GameMenuTheme& theme, const Rect& scr
     if (width > theme.menu_max_width) {
         width = theme.menu_max_width;
     }
-    // 窄画布下别把游戏画面挤没：至少给左侧留 52%
+    // 窄画布下别把游戏画面挤没：右侧至少留 52% 给游戏画面
     const float width_limit = screen.Width() * 0.48f;
     if (width > width_limit) {
         width = width_limit;
     }
     layout.panel_width = width;
-    layout.panel_x = screen.max.x - theme.menu_right_margin - width;
+    // 面板贴左边弹出（游戏画面在右侧）
+    layout.panel_x = screen.min.x + theme.menu_left_margin;
 
     // 高度：可用高度封顶，避免超长画布下面板被拉成一条。
     const float available = screen.Height() - theme.menu_top - theme.menu_bottom_margin;

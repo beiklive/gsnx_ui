@@ -70,13 +70,13 @@ struct GameMenuTheme {
     float focus_tick_length = 16.0f;   // 焦点框四角 L 形长度
     float sweep_width = 62.0f;         // 扫描高光条宽度
 
-    // 720p 布局：菜单靠右，游戏画面保留在左侧（需求 §15）
+    // 720p 布局：菜单**靠左**弹出，游戏画面保留在右侧
     // 这些是 1280x720 下的基准值；实际画布不同比例时由 ResolveLayout 自适应。
-    float menu_right_margin = 48.0f;
+    float menu_left_margin = 48.0f;
     float menu_width = 520.0f;      // 基准宽（720p 下约 41% 屏宽）
     float menu_width_ratio = 0.41f;  // 画布更宽时按比例取宽
     float menu_min_width = 440.0f;   // 再窄也不小于这个
-    float menu_max_width = 640.0f;   // 再宽也不超过这个（免得远离游戏画面）
+    float menu_max_width = 640.0f;   // 再宽也不超过这个（免得盖住太多游戏画面）
     float menu_top = 48.0f;
     float menu_bottom_margin = 32.0f;
     float menu_max_height = 700.0f;  // 画布很高时面板不跟着无限拉长
