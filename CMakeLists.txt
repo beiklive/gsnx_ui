@@ -67,7 +67,7 @@ if(GUI_DEV_PLATFORM STREQUAL "switch")
 endif()
 
 # --------------------------------------------------------------- backends ----
-# 后端实现只在这里选：换后端不影响 src/ui 与 src/core。
+# 后端实现只在这里选：换后端不影响 framework/ui 与 framework/core。
 if(GUI_DEV_BACKEND STREQUAL "sdl2")
     find_package(PkgConfig REQUIRED)
     # 宿主上 devkitPro 的 pkg-config 常排在 PATH 前面（它只认 switch portlibs），
@@ -85,100 +85,100 @@ if(GUI_DEV_BACKEND STREQUAL "sdl2")
     pkg_check_modules(LIBPNG REQUIRED IMPORTED_TARGET libpng)
 
     add_library(gui_dev_backend STATIC
-        src/platform/backends/sdl2/Sdl2Backend.cpp
-        src/platform/backends/sdl2/Factory.cpp
-        src/platform/backends/sdl2/AssetPaths.cpp
-        src/platform/backends/sdl2/PngLoader.cpp
+        framework/platform/backends/sdl2/Sdl2Backend.cpp
+        framework/platform/backends/sdl2/Factory.cpp
+        framework/platform/backends/sdl2/AssetPaths.cpp
+        framework/platform/backends/sdl2/PngLoader.cpp
         ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
         ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer2.cpp)
 
     # 字体来源按平台各实现一份（Switch: pl 共享字体 + romfs；桌面: assets/font/*.ttf）
     if(GUI_DEV_PLATFORM STREQUAL "switch")
-        target_sources(gui_dev_backend PRIVATE src/platform/backends/sdl2/SwitchPlatform.cpp)
+        target_sources(gui_dev_backend PRIVATE framework/platform/backends/sdl2/SwitchPlatform.cpp)
     else()
-        target_sources(gui_dev_backend PRIVATE src/platform/backends/sdl2/DesktopPlatform.cpp)
+        target_sources(gui_dev_backend PRIVATE framework/platform/backends/sdl2/DesktopPlatform.cpp)
     endif()
     target_compile_definitions(gui_dev_backend PRIVATE
         GUI_DEV_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
 
-    target_include_directories(gui_dev_backend PUBLIC src)
+    target_include_directories(gui_dev_backend PUBLIC framework)
     target_link_libraries(gui_dev_backend PUBLIC imgui PkgConfig::SDL2 PkgConfig::LIBPNG)
 elseif(GUI_DEV_BACKEND STREQUAL "glfw")
     find_package(OpenGL REQUIRED)
     find_package(glfw3 REQUIRED)
     add_library(gui_dev_backend STATIC
-        src/platform/backends/glfw/GlfwBackend.cpp
+        framework/platform/backends/glfw/GlfwBackend.cpp
         ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
         ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp)
-    target_include_directories(gui_dev_backend PUBLIC src)
+    target_include_directories(gui_dev_backend PUBLIC framework)
     target_link_libraries(gui_dev_backend PUBLIC imgui glfw OpenGL::GL)
 else()
     message(FATAL_ERROR "unsupported GUI_DEV_BACKEND=${GUI_DEV_BACKEND}")
 endif()
 
 # --------------------------------------------------------------- gui_dev -----
-# 统一前端组件库：src/ui 只依赖 imgui，不包含任何平台头文件；
-# 平台相关的一切都从 src/platform/Backend.h 这层接口进来。
+# 统一前端组件库：framework/ui 只依赖 imgui，不包含任何平台头文件；
+# 平台相关的一切都从 framework/platform/Backend.h 这层接口进来。
 add_library(gui_dev STATIC
-    src/core/App.cpp
-    src/ui/UiContext.cpp
-    src/ui/Theme.cpp
-    src/ui/Icons.cpp
-    src/ui/Texture.cpp
-    src/ui/Scene.cpp
-    src/ui/Components.cpp
+    framework/core/App.cpp
+    framework/ui/UiContext.cpp
+    framework/ui/Theme.cpp
+    framework/ui/Icons.cpp
+    framework/ui/Texture.cpp
+    framework/ui/Scene.cpp
+    framework/ui/Components.cpp
     # 暂停菜单 UI 层（与渲染后端、模拟核心解耦）
-    src/gamemenu/MenuAnimation.cpp
-    src/gamemenu/GameMenuTheme.cpp
-    src/gamemenu/GameMenuDraw.cpp
-    src/gamemenu/GameMenuElement.cpp
-    src/gamemenu/GameMenuView.cpp
-    src/gamemenu/views/MainMenuView.cpp
-    src/gamemenu/views/StateSlotView.cpp
-    src/gamemenu/views/SettingsView.cpp
-    src/gamemenu/views/DialogView.cpp)
-target_include_directories(gui_dev PUBLIC src)
+    framework/gamemenu/MenuAnimation.cpp
+    framework/gamemenu/GameMenuTheme.cpp
+    framework/gamemenu/GameMenuDraw.cpp
+    framework/gamemenu/GameMenuElement.cpp
+    framework/gamemenu/GameMenuView.cpp
+    framework/gamemenu/views/MainMenuView.cpp
+    framework/gamemenu/views/StateSlotView.cpp
+    framework/gamemenu/views/SettingsView.cpp
+    framework/gamemenu/views/DialogView.cpp)
+target_include_directories(gui_dev PUBLIC framework ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(gui_dev PUBLIC gui_dev_backend)
 
-add_executable(gui_dev_demo
-    src/main.cpp
-    src/demo/DemoApp.cpp)
-target_link_libraries(gui_dev_demo PRIVATE gui_dev)
+# ------------------------------------------------- component_view 组件库 -----
+# 你自己写的组件与页面：只依赖 gui_dev（UiContext / TextureRef / Backend），
+# 不依赖任何示例，mac 与 switch 共用同一份代码。
+add_library(gui_dev_components STATIC
+    component_view/Theme.cpp
+    component_view/Draw.cpp
+    component_view/Global.cpp
+    component_view/Widget.cpp
+    component_view/components/Box.cpp
+    component_view/components/Label.cpp
+    component_view/components/Button.cpp
+    component_view/components/Image.cpp
+    component_view/pages/Page.cpp
+    component_view/pages/ComponentGalleryPage.cpp
+    component_view/pages/PropertyPage.cpp)
+target_include_directories(gui_dev_components PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(gui_dev_components PUBLIC gui_dev)
+
+# 组件演示：入口就是仓库根目录的 demo.cpp
+add_executable(gui_dev_demo demo.cpp)
+target_link_libraries(gui_dev_demo PRIVATE gui_dev_components)
+
+# 框架示例：不做暂停菜单之外的业务，只用来对照 framework/ui 的用法
+add_executable(gui_dev_flow_demo
+    examples/flow_box/main.cpp
+    examples/flow_box/DemoApp.cpp)
+target_link_libraries(gui_dev_flow_demo PRIVATE gui_dev)
 
 # 暂停菜单 Demo：假游戏画面 + Persona 风格动态菜单（纯 UI 展示）
 add_executable(gui_dev_pause_demo
-    src/demo/pause/main.cpp
-    src/demo/pause/PauseDemo.cpp)
+    examples/pause_menu/main.cpp
+    examples/pause_menu/PauseDemo.cpp)
 target_link_libraries(gui_dev_pause_demo PRIVATE gui_dev)
 
 # 自定义控件教学 Demo：8 个循序渐进的例子
 add_executable(gui_dev_widget_demo
-    src/demo/widgets/main.cpp
-    src/demo/widgets/WidgetDemo.cpp)
+    examples/widget_lessons/main.cpp
+    examples/widget_lessons/WidgetDemo.cpp)
 target_link_libraries(gui_dev_widget_demo PRIVATE gui_dev)
-
-# 分课时课程：每课时一个独立 Scene，L/R 切换
-add_executable(gui_dev_course
-    src/course/main.cpp
-    src/course/CourseApp.cpp
-    src/course/CourseLessons.cpp
-    src/course/CourseLog.cpp
-    src/course/CourseUi.cpp
-    src/course/Lesson00_Build.cpp
-    src/course/Lesson01_Window.cpp
-    src/course/Lesson02_Lifecycle.cpp
-    src/course/Lesson03_FrameLoop.cpp
-    src/course/Lesson04_Hierarchy.cpp
-    src/course/Lesson05_Widget.cpp
-    src/course/Lesson06_Events.cpp
-    src/course/Lesson07_State.cpp
-    src/course/Lesson08_Animation.cpp
-    src/course/Lesson09_Adaptive.cpp
-    src/course/Lesson10_Container.cpp
-    src/course/Lesson11_Popup.cpp
-    src/course/Lesson12_Perf.cpp
-    src/course/Lesson13_Library.cpp)
-target_link_libraries(gui_dev_course PRIVATE gui_dev)
 
 if(GUI_DEV_PLATFORM STREQUAL "switch")
     # NRO 打包：nx_create_nro 会生成 NACP 并调用 elf2nro。
@@ -197,7 +197,7 @@ if(GUI_DEV_PLATFORM STREQUAL "switch")
     file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets/font/MaterialIcons-Regular.ttf"
          DESTINATION "${GUI_DEV_ROMFS_DIR}/font")
 
-    foreach(gui_dev_nro_target gui_dev_demo gui_dev_pause_demo gui_dev_widget_demo gui_dev_course)
+    foreach(gui_dev_nro_target gui_dev_demo gui_dev_flow_demo gui_dev_pause_demo gui_dev_widget_demo)
         set(GUI_DEV_NRO_ARGS OUTPUT "${CMAKE_BINARY_DIR}/dist/${gui_dev_nro_target}.nro"
             ROMFS "${GUI_DEV_ROMFS_DIR}")
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")

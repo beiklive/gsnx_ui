@@ -11,40 +11,30 @@ GBAStation 模拟器家族的**统一前端组件库**。各模拟器核心共�
 
 ```text
 GUI_DEV/
-├── CMakeLists.txt              # 三块目标：imgui / gui_dev_backend / gui_dev + demo
+├── CMakeLists.txt              # imgui / gui_dev_backend / gui_dev / gui_dev_components + 4 个可执行目标
 ├── CMakePresets.json           # mac / mac-release / switch 预设
+├── demo.cpp                    # ★ 演示入口：在这里登记 component_view 的页面
 ├── cmake/toolchains/
 │   └── Switch.cmake            # devkitA64 工具链入口（含 ar 修正）
-├── src/
-│   ├── core/
-│   │   ├── App.h               # App 基类 + AppRunner 主循环
-│   │   └── App.cpp
-│   ├── ui/                     # ★ 组件层：只依赖 imgui，不含任何平台头文件
-│   │   ├── UiContext.{h,cpp}   # 帧生命周期、字体（含图标字体合并）、字形自检
-│   │   ├── Theme.{h,cpp}       # 统一配色/间距规范
-│   │   ├── Icons.{h,cpp}       # 任天堂按键图标（私用区 U+E0xx / U+E1xx）
-│   │   ├── Texture.{h,cpp}     # 图片纹理 RAII 句柄（走 Backend 加载）
-│   │   ├── Scene.{h,cpp}       # Scene 基类 + SceneStack（菜单栈）
-│   │   └── Components.{h,cpp}  # 页骨架 / 可聚焦 Box / 列表 / 开关 / 进度 / 弹窗
-│   ├── platform/               # ★ 平台层：唯一的平台接缝
-│   │   ├── Backend.h           # 后端接口 + PlatformKind + Texture
-│   │   ├── Fonts.h             # 字体来源接口（主字体 / 按键图标 / Material 图标）
-│   │   ├── Platform.h          # 平台服务生命周期（pl、romfs）
-│   │   ├── AssetPaths.h        # assets/ 相对路径解析
-│   │   ├── Input.h             # 抽象输入动作（Up/Confirm/...）
-│   │   └── backends/sdl2/      # SDL2 后端 + 工厂 + 平台实现 + PNG 解码
-│   ├── gamemenu/               # ★ 暂停菜单 UI 层（DrawList 自绘，Persona 式视觉语言）
-│   │   ├── MenuAnimation.{h,cpp}   # 帧率无关插值 / 缓动 / MenuAnimationState
-│   │   ├── GameMenuTheme.{h,cpp}   # 黑/白/红三色 + 全部几何与时长参数
-│   │   ├── GameMenuDraw.{h,cpp}    # 斜切几何、锯齿边、扫描、文字排版原语
-│   │   ├── GameMenuElement.{h,cpp} # 按钮/面板/分类签/选择器/选项行/存档槽/焦点框
-│   │   ├── GameMenuView.{h,cpp}    # 视图基类 + 上下文 + Host（状态机/视图栈/输入分发）
-│   │   └── views/                  # MainMenu / StateSlot / Settings / Dialog
-│   ├── demo/                   # 示例 App（组件预览 + 暂停菜单）
-│   └── main.cpp
+├── framework/                  # ★ 框架层（引擎；component_view 建立在它之上）
+│   ├── core/                   # App 基类 + AppRunner 主循环
+│   ├── ui/                     # UiContext / Theme / Icons / Texture / Scene / Components
+│   ├── platform/               # Backend 接口 + 抽象输入 + SDL2 后端
+│   └── gamemenu/               # 暂停菜单 UI 层（Persona 式视觉语言）
+├── component_view/             # ★ 组件与页面（你的工作区）
+│   ├── Global.{h,cpp}          # 全局变量：画布 / 鼠标 / 手柄 / 焦点 / 帧信息
+│   ├── Theme.{h,cpp}           # VSCode Dark+ 调色板与 720p 尺寸规范
+│   ├── Types.h                 # Rect / EdgeInsets / BorderStyle / ShadowStyle / 枚举
+│   ├── Draw.{h,cpp}            # 绘制原语：圆角矩形 / 软阴影 / 文本排版 / 色卡
+│   ├── Widget.{h,cpp}          # ★ 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 布局 / 交互 / 事件
+│   ├── components/             # 子类：Box / Label / Button / Image
+│   └── pages/                  # Page 基类 + ComponentGalleryPage + PropertyPage
+├── examples/                   # 框架示例（与组件库互不依赖）
+│   ├── flow_box/               # framework/ui 组件预览（流光焦点框）
+│   ├── pause_menu/             # 暂停菜单 Demo（Persona 式动态菜单）
+│   └── widget_lessons/         # 自定义控件 8 例
 ├── third_party/imgui/          # submodule
 ├── docs/                       # 界面快照（人工核对用，非构建产物）
-│   ├── ui-preview.png / pause-*.png / widget-*.png / course-*.png
 ├── assets/
 │   ├── font/                   # switch_font.ttf / switch_icons.ttf / MaterialIcons-Regular.ttf
 │   └── img/                    # UI 图片（border_gradient.png）
@@ -58,8 +48,10 @@ GUI_DEV/
 ```bash
 cmake --preset mac
 cmake --build --preset mac
-./build/mac/gui_dev_demo          # 组件预览（可聚焦 Box / 流光边框 / 字体与图标）
+./build/mac/gui_dev_demo          # ★ component_view 组件库 demo（L/R 翻页）
+./build/mac/gui_dev_flow_demo     # framework/ui 组件预览（可聚焦 Box / 流光边框）
 ./build/mac/gui_dev_pause_demo    # 暂停菜单 Demo（Persona 式动态菜单）
+./build/mac/gui_dev_widget_demo   # 自定义控件 8 例
 ```
 
 依赖：`brew install sdl2 libpng`（`sdl2-compat` 也可）。预设里显式指定了
@@ -81,20 +73,23 @@ cmake --build --preset switch
 **单向依赖**（重要，破坏它会直接链接失败）：
 
 ```text
-main/demo  ->  gui_dev  ->  gui_dev_backend  ->  imgui
+demo.cpp  ->  gui_dev_components  ->  gui_dev  ->  gui_dev_backend  ->  imgui
+             (component_view/)      (framework/)
 ```
 
-- `src/ui/` 与 `src/core/` **禁止** include SDL/GLFW/libnx 等平台头文件，平台能力一律走
+- `framework/ui/` 与 `framework/core/` **禁止** include SDL/GLFW/libnx 等平台头文件，平台能力一律走
   `gui_dev::Backend`。
+- `component_view/` 只依赖 `gui_dev`（`UiContext` / `TextureRef` / `Backend` / `Icons`），
+  不依赖任何 `examples/`，因此 mac 与 Switch 共用同一份组件代码。
 - `gui_dev_backend` **禁止**调用 `gui_dev` 里的符号（`Theme::Apply()` 因此放在
   `AppRunner` 而不是后端里）。两个静态库互相引用会形成链接环：GNU ld 单遍扫描，
   先出现的一方必然解析失败。
 
-**新增平台**：在 `src/platform/backends/<name>/` 实现 `Backend` + `CreatePlatformBackend()`，
-然后在 CMake 的 `GUI_DEV_BACKEND` 分支里加一个选项。`src/ui` 一行不用改。
+**新增平台**：在 `framework/platform/backends/<name>/` 实现 `Backend` + `CreatePlatformBackend()`，
+然后在 CMake 的 `GUI_DEV_BACKEND` 分支里加一个选项。`framework/ui` 一行不用改。
 
-**新增界面**：继承 `Scene`，重写 `OnRender`，用 `Components::*` 拼装；
-页面跳转用 `SceneStack::Push/Pop`。
+**新增界面**：两种方式——用 `framework` 的 `Scene` + `Components::*`；
+或者用 `component_view` 的 `Page` + `Widget` 组件树（见下节）。
 
 ### 生命周期约定（曾因此崩溃）
 
@@ -121,42 +116,97 @@ GUI_DEV_EXIT_AFTER=60 ./build/mac/gui_dev_demo   # 跑满 60 帧后正常退出�
 
 配合 `Backend::RequestQuit()`（UI 里的「退出」入口也用它）。
 
-## 分课时课程（gui_dev_course）
+## component_view 组件库
 
-从"一个窗口怎么起来的"讲到"自己做一个可筛选、虚拟滚动的游戏库列表"。
-每课时 = **讲解（源码文件头）+ 可运行示例 + 练习 + 验收标准**，L/R 切换课时，Esc 退出。
+`component_view/` 是组件与页面；`demo.cpp` 只负责「登记页面 + 每帧驱动」，两者互不耦合：
+加页面 = 写一个 `Page` 子类 + 在 `demo.cpp` 里 `push_back` 一行。
 
-```bash
-git submodule update --init --recursive      # 依赖：imgui（见 src/course/README.md）
-cmake --preset mac && cmake --build --preset mac
-./build/mac/gui_dev_course                   # L/R 切课，Esc 退出
+### 分层
+
+| 文件 | 职责 |
+|---|---|
+| `Global.{h,cpp}` | 全局变量：`canvas_pos/canvas_size`、鼠标与手柄、`hovered/pressed/focused/active`、`delta_time`、`NavigateFocus` |
+| `Theme.{h,cpp}` | VSCode Dark+ 调色板 + 720p 尺寸常量 + `ApplyToImGui()` |
+| `Types.h` | `Rect` / `EdgeInsets` / `BorderStyle` / `ShadowStyle` / `LayoutMode` / `Align` |
+| `Draw.{h,cpp}` | 绘制原语：圆角矩形、软阴影（多层圆角矩形近似高斯）、文本排版、色卡 |
+| `Widget.{h,cpp}` | 父类：属性 + 布局 + 命中测试 + 事件；子类只写三个函数 |
+| `components/` | `Box`（容器）/ `Label`（文本）/ `Button`（按钮）/ `Image`（图片） |
+| `pages/` | `Page` 基类 + `ComponentGalleryPage`（组件总览）+ `PropertyPage`（属性演示） |
+
+界面快照：`docs/component-gallery.png`（组件总览）、`docs/component-properties.png`（属性演示）。
+
+### Widget 基类属性（都有默认值，全部链式可设）
+
+| 类别 | 属性 |
+|---|---|
+| 位置 | `position`（相对父内容区）、`anchor`、`pivot`、`offset`、`margin` |
+| 尺寸 | `size`（0 = 按内容自适应）、`min_size`、`max_size`、`aspect_ratio`、`padding` |
+| 圆角 | `corner_radius` 统一；`corner_tl/tr/bl/br` 单角覆盖（-1 = 跟随统一值） |
+| 边框 | `border.width` / `border.color` / `border.inset`（inset 让描边画在矩形内部） |
+| 阴影 | `shadow.enabled/offset/blur/spread/color`，用 `ShadowStyle::Soft(blur)` 起手 |
+| 外观 | `background`（ARGB）、`opacity`、`visible`、`enabled`、`clip_children` |
+| 布局 | `layout`（Free / Vertical / Horizontal）、`gap`、`align_x/align_y`、`z_order` |
+| 交互 | `focusable`、`focus_on_hover`；`hovered/pressed/clicked/focused` 为每帧只读状态 |
+| 事件 | `on_click`、`on_press`、`on_hover_enter/leave`、`on_focus/blur` |
+
+几何语义：`size` 是**外框**尺寸（含 padding/border）；`anchor` 是「锚点在父内容区（去掉 margin 后）的比例位置」，
+`pivot` 是「自身哪个点贴到锚点上」，两者都取 0/0.5/1 就是左上/居中/右下。
+
+### 加一个组件
+
+子类只覆写三个函数（`Widget.h` 顶部有完整约定）：
+
+```cpp
+class Badge : public cv::Widget {
+public:
+    Badge() : Widget("badge") { background = cv::Theme::kAccent; corner_radius = 999.0f; }
+protected:
+    ImVec2 MeasureContent(const ImVec2& available) override;              // 内容需要多大
+    void OnDrawContent(ImDrawList* dl, const cv::Rect& content) override; // 内容画什么
+    void OnUpdate(float dt) override;                                     // 每帧状态（可选）
+};
 ```
 
-编译细节、依赖、加课时步骤、编译报错排查：**[src/course/README.md](src/course/README.md)**（也是课程第 0 课的内容）。
+### 加一个页面
 
-| 课时 | 主题 | 关键内容 |
-|---|---|---|
-| 0 | 编译与运行 | 依赖 / 三条命令 / 四个目标 / 加课时 4 步 / 7 条真实报错对照表 |
-| 1 | 建立窗口 | ImGui 不建窗口 -> 三层结构；BackendConfig 六字段；drawable/scale/logical 实况 |
-| 2 | 生命周期 | 六阶段顺序；所有权（App/Scene 比 Backend 活得久）；退出崩溃复盘；三条规则 |
-| 3 | 帧循环解剖 | 一帧五个动作；立即模式的三个后果；顶点/索引/帧时实况；负载滑杆 |
-| 4 | UI 层级与布局 | Window>Child>Item；布局游标；SameLine/Dummy；嵌套滚动；BeginTable |
-| 5 | 控件制作 | 四步法（量尺寸/占位/自绘/状态）；现场实现分段选择器；五个坑 |
-| 6 | 事件响应 | 事件链路；两套焦点模型；三路输入汇聚；热键边沿检测；长按连发；输入消费 |
-| 7 | 状态管理 | 三种载体取舍；该复位 vs 该保留；ImGuiStorage；Delegate 解耦 |
-| 8 | 动画系统 | 吃 dt 的唯一原则；SmoothTo vs MoveTowards；缓动；**低帧率车道对照实验** |
-| 9 | 布局自适应 | 缩放 vs 自适应两层；调用生产代码展示 5 种分辨率下的真实解析结果 + 缩略图 |
-| 10 | 容器与复合控件 | 外壳+容器+状态；可折叠分组；**故意制造 static 串味 bug** 让你看到 |
-| 11 | 弹层与拖放 | 模态框/右键菜单/悬浮提示；DragDrop 源与目标；拖拽排序 |
-| 12 | 性能与质量 | 三指标；四条硬规则；压力测试滑杆；实测帧率数据；三种验证手段 |
-| 13 | 综合实战 | 虚拟滚动四行核心；筛选/焦点/详情/自适应；自证"只画可见行" |
+```cpp
+class MyPage : public cv::Page {
+public:
+    const char* Title() const override { return "我的页面"; }
+    void OnBuild() override {
+        Root().Emplace<cv::Label>("hello", cv::Theme::kFontTitle)->SetPosition(0.0f, 0.0f);
 
-源码：`src/course/LessonNN_*.cpp`（每课独立文件，加一课 = 一个文件 + 一行注册）。
-界面快照见 `docs/course-lesson*.png`。
+        cv::Box* card = Root().Emplace<cv::Box>("card");
+        card->Card().SetPosition(0.0f, 80.0f).SetSize(400.0f, 200.0f);
+
+        cv::Button* button = card->Emplace<cv::Button>("确认");
+        button->Primary().SetPosition(20.0f, 20.0f);
+        button->on_click = [](cv::Widget&) { /* ... */ };
+    }
+};
+
+// demo.cpp
+pages_.push_back(std::make_unique<MyPage>());
+```
+
+### demo.cpp 的四件事
+
+1. `Configure`：窗口大小与 vsync（`GUI_DEV_WINDOW=WxH`、`GUI_DEV_NO_VSYNC=1`）
+2. `OnStart`：`Theme::ApplyToImGui()` → 登记页面 → `Bind(ui)` / `SetPageInfo`
+3. `OnFrame`：`Global::BeginFrame(ui)` → L/R 切页 → `page.Update(dt)` → `page.Render()` → `Global::EndFrame()`
+4. `OnShutdown`：清空页面（页面持有 `TextureRef`，必须在后端关闭前析构）
+
+### 交互模型
+
+- **不走 ImGui 的 item 机制**：命中测试自己做（子节点优先 + `z_order`），所以重叠、层叠、手柄焦点都可控，
+  也不会踩 `InvisibleButton` / 布局游标那类断言。
+- 焦点导航 `Global::NavigateFocus`：最近邻（主方向投影距离 + 2 倍垂直偏移），方向键/摇杆移动，A / 回车触发 `on_click`。
+- 鼠标悬停遇到 `focus_on_hover = true` 会把焦点带过去，鼠标与手柄共用同一个焦点。
+- `Button` 的悬停/按下用指数平滑（`1 - exp(-speed*dt)`，与帧率无关）。
 
 ## 自定义控件 101
 
-教学 demo：`gui_dev_widget_demo`（源码 `src/demo/widgets/WidgetDemo.cpp`，
+教学 demo：`gui_dev_widget_demo`（源码 `examples/widget_lessons/WidgetDemo.cpp`，
 8 个循序渐进的最小例子，每段注释写了「用了哪些 API / 为什么 / 坑在哪」）。
 
 ### 心智模型
@@ -224,8 +274,8 @@ bool MyWidget(const char* id, const char* label) {
 
 | 控件 | 文件 | 看点 |
 |---|---|---|
-| 可聚焦 Box（流光边框） | `src/ui/Components.cpp` `FocusableBox` | 等弧长重采样 + 贴图沿边框滚动 + 羽化抗锯齿 |
-| 斜切菜单按钮 | `src/gamemenu/GameMenuElement.cpp` `GameMenuButton` | 焦点弹性位移、扫描高光、随机错位色块、按压反馈 |
+| 可聚焦 Box（流光边框） | `framework/ui/Components.cpp` `FocusableBox` | 等弧长重采样 + 贴图沿边框滚动 + 羽化抗锯齿 |
+| 斜切菜单按钮 | `framework/gamemenu/GameMenuElement.cpp` `GameMenuButton` | 焦点弹性位移、扫描高光、随机错位色块、按压反馈 |
 | 存档槽卡片 | 同上 `GameMenuSaveSlot` | 多实例独立动画、缩略图占位、每实例随机状态 |
 
 ## 暂停菜单（gamemenu）
@@ -309,7 +359,7 @@ GameMenuHost        外壳：ZL+ZR 开关、入场/退场状态机、视图栈�
 ### 性能约束
 
 每帧只改位置/尺寸/颜色/透明度与少量顶点，不建纹理、不建字体、不做离屏与模糊。
-已核对 `src/gamemenu` 无 `std::string` / 无每帧 `std::vector` 增长 / 无 `new`；
+已核对 `framework/gamemenu` 无 `std::string` / 无每帧 `std::vector` 增长 / 无 `new`；
 文本格式化全部写进固定成员缓冲。
 
 ### Mock 与真实实现的边界
@@ -468,7 +518,7 @@ if (tex.Valid()) ImGui::Image(tex.ImGuiRef(), tex.Size());
 
 ## 字体栈
 
-三类字形，来源按平台不同，但 `src/ui` 只认 `FontSource`：
+三类字形，来源按平台不同，但 `framework/ui` 只认 `FontSource`：
 
 | 内容 | mac（`assets/font/`） | Switch |
 |---|---|---|
@@ -582,6 +632,13 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   `ZL+ZR 打开 → 焦点移动 → A 进存档页 → B 返回 → A 进设置页 → 改选项 → 重置确认框`，
   抓帧逐个核对（见 `docs/pause-*.png`）；两个 demo 正常退出码 0；
   mac 与 Switch 均编译通过（Switch 产出两个 NRO）。
+- 已确认（component_view 组件库）：mac 与 Switch 均编译通过（4 个可执行目标 + NRO）；
+  抓帧核对 `docs/component-gallery.png` / `docs/component-properties.png`：VSCode 底色
+  `#1E1E1E`（非纯黑）、四种基础组件、12 色板、圆角/边框/阴影/z_order/anchor+pivot 全部符合预期；
+  脚本化输入核对：手柄右移 3 次焦点走 `确认 → 取消 → 更多 → 删除`、A 触发 `on_click` 并刷新状态文案、
+  鼠标悬停/点击命中 `取消` 且焦点跟随；960x540 窗口下布局与 720p 完全一致（等比缩放）；
+  四个 demo 在 `GUI_DEV_EXIT_AFTER` 下退出码均为 0。`src/course` 课程代码与
+  `docs/course-*.png` 已移除，仓库结构改为 `framework/` + `component_view/` + `examples/` + `demo.cpp`。
 - 未验证：NRO 在实机/模拟器上的运行表现（含 HOS 共享字体与 NintendoExt 的实际字形、
   romfsInit 是否成功、Material 图标在实机上的渲染）；暂停菜单在实机上的手感与耗时
   （30/60/120FPS 的时间一致性由公式保证，但没有实机测帧）。
