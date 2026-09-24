@@ -157,6 +157,14 @@ add_executable(gui_dev_widget_demo
     src/demo/widgets/WidgetDemo.cpp)
 target_link_libraries(gui_dev_widget_demo PRIVATE gui_dev)
 
+# 分课时课程：每课时一个独立 Scene，L/R 切换
+add_executable(gui_dev_course
+    src/course/main.cpp
+    src/course/CourseApp.cpp
+    src/course/CourseLessons.cpp
+    src/course/Lesson01_Window.cpp)
+target_link_libraries(gui_dev_course PRIVATE gui_dev)
+
 if(GUI_DEV_PLATFORM STREQUAL "switch")
     # NRO 打包：nx_create_nro 会生成 NACP 并调用 elf2nro。
     # 图标可选：把 256x256 png 放到 assets/icon.png 即自动打包。
@@ -174,7 +182,7 @@ if(GUI_DEV_PLATFORM STREQUAL "switch")
     file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets/font/MaterialIcons-Regular.ttf"
          DESTINATION "${GUI_DEV_ROMFS_DIR}/font")
 
-    foreach(gui_dev_nro_target gui_dev_demo gui_dev_pause_demo gui_dev_widget_demo)
+    foreach(gui_dev_nro_target gui_dev_demo gui_dev_pause_demo gui_dev_widget_demo gui_dev_course)
         set(GUI_DEV_NRO_ARGS OUTPUT "${CMAKE_BINARY_DIR}/dist/${gui_dev_nro_target}.nro"
             ROMFS "${GUI_DEV_ROMFS_DIR}")
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
