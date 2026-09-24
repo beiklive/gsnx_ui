@@ -238,7 +238,7 @@ void GameMenuHost::Draw(ImDrawList* draw_list, const Rect& screen) {
     // ---- 面板几何：靠右，从屏幕右侧外滑入 ----
     const float panel_w = theme_->menu_width < screen.Width() * 0.46f ? theme_->menu_width
                                                                      : screen.Width() * 0.46f;
-    const float panel_h = screen.Height() - theme_->menu_top - 44.0f;
+    const float panel_h = screen.Height() - theme_->menu_top - theme_->menu_bottom_margin;
     const float target_x = screen.max.x - theme_->menu_right_margin - panel_w;
     const float offscreen = panel_w + theme_->skew * 2.0f + 90.0f;
     const float panel_x = target_x + (1.0f - slide) * offscreen;
@@ -253,11 +253,13 @@ void GameMenuHost::Draw(ImDrawList* draw_list, const Rect& screen) {
         AddSkewFilled(draw_list, back2, theme_->skew, WithAlpha(theme_->background, 0.7f * alpha));
     }
 
-    // 内容区（扣掉标题条）
+    // 内容区：标题条 + 副标题行都要让开（否则第一项会压住副标题）
+    const float header_h = theme_->title_size + 34.0f;
+    const float content_top = header_h + theme_->small_size + 24.0f;
     const Rect content = MakeRect(panel.min.x + theme_->panel_padding,
-                                  panel.min.y + 92.0f,
+                                  panel.min.y + content_top,
                                   panel.Width() - theme_->panel_padding * 2.0f,
-                                  panel.Height() - 92.0f - theme_->panel_padding);
+                                  panel.Height() - content_top - theme_->panel_padding);
 
     // 画哪些视图：覆盖层时把下层也画出来
     std::size_t first = views_.empty() ? 0 : views_.size() - 1;

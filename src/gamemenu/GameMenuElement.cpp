@@ -42,8 +42,8 @@ void GameMenuFocusFrame::Draw(ImDrawList* draw_list, const GameMenuTheme& theme,
         return;
     }
     const float a = alpha_ * strength;
-    const Rect frame = rect_.Inflated(9.0f, 6.0f);
-    AddCornerTicks(draw_list, frame, 13.0f, 2.0f, WithAlpha(theme.white, 0.85f * a));
+    const Rect frame = rect_.Inflated(11.0f, 8.0f);
+    AddCornerTicks(draw_list, frame, theme.focus_tick_length, 2.5f, WithAlpha(theme.white, 0.85f * a));
     AddSkewBorder(draw_list, Rect{ImVec2(frame.min.x - 3.0f, frame.min.y - 3.0f),
                                   ImVec2(frame.max.x + 3.0f, frame.max.y + 3.0f)},
                   theme.skew * 0.5f, WithAlpha(theme.red, 0.5f * a), 1.0f);
@@ -110,14 +110,15 @@ Rect GameMenuButton::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, ImV
 
     // ---- 红色扩张层：向右下偏移的红色背板（Persona 式错位板）----
     if (focus01 > 0.01f) {
-        const Rect plate = rect.Offset(9.0f * focus01, 6.0f * focus01);
+        const Rect plate = rect.Offset(theme.accent_plate_offset * focus01,
+                                       theme.accent_plate_offset * 0.55f * focus01);
         AddSkewFilled(draw_list, plate, theme.skew, WithAlpha(theme.red, 0.95f * focus01));
     }
     // ---- 黑色主体 ----
     AddSkewFilled(draw_list, rect, theme.skew, theme.panel_deep);
     // 聚焦时主体内部左侧一条红条
     if (focus01 > 0.02f) {
-        Rect bar = MakeRect(rect.min.x + 1.0f, rect.min.y, 6.0f * focus01, rect.Height());
+        Rect bar = MakeRect(rect.min.x + 1.0f, rect.min.y, 8.0f * focus01, rect.Height());
         AddSkewFilledLeft(draw_list, bar, theme.skew * 0.4f, WithAlpha(theme.red, 0.95f * focus01));
     }
     // ---- 白色边框：聚焦更明显 ----
@@ -135,16 +136,16 @@ Rect GameMenuButton::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, ImV
     if (anim_.sweep > 0.001f) {
         const float progress = 1.0f - anim_.sweep;
         const float peak = std::sin(kPi * Clamp01(progress));
-        AddSweep(draw_list, rect, theme.skew * 0.6f, progress, 54.0f,
+        AddSweep(draw_list, rect, theme.skew * 0.6f, progress, theme.sweep_width,
                  WithAlpha(theme.white, 0.22f * peak));
-        AddSweep(draw_list, rect, theme.skew * 0.6f, progress, 18.0f,
+        AddSweep(draw_list, rect, theme.skew * 0.6f, progress, theme.sweep_width * 0.33f,
                  WithAlpha(theme.red, 0.30f * peak));
     }
 
     // ---- 文字与图标：随焦点右移 ----
     const float text_shift = theme.focus_offset * 0.45f * focus01;
     const float center_y = rect.Center().y;
-    const float icon_x = rect.min.x + theme.skew + 16.0f + text_shift;
+    const float icon_x = rect.min.x + theme.skew + 20.0f + text_shift;
 
     if (icon_ != Icons::Material::Count) {
         const float icon_size = theme.text_size * 1.25f;
@@ -152,7 +153,7 @@ Rect GameMenuButton::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, ImV
                                                              Icons::Glyph(icon_));
         AddTextLeft(draw_list, ImVec2(icon_x, center_y - extent.y * 0.5f),
                     WithAlpha(theme.red, Lerp(0.7f, 1.0f, focus01)), icon_size, Icons::Glyph(icon_));
-        AddTextLeftVCentered(draw_list, ImVec2(icon_x + extent.x + 12.0f, center_y),
+        AddTextLeftVCentered(draw_list, ImVec2(icon_x + extent.x + 14.0f, center_y),
                              LerpColor(theme.white_dim, theme.white, focus01), theme.text_size,
                              label_);
     } else {
@@ -162,7 +163,7 @@ Rect GameMenuButton::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, ImV
 
     // ---- 左侧箭头：滑入 + 透明度 + 轻微摆动（需求 §9）----
     if (focus01 > 0.02f) {
-        const float swing = std::sin(time * 8.0f) * 3.0f * focus01;
+        const float swing = std::sin(time * 8.0f) * 4.0f * focus01;
         const float arrow_x = rect.min.x - theme.arrow_gap + (1.0f - focus01) * -14.0f + swing;
         const float a = theme.arrow_size * (0.6f + 0.4f * focus01);
         const ImVec2 tip(arrow_x + a, center_y);
@@ -183,14 +184,17 @@ void GameMenuPanel::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, cons
     AddSkewFilled(draw_list, rect, theme.skew, theme.panel);
     AddSkewBorder(draw_list, rect, theme.skew, WithAlpha(theme.white, 0.30f), 1.5f);
 
+    const float header_h = theme.title_size + 34.0f;
+
     // 顶部红色斜切标题条（宽度随 enter 展开）
-    Rect header = MakeRect(rect.min.x, rect.min.y, rect.Width() * e, 58.0f);
+    Rect header = MakeRect(rect.min.x, rect.min.y, rect.Width() * e, header_h);
     AddSkewFilled(draw_list, header, theme.skew, theme.red);
-    Rect header_hand = MakeRect(rect.min.x + 7.0f, rect.min.y + 58.0f, rect.Width() * e * 0.42f, 5.0f);
+    Rect header_hand = MakeRect(rect.min.x + 8.0f, rect.min.y + header_h, rect.Width() * e * 0.42f, 6.0f);
     AddSkewFilled(draw_list, header_hand, theme.skew * 0.5f, WithAlpha(theme.panel_deep, 0.9f));
 
     // 右侧竖红条（漫画切割感）
-    Rect side = MakeRect(rect.max.x - 8.0f, rect.min.y + 70.0f, 4.0f, rect.Height() - 86.0f);
+    Rect side = MakeRect(rect.max.x - 9.0f, rect.min.y + header_h + 10.0f, 5.0f,
+                         rect.Height() - header_h - 28.0f);
     AddSkewFilled(draw_list, side, 2.0f, WithAlpha(theme.red, 0.85f));
 
     // 底部不规则边缘
@@ -199,20 +203,21 @@ void GameMenuPanel::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, cons
 
     // 标题（比面板稍晚一点到位，形成层次）
     const float title_alpha = Clamp01((enter - 0.18f) / 0.5f);
+    const float title_center_y = rect.min.y + header_h * 0.5f;
     if (title_alpha > 0.01f) {
-        AddDiamond(draw_list, ImVec2(rect.min.x + theme.panel_padding + 6.0f, rect.min.y + 29.0f), 7.0f,
+        AddDiamond(draw_list, ImVec2(rect.min.x + theme.panel_padding + 7.0f, title_center_y), 9.0f,
                    WithAlpha(theme.panel_deep, title_alpha));
-        AddTextLeftVCentered(draw_list, ImVec2(rect.min.x + theme.panel_padding + 22.0f,
-                                               rect.min.y + 29.0f),
+        AddTextLeftVCentered(draw_list, ImVec2(rect.min.x + theme.panel_padding + 26.0f,
+                                               title_center_y),
                              WithAlpha(theme.panel_deep, title_alpha), theme.title_size, title);
         // 白/红错位标题（漫画重影）
-        AddTextLeftVCentered(draw_list, ImVec2(rect.min.x + theme.panel_padding + 25.0f,
-                                               rect.min.y + 32.0f),
+        AddTextLeftVCentered(draw_list, ImVec2(rect.min.x + theme.panel_padding + 30.0f,
+                                               title_center_y + 4.0f),
                              WithAlpha(theme.white, 0.25f * title_alpha), theme.title_size, title);
     }
     if (subtitle != nullptr && subtitle[0] != '\0' && title_alpha > 0.01f) {
         AddTextLeftVCentered(draw_list, ImVec2(rect.min.x + theme.panel_padding + 2.0f,
-                                               rect.min.y + 74.0f),
+                                               rect.min.y + header_h + 14.0f),
                              WithAlpha(theme.white_dim, title_alpha), theme.small_size, subtitle);
     }
 }
@@ -362,14 +367,14 @@ void MenuOptionRow::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, cons
                       WithAlpha(theme.red, 0.28f * anim.flash));
     }
 
-    const float label_x = row.min.x + theme.skew + 14.0f;
+    const float label_x = row.min.x + theme.skew + 16.0f;
     AddTextLeftVCentered(draw_list, ImVec2(label_x, row.Center().y),
                          LerpColor(theme.white_dim, theme.white, f), theme.text_size, label);
 
     if (kind == MenuOptionKind::Toggle) {
         // 开关：[ 槽 ] + 红色填充条随状态生长
-        const float w = 62.0f;
-        const float h = 22.0f;
+        const float w = 78.0f;
+        const float h = 28.0f;
         Rect slot = MakeRect(row.max.x - w - 10.0f, row.Center().y - h * 0.5f, w, h);
         AddSkewFilled(draw_list, slot, 4.0f, WithAlpha(theme.background, 0.9f));
         Rect fill = MakeRect(slot.min.x, slot.min.y, w * toggle, h);
@@ -382,9 +387,9 @@ void MenuOptionRow::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, cons
         selector.Draw(draw_list, theme, area, CurrentValue(), focused, time);
     } else {
         // Command：右侧一个斜箭头
-        const float x = row.max.x - 26.0f;
-        const ImVec2 tri[3] = {ImVec2(x, row.Center().y - 7.0f), ImVec2(x + 9.0f, row.Center().y),
-                               ImVec2(x, row.Center().y + 7.0f)};
+        const float x = row.max.x - 30.0f;
+        const ImVec2 tri[3] = {ImVec2(x, row.Center().y - 9.0f), ImVec2(x + 11.0f, row.Center().y),
+                               ImVec2(x, row.Center().y + 9.0f)};
         draw_list->AddConvexPolyFilled(tri, 3, WithAlpha(theme.white, 0.75f));
     }
 }
@@ -420,9 +425,9 @@ Rect GameMenuSaveSlot::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, c
     }
 
     // 缩略图占位（真实实现应来自模拟器截图 API；demo 用抽象条纹）
-    const float footer_h = 46.0f;
-    const Rect thumb = MakeRect(card.min.x + 9.0f, card.min.y + 8.0f, card.Width() - 18.0f,
-                                card.Height() - footer_h - 14.0f);
+    const float footer_h = 58.0f;
+    const Rect thumb = MakeRect(card.min.x + 10.0f, card.min.y + 9.0f, card.Width() - 20.0f,
+                                card.Height() - footer_h - 16.0f);
     if (anim_.focus > 0.01f) {
         AddSkewFilled(draw_list, card.Offset(7.0f * anim_.focus, 5.0f * anim_.focus), theme.skew * 0.6f,
                       WithAlpha(theme.red, 0.95f * anim_.focus));
@@ -447,19 +452,19 @@ Rect GameMenuSaveSlot::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, c
     }
 
     // 底部信息条：槽位编号 + 时间 + 游戏时长（全部限制在卡内）
-    const float info_y = card.max.y - 24.0f;
-    const Rect badge = MakeRect(card.min.x + 9.0f, card.max.y - 38.0f, 42.0f, 26.0f);
+    const float info_y = card.max.y - 27.0f;
+    const Rect badge = MakeRect(card.min.x + 10.0f, card.max.y - 46.0f, 52.0f, 34.0f);
     char index_text[8];
     std::snprintf(index_text, sizeof(index_text), "%02d", index + 1);
     AddSkewFilled(draw_list, badge, 4.0f,
                   data.exists ? WithAlpha(theme.red, 0.9f) : WithAlpha(theme.white, 0.12f));
     AddTextCentered(draw_list, badge, theme.white, theme.slot_index_size, index_text);
 
-    const float text_x = badge.max.x + 9.0f;
+    const float text_x = badge.max.x + 10.0f;
     if (data.exists) {
-        AddTextLeftVCentered(draw_list, ImVec2(text_x, info_y - 8.0f),
+        AddTextLeftVCentered(draw_list, ImVec2(text_x, info_y - 10.0f),
                              WithAlpha(theme.white, 0.92f), theme.small_size, data.time_text);
-        AddTextLeftVCentered(draw_list, ImVec2(text_x, info_y + 9.0f),
+        AddTextLeftVCentered(draw_list, ImVec2(text_x, info_y + 11.0f),
                              WithAlpha(theme.white_dim, 0.92f), theme.small_size, data.play_text);
     } else {
         AddTextLeftVCentered(draw_list, ImVec2(text_x, info_y),

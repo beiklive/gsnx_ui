@@ -14,6 +14,9 @@
 namespace gui_dev {
 namespace {
 
+// UI 设计基准高度（720p）。所有 UI 尺寸都按这个空间设计。
+constexpr float kDesignHeight = 720.0f;
+
 inline std::size_t Idx(InputAction a) { return static_cast<std::size_t>(a); }
 
 // 扳机轴转按键的阈值（ZL/ZR 在 SDL 里是模拟轴，不是按钮）
@@ -124,20 +127,20 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
 }
 
 float Sdl2Backend::ComputeUiScale() const {
-    // 基准高度 720（手持）。大屏（底座/桌面高 DPI）只把字体放大，
-    // 布局仍按物理像素排版，这样不会出现整块 UI 被拉成两倍大的现象。
+    // 设计基准：1280x720。UI 里写的一切尺寸都是这个空间里的值，
+    // 运行时整体等比放大到实际 drawable（手持 720p -> 1.0，底座 1080p -> 1.5）。
     int w = 0;
     int h = 0;
     GetDrawableSize(w, h);
     if (h <= 0) {
         return 1.0f;
     }
-    float scale = static_cast<float>(h) / 720.0f;
-    if (scale < 1.0f) {
-        scale = 1.0f;
+    float scale = static_cast<float>(h) / kDesignHeight;
+    if (scale < 0.5f) {
+        scale = 0.5f;
     }
-    if (scale > 2.0f) {
-        scale = 2.0f;
+    if (scale > 4.0f) {
+        scale = 4.0f;
     }
     return scale;
 }
@@ -323,11 +326,15 @@ void Sdl2Backend::NewImGuiFrame() {
     int w = 0;
     int h = 0;
     GetDrawableSize(w, h);
-    // 布局按物理像素排版（Retina 上元素更小但更锐利），只按屏幕高度放大字号。
-    io.DisplaySize = ImVec2(static_cast<float>(w), static_cast<float>(h));
-    io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
-    // 1.92 起全局字号缩放走 style.FontScaleMain（io.FontGlobalScale 已移除）。
-    ImGui::GetStyle().FontScaleMain = ui_scale_;
+
+    // 逻辑空间 = 1280x720 设计空间：DisplaySize 是逻辑尺寸，DisplayFramebufferScale
+    // 是物理/逻辑比。imgui 1.92 会用 FramebufferScale 自动作为字体光栅化密度，
+    // 所以几何与字号一起等比放大，文字仍按物理像素渲染（不糊）。
+    const float scale = ui_scale_ > 0.0f ? ui_scale_ : 1.0f;
+    io.DisplaySize = ImVec2(static_cast<float>(w) / scale, static_cast<float>(h) / scale);
+    io.DisplayFramebufferScale = ImVec2(scale, scale);
+    // 字号已经在设计空间里定死，这里不能再乘一次（否则会双重放大）。
+    ImGui::GetStyle().FontScaleMain = 1.0f;
     io.DeltaTime = delta_time_ > 0.0f ? delta_time_ : (1.0f / 60.0f);
 
     ImGui::NewFrame();

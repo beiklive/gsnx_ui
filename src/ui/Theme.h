@@ -16,14 +16,15 @@ inline constexpr ImU32 kTextSecondary = IM_COL32(0x9A, 0xA1, 0xAC, 0xFF);
 inline constexpr ImU32 kPanelBg       = IM_COL32(0x1A, 0x1D, 0x22, 0xF2);
 
 // ---- 尺寸（逻辑像素，与 UiScale 相乘由 ImGui 样式统一处理）-----------------
-inline constexpr float kRowHeight          = 42.0f;
-inline constexpr float kHeaderHeight       = 52.0f;
-inline constexpr float kFooterHeight       = 40.0f;
-inline constexpr float kGapSmall           = 4.0f;
-inline constexpr float kGap                = 8.0f;
-inline constexpr float kGapLarge           = 16.0f;
-inline constexpr float kPanelRounding      = 6.0f;
-inline constexpr float kCompactBreakpoint  = 520.0f;
+// 尺寸按 1280x720 设计空间；后端用 DisplayFramebufferScale 整体放大到实际分辨率。
+inline constexpr float kRowHeight          = 52.0f;
+inline constexpr float kHeaderHeight       = 66.0f;
+inline constexpr float kFooterHeight       = 50.0f;
+inline constexpr float kGapSmall           = 6.0f;
+inline constexpr float kGap                = 10.0f;
+inline constexpr float kGapLarge           = 20.0f;
+inline constexpr float kPanelRounding      = 8.0f;
+inline constexpr float kCompactBreakpoint  = 640.0f;
 
 // 组件里用到的堆压栈键，集中在 .cpp 内部实现，这里只暴露语义化取值。
 inline ImVec4 ToVec4(ImU32 c) { return ImGui::ColorConvertU32ToFloat4(c); }

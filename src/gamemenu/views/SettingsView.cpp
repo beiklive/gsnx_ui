@@ -270,12 +270,12 @@ void SettingsView::Draw(GameMenuContext& ctx, ImDrawList* draw_list, const Rect&
     const MenuAnimationConfig& cfg = theme.animation;
 
     // ---- 左侧分类 ----------------------------------------------------------
-    const float tab_w = 108.0f;
-    const float tab_h = 40.0f;
+    const float tab_w = 124.0f;
+    const float tab_h = 48.0f;
     float tab_y = area.min.y + 6.0f;
     for (int i = 0; i < category_count_; ++i) {
         tab_rects_[i] = tabs_[i].Draw(draw_list, theme, ImVec2(area.min.x, tab_y), tab_w, tab_h);
-        tab_y += tab_h + 4.0f;
+        tab_y += tab_h + 5.0f;
     }
     // 分类之间的竖分隔线（漫画切割感）
     AddSkewFilled(draw_list, MakeRect(area.min.x + tab_w + 16.0f, area.min.y + 4.0f, 2.0f,
@@ -285,7 +285,7 @@ void SettingsView::Draw(GameMenuContext& ctx, ImDrawList* draw_list, const Rect&
     // ---- 右侧选项 ----------------------------------------------------------
     const float opt_x = area.min.x + tab_w + 34.0f;
     const float opt_w = area.max.x - opt_x - 14.0f; // 留出聚焦右移的空间
-    const float opt_h = 44.0f;
+    const float opt_h = 52.0f;
 
     // 切分类时整列内容滑动 + 淡出
     const float slide = EaseOutCubic(1.0f - category_anim_);
@@ -299,7 +299,7 @@ void SettingsView::Draw(GameMenuContext& ctx, ImDrawList* draw_list, const Rect&
         const Rect cell = MakeRect(opt_x + content_dx + (1.0f - stagger) * 30.0f, row_y, opt_w, opt_h);
         row_rects_[i] = cell;
         rows_[i].Draw(draw_list, ThemeWithAlpha(theme, alpha), cell, i == focus_, ctx.time);
-        row_y += opt_h + 8.0f;
+        row_y += opt_h + 10.0f;
     }
     (void)slide;
 

@@ -18,7 +18,7 @@ namespace {
 
 // 文本与图标的基准字号（逻辑像素）。1.92 的光栅化器按需生成字形，
 // 放大需求交给 style.FontScaleMain / PushFont，不用在这里改。
-constexpr float kBaseFontSize = 18.0f;
+constexpr float kBaseFontSize = 22.0f;
 
 // 统一字体策略：优先找一个带 CJK 字形的系统字体，找不到就退回 ImGui 内置字体。
 // 纯 ASCII 界面不依赖任何外部文件，保证任何平台都能起来。

@@ -128,7 +128,7 @@ void StateSlotView::Draw(GameMenuContext& ctx, ImDrawList* draw_list, const Rect
 
     constexpr int kColumns = 2;
     constexpr int kRows = kPerPage / kColumns;
-    const float gap = 12.0f;
+    const float gap = 14.0f;
     const float col_w = (area.Width() - gap * (kColumns - 1)) / static_cast<float>(kColumns);
     const float row_h = (area.Height() - 34.0f - gap * (kRows - 1)) / static_cast<float>(kRows);
 
@@ -149,7 +149,7 @@ void StateSlotView::Draw(GameMenuContext& ctx, ImDrawList* draw_list, const Rect
     focus_frame_.Draw(draw_list, theme, EaseOutCubic(ctx.open_progress));
 
     // 页码 + 操作提示
-    const float info_y = area.max.y - 22.0f;
+    const float info_y = area.max.y - 24.0f;
     char page_text[32];
     std::snprintf(page_text, sizeof(page_text), "%d / %d", page_ + 1, PageCount());
     AddTextLeftVCentered(draw_list, ImVec2(area.min.x + 4.0f, info_y),

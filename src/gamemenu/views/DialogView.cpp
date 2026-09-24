@@ -91,7 +91,7 @@ void DialogView::Draw(GameMenuContext& ctx, ImDrawList* draw_list, const Rect& a
 
     const float width = screen.Width() * 0.46f < 620.0f ? screen.Width() * 0.46f : 620.0f;
     // 高度按内容算：标题 54 + 正文行 + 间隔 + 按钮 44 + 下边距
-    const float height = 170.0f + static_cast<float>(line_count_) * 30.0f;
+    const float height = 190.0f + static_cast<float>(line_count_) * 36.0f;
     const float dx = (1.0f - e) * 70.0f;
     const float dy = (1.0f - e) * 26.0f;
     const Rect panel = MakeRect(screen.Center().x - width * 0.5f + dx,
@@ -103,21 +103,22 @@ void DialogView::Draw(GameMenuContext& ctx, ImDrawList* draw_list, const Rect& a
     AddSkewBorder(draw_list, panel, faded.skew, faded.white, 2.0f);
 
     // 标题条
-    const Rect header = MakeRect(panel.min.x, panel.min.y, panel.Width() * 0.72f, 54.0f);
+    const float header_h = faded.title_size + 30.0f;
+    const Rect header = MakeRect(panel.min.x, panel.min.y, panel.Width() * 0.72f, header_h);
     AddSkewFilled(draw_list, header, faded.skew, ColorWithAlpha(faded.red, 0.96f));
     AddTextLeftVCentered(draw_list, ImVec2(header.min.x + faded.skew + 20.0f, header.Center().y),
                          faded.panel_deep, faded.title_size, title_);
 
     // 正文
-    float y = panel.min.y + 78.0f;
+    float y = panel.min.y + header_h + 26.0f;
     for (int i = 0; i < line_count_; ++i) {
-        AddTextLeftVCentered(draw_list, ImVec2(panel.min.x + faded.skew + 22.0f, y),
+        AddTextLeftVCentered(draw_list, ImVec2(panel.min.x + faded.skew + 26.0f, y),
                              i == 0 ? faded.white : faded.white_dim, faded.text_size, lines_[i]);
-        y += 30.0f;
+        y += 36.0f;
     }
 
     // 按钮行（右对齐到面板内沿）
-    const float btn_h = 44.0f;
+    const float btn_h = 52.0f;
     const float btn_w = (panel.Width() - faded.panel_padding * 2.0f - 14.0f * (button_count_ - 1)) /
                         static_cast<float>(button_count_);
     float btn_x = panel.min.x + faded.panel_padding;

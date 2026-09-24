@@ -197,6 +197,35 @@ demo 里的存档读写、重置、退出、设置项变更**全部是 Mock**（
 `SaveState/LoadState/FillSlot`、`OnResume/OnRequestReset/OnRequestExit`、
 `OnSettingChanged/OnSettingCommand`、`OnDialogResult`。
 
+## 尺寸基准：1280x720 设计空间
+
+**所有 UI 尺寸都按 720p 写**（几何、字号、行高），运行时整体等比放大到实际分辨率。
+
+| 设备 | drawable | scale |
+|---|---|---|
+| Switch 手持 | 1280x720 | 1.00（UI 就是设计尺寸） |
+| Switch 底座 | 1920x1080 | 1.50 |
+| 桌面高 DPI | 2560x1440 | 2.00 |
+
+后端（`Sdl2Backend::NewImGuiFrame`）负责换算：
+
+```cpp
+io.DisplaySize            = drawable / scale;   // 逻辑坐标 = 设计空间
+io.DisplayFramebufferScale = (scale, scale);    // 物理/逻辑比
+style.FontScaleMain        = 1.0f;              // 字号已在设计空间，不能再乘
+```
+
+这样几何与字号**一起**等比放大。imgui 1.92 会用 `DisplayFramebufferScale` 自动作为字体
+光栅化密度（`imgui.cpp` 里 `g.FontRasterizerDensity = io.DisplayFramebufferScale.x`），
+所以放大后文字仍按物理像素渲染、不会发虚。
+
+> 之前的做法是 `DisplaySize = drawable` + 只给字体乘 `FontScaleMain`：
+> 在 1080p 上字会变大而面板/行高不变，文字就会溢出。现在这套不会再出现。
+
+基准数值集中在 `GameMenuTheme`（菜单）与 `ui/Theme.h`（组件层），
+绘制代码里不出现尺寸魔法数字。720p 下的关键值：正文字号 25、标题 36、
+菜单行高 56、菜单宽 520（≈41% 屏宽）、面板内边距 28。
+
 ## 页面画布：直接画在屏幕上
 
 `Components::BeginPanel` / `EndPanel` 是**铺满整屏的根画布**，不是浮动窗口：
@@ -388,6 +417,8 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   正确右移、主字体为 HOS `switch_font.ttf`、16 个按键图标与 35 个 Material 图标逐个
   渲染正确；Switch NRO 内已确认含 `font/MaterialIcons-Regular.ttf` 与
   `img/border_gradient.png` 的 romfs。界面快照见 `docs/ui-preview.png`。
+- 已确认（尺寸基准）：按 720p 设计 + `DisplayFramebufferScale` 等比缩放的机制；
+  720p 下正文 25px / 标题 36px / 行高 56px，抓帧核对无遮挡与溢出。
 - 已确认（暂停菜单）：mac 端脚本化注入按键走通
   `ZL+ZR 打开 → 焦点移动 → A 进存档页 → B 返回 → A 进设置页 → 改选项 → 重置确认框`，
   抓帧逐个核对（见 `docs/pause-*.png`）；两个 demo 正常退出码 0；
