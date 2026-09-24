@@ -33,6 +33,7 @@ GUI_DEV/
 │   │                           #   InputField / VirtualKeyboard / Dialog / Menu / PropertyPanel
 │   └── pages/                  # ShowcaseShell（左 Tab + 右展示区）+ 16 个控件页
 ├── examples/                   # 框架示例（与组件库互不依赖）
+│   ├── imgui_tour/             # ★ ImGui 自身能力导览（8 个 Tab，页面不滚动）
 │   ├── flow_box/               # framework/ui 组件预览（流光焦点框）
 │   ├── pause_menu/             # 暂停菜单 Demo（Persona 式动态菜单）
 │   └── widget_lessons/         # 自定义控件 8 例
@@ -53,6 +54,7 @@ GUI_DEV/
 ```bash
 cmake --preset mac
 cmake --build --preset mac
+./build/mac/gui_dev_imgui_tour    # ★ ImGui 原生能力导览（8 Tab：总览/输入/布局/弹层/高级/绘图/字体样式/系统工具）
 ./build/mac/gui_dev_demo          # ★ 手柄优先控件库 demo（左 16 个 Tab + 右展示区）
 ./build/mac/gui_dev_flow_demo     # framework/ui 组件预览（可聚焦 Box / 流光边框）
 ./build/mac/gui_dev_pause_demo    # 暂停菜单 Demo（Persona 式动态菜单）
@@ -311,6 +313,42 @@ class MyPage : public cv::ControlPage {
 2. `OnStart`：`Theme::ApplyToImGui()` → 登记页面（当前是 `ShowcaseShell`）
 3. `OnFrame`：`Global::BeginFrame(ui)` → `page.Update(dt)` → `page.Render()` → `Global::EndFrame()`
 4. `OnShutdown`：清空页面（页面持有 `TextureRef`，必须在后端关闭前析构）
+
+## ImGui 能力导览（gui_dev_imgui_tour）
+
+`examples/imgui_tour/` 是一个**只用 ImGui 原生接口**写的导览：Tab 分页，页面本身不滚动，
+每个 Tab 里的控件都能真的操作（鼠标 / 键盘 / 手柄都可以）。
+
+```bash
+./build/mac/gui_dev_imgui_tour
+GUI_DEV_TOUR_TAB=5 ./build/mac/gui_dev_imgui_tour   # 抓帧/CI：直接选中第 5 个 Tab
+```
+
+| Tab | 覆盖的 ImGui 能力 |
+|---|---|
+| 总览 | Text / TextColored / TextDisabled / LabelText / BulletText / TextWrapped、Button / SmallButton / ArrowButton / ColorButton / InvisibleButton 自绘、Checkbox / RadioButton / Selectable、ProgressBar、SetTooltip / BeginTooltip、BeginDisabled、PushStyleVar+PushStyleColor、GetContentRegionAvail / CalcTextSize |
+| 输入 | InputText(char[]) / InputText(std::string 走 imgui_stdlib) / InputTextWithHint / Password / Multiline、InputInt / InputFloat、DragInt / DragFloat / DragFloat3 / DragFloatRange2、SliderInt / SliderFloat / VSliderFloat / SliderAngle、BeginCombo、BeginListBox、ColorEdit4 / ColorPicker4 / ColorButton |
+| 布局 | CollapsingHeader、TreeNodeEx（Leaf / Selected / DefaultOpen）、SameLine / Indent / Dummy / BeginGroup / AlignTextToFramePadding、嵌套 BeginTabBar、BeginChild（独立裁剪与滚动）、BeginTable（表头 / 斑马纹 / 可排序 TableGetSortSpecs / 可调列宽 / ScrollY）、分隔条拖拽 |
+| 弹层 | OpenPopup / BeginPopup、BeginPopupContextItem（右键菜单）、BeginPopupModal（模态独占输入、多按钮）、BeginMenuBar + BeginMenu + MenuItem（快捷键、选中、禁用、子菜单、内置换配色）、SetTooltip / 延迟提示 / 富内容 Tooltip |
+| 高级 | BeginDragDropSource / SetDragDropPayload / BeginDragDropTarget / AcceptDragDropPayload（自定义载荷）、ImGuiListClipper（10 万条只提交可见行）、BeginMultiSelect + ImGuiSelectionBasicStorage（1.92 官方多选） |
+| 绘图 | ImDrawList：AddLine / AddRect / AddRectFilled / AddRectFilledMultiColor（渐变）/ AddCircle(Filled) / AddTriangleFilled / AddConvexPolyFilled / AddPolyline / AddBezierCubic / Path API（PathLineTo+PathBezierCubicCurveTo+PathStroke）、PushClipRect、AddImage / AddImageRounded / AddImageQuad、AddText（指定字体字号 + cpu_fine_clip_rect）、AddCallback（渲染期回调）、PlotLines / PlotHistogram |
+| 字体样式 | ImFontAtlas 字体列表、PushFont(font, size) 动态字号（1.92 按需光栅化）、style.FontSizeBase / FontScaleMain、运行时改 FrameRounding / FrameBorderSize / ItemSpacing、StyleColorsDark/Light/Classic、ShowStyleEditor、style.Colors 全表 |
+| 系统工具 | ImGuiIO 全量读数（Framerate / DisplaySize / FramebufferScale / MousePos / Capture / Backend 名 / ConfigFlags / BackendFlags）、ImDrawData 统计、IsKeyDown（含 Gamepad 键）、NavActive/NavVisible/NavId、io.Config* 开关、ImGuiStorage、剪贴板、SaveIniSettingsToMemory / LoadIniSettingsFromMemory、ImGuiTextBuffer + ImGuiTextFilter 日志、ShowDemoWindow / ShowMetricsWindow / ShowIDStackToolWindow / ShowDebugLogWindow / ShowAboutWindow |
+
+### 这个 demo 里踩到 / 用到的东西
+
+- **内置手柄导航**：demo 把 `PadState` 翻译成 `ImGuiKey_Gamepad*` 喂给 `io.AddKeyEvent`，
+  再打开 `NavEnableKeyboard | NavEnableGamepad`（手柄 A=Activate、B=Cancel、X=Menu/Layer、
+  Y=ContextMenu、按住 X + L1/R1 = ImGui 的窗口切换，即 Ctrl+Tab）。Tab 翻页由我们自己的输入层
+  处理（手柄 ZL/ZR、键盘 Q/E），用 `ImGuiTabItemFlags_SetSelected` 实现。
+- **字号基准**：后端每帧会把 `style.FontScaleMain` 重置为 1.0（它用来算字体光栅密度），
+  所以导览用 `style.FontSizeBase = 17px` 定 720p 手持基准，控件高度跟着字号走。
+- **渲染统计**：`ImDrawData` 只在 `ImGui::Render()` 之后有效，`UiContext` 现在会在
+  `EndFrame()` 里顺手采集并暴露 `LastDrawCalls() / LastVertices() / LastIndices()`。
+- **多选 API 的顺序**：`BeginChild` 要包住 `BeginMultiSelect/EndMultiSelect`（反过来会踩
+  `EndTable` 的状态断言），`SelectionBasicStorage::ApplyRequests` 在 Begin/End 两次都要调用。
+
+界面快照：`docs/imgui-tour-overview.png`、`-inputs.png`、`-drawing.png`、`-system.png`。
 
 ## 自定义控件 101
 

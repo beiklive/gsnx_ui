@@ -167,6 +167,15 @@ add_executable(gui_dev_flow_demo
     examples/flow_box/DemoApp.cpp)
 target_link_libraries(gui_dev_flow_demo PRIVATE gui_dev)
 
+# ImGui 能力导览：Tab 分页展示 ImGui 原生控件与接口（页面不滚动）
+add_executable(gui_dev_imgui_tour
+    examples/imgui_tour/main.cpp
+    examples/imgui_tour/ImGuiTourApp.cpp
+    examples/imgui_tour/TourTabsBasic.cpp
+    examples/imgui_tour/TourTabsAdvanced.cpp
+    examples/imgui_tour/TourTabsFontSystem.cpp)
+target_link_libraries(gui_dev_imgui_tour PRIVATE gui_dev_components)
+
 # 暂停菜单 Demo：假游戏画面 + Persona 风格动态菜单（纯 UI 展示）
 add_executable(gui_dev_pause_demo
     examples/pause_menu/main.cpp
@@ -196,7 +205,7 @@ if(GUI_DEV_PLATFORM STREQUAL "switch")
     file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets/font/MaterialIcons-Regular.ttf"
          DESTINATION "${GUI_DEV_ROMFS_DIR}/font")
 
-    foreach(gui_dev_nro_target gui_dev_demo gui_dev_flow_demo gui_dev_pause_demo gui_dev_widget_demo)
+    foreach(gui_dev_nro_target gui_dev_demo gui_dev_imgui_tour gui_dev_flow_demo gui_dev_pause_demo gui_dev_widget_demo)
         set(GUI_DEV_NRO_ARGS OUTPUT "${CMAKE_BINARY_DIR}/dist/${gui_dev_nro_target}.nro"
             ROMFS "${GUI_DEV_ROMFS_DIR}")
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")

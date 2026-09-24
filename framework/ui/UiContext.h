@@ -52,6 +52,11 @@ public:
     const PadState& Pad() const { return input_.pad; }
     float DeltaTime() const { return backend_.DeltaTime(); }
     std::uint32_t DisplayGeneration() const { return backend_.DisplayGeneration(); }
+
+    // ---- 上一帧的渲染统计（在 ImGui::Render() 之后采集，供 demo/性能面板用）----
+    int LastDrawCalls() const { return last_draw_calls_; }
+    int LastVertices() const { return last_vertices_; }
+    int LastIndices() const { return last_indices_; }
     const char* AppVersion() const { return GUI_DEV_VERSION; }
 
 private:
@@ -65,6 +70,9 @@ private:
     std::vector<std::vector<ImWchar>> exclusion_;
     std::uint32_t last_display_generation_ = 0;
     bool fonts_built_ = false;
+    int last_draw_calls_ = 0;
+    int last_vertices_ = 0;
+    int last_indices_ = 0;
 };
 
 } // namespace gui_dev

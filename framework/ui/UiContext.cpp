@@ -125,6 +125,16 @@ void UiContext::BeginFrame() {
 
 void UiContext::EndFrame() {
     ImGui::Render();
+    // ImDrawData 只在 Render() 之后有效，这里顺手把统计存下来
+    if (const ImDrawData* draw_data = ImGui::GetDrawData()) {
+        int calls = 0;
+        for (int i = 0; i < draw_data->CmdListsCount; ++i) {
+            calls += draw_data->CmdLists[i]->CmdBuffer.Size;
+        }
+        last_draw_calls_ = calls;
+        last_vertices_ = draw_data->TotalVtxCount;
+        last_indices_ = draw_data->TotalIdxCount;
+    }
     backend_.BeginRenderFrame();
     backend_.EndRenderFrame();
 }
