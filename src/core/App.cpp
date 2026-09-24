@@ -55,6 +55,7 @@ int AppRunner::Run() {
     ui_ = std::make_unique<UiContext>(*backend_);
     Theme::Apply(); // 统一视觉规范，必须在后端 ImGui 初始化之后
     ui_->RefreshIfDisplayChanged();
+    app_.BindUiContext(*ui_); // 场景栈要在 OnStart 之前拿到它，才能分发 OnEnter/OnLeave
     app_.OnStart(*ui_);
 
     int exit_code = 0;

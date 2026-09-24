@@ -4,6 +4,7 @@
 #include <cstdlib>
 
 #include "course/CourseLessons.h"
+#include "course/CourseLog.h"
 #include "ui/UiContext.h"
 
 namespace gui_dev::course {
@@ -39,8 +40,10 @@ void CourseApp::SwitchTo(int index) {
         return;
     }
     index_ = ((index % count) + count) % count; // 环形，允许负数
-    // 每课时都是独立的根场景：Reset 会析构旧场景（拿到 OnLeave 语义）
+    // 每课时都是独立的根场景：Reset 会析构旧场景（会触发旧场景的 OnLeave）
+    LogEvent("Shell Reset     即将析构旧场景");
     Scenes().Reset(entries[static_cast<std::size_t>(index_)].create());
+    LogEvent("Shell SwitchTo  切换到「%s」", entries[static_cast<std::size_t>(index_)].title);
 }
 
 void CourseApp::OnStart(UiContext& ui) {

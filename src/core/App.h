@@ -33,6 +33,9 @@ public:
 
     SceneStack& Scenes() { return scenes_; }
 
+    // AppRunner 在 OnStart 之前调用：把 UiContext 交给场景栈，钩子才能收到它。
+    void BindUiContext(UiContext& ui) { scenes_.BindUiContext(ui); }
+
 private:
     SceneStack scenes_;
 };

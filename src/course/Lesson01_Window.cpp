@@ -97,6 +97,7 @@
 #include <imgui.h>
 
 #include "course/CourseLessons.h"
+#include "course/CourseLog.h"
 #include "platform/Backend.h"
 #include "ui/Components.h"
 #include "ui/Icons.h"
@@ -157,6 +158,17 @@ void KeyValue(const char* key, const char* fmt, ...) {
 class Lesson01WindowScene final : public Scene {
 public:
     const char* Name() const override { return "lesson01"; }
+
+    // 生命周期钩子的最小用法（详见课时 2）：进入/离开各记一条到共享日志，
+    // 这样切到课时 2 时能看到「课时 1 的 OnLeave」确实发生在「课时 2 的 OnEnter」之前。
+    void OnEnter(UiContext& ui) override {
+        (void)ui;
+        LogEvent("L1 OnEnter      场景创建");
+    }
+    void OnLeave(UiContext& ui) override {
+        (void)ui;
+        LogEvent("L1 OnLeave      场景析构前");
+    }
 
     void OnRender(UiContext& ui) override {
         if (!Components::BeginPanel(ui, "课时 1 · 建立窗口",

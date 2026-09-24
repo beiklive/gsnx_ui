@@ -36,22 +36,35 @@ void Scene::OnInput(UiContext& ui) {
     }
 }
 
-void SceneStack::Push(std::unique_ptr<Scene> scene) { scenes_.push_back(std::move(scene)); }
+void SceneStack::Push(std::unique_ptr<Scene> scene) {
+    if (scene == nullptr) {
+        return;
+    }
+    scene->OnEnter(*ui_);
+    scenes_.push_back(std::move(scene));
+}
 
 std::unique_ptr<Scene> SceneStack::Pop() {
     if (scenes_.empty()) {
         return nullptr;
     }
+    scenes_.back()->OnLeave(*ui_);
     std::unique_ptr<Scene> top = std::move(scenes_.back());
     scenes_.pop_back();
     return top;
 }
 
 void SceneStack::Reset(std::unique_ptr<Scene> scene) {
-    scenes_.clear();
-    if (scene) {
-        scenes_.push_back(std::move(scene));
+    Clear();
+    Push(std::move(scene));
+}
+
+void SceneStack::Clear() {
+    // 逆序 OnLeave，再统一析构（与"越晚创建越早销毁"一致）
+    for (auto it = scenes_.rbegin(); it != scenes_.rend(); ++it) {
+        (*it)->OnLeave(*ui_);
     }
+    scenes_.clear();
 }
 
 Scene* SceneStack::Top() { return scenes_.empty() ? nullptr : scenes_.back().get(); }
