@@ -44,7 +44,7 @@ ImU32 Mix(ImU32 a, ImU32 b, float t);
 
 // ---- VSCode Dark+ 调色板 ---------------------------------------------------
 // 编辑器底色 rgb(30, 30, 30) 而不是纯黑：纯黑在大屏上对比过强、边缘有光晕感。
-inline constexpr ImVec4 kBgEditor = rgb(30, 30, 30); // #1E1E1E
+inline constexpr ImVec4 kBgEditor = rgb(189, 186, 186); // #BDBABA（原 VSCode 底色是 rgb(30,30,30) #1E1E1E）
 inline constexpr ImVec4 kBgSideBar = rgb(37, 37, 38); // #252526
 inline constexpr ImVec4 kBgPanel = rgb(37, 37, 38); // #252526
 inline constexpr ImVec4 kBgActivity = rgb(51, 51, 51); // #333333
@@ -114,16 +114,13 @@ inline constexpr float kPagePadding    = 18.0f;
 // 把调色板套到 ImGui 默认样式上（用到标准控件时视觉一致）。
 void ApplyToImGui();
 
-// ---- 自检：rgb()/rgba() 必须精确还原成注释里的十六进制 ----------------------
-// （写错分量编译期就报错，换写法不改颜色）
-static_assert(U32(rgb(30, 30, 30)) == IM_COL32(30, 30, 30, 255), "rgb() -> ImU32");
-static_assert(U32(rgba(8, 8, 10, 200)) == IM_COL32(8, 8, 10, 200), "rgba() -> ImU32（含 alpha）");
-static_assert(U32(kBgEditor) == IM_COL32(0x1E, 0x1E, 0x1E, 0xFF), "kBgEditor");
-static_assert(U32(kBgWidget) == IM_COL32(0x2D, 0x2D, 0x30, 0xFF), "kBgWidget");
-static_assert(U32(kTextPrimary) == IM_COL32(0xD4, 0xD4, 0xD4, 0xFF), "kTextPrimary");
-static_assert(U32(kAccent) == IM_COL32(0x00, 0x7A, 0xCC, 0xFF), "kAccent");
-static_assert(U32(kScrim) == IM_COL32(0x08, 0x08, 0x0A, 0xC8), "kScrim（alpha 也要一致）");
-static_assert(U32(kShadow) == IM_COL32(0x00, 0x00, 0x00, 0x8C), "kShadow（alpha）");
-static_assert(U32(kAccent, 0.5f) == IM_COL32(0x00, 0x7A, 0xCC, 0x80), "U32(color, alpha) 按倍率改 alpha");
+// ---- 自检：只验证 rgb()/rgba()/U32 这套换算本身是对的 ------------------------
+// 注意：这里**不**钉死调色板的具体颜色 —— 配色是你随时要改的东西，
+// 改了颜色不该编译不过。改颜色时记得同步后面的十六进制注释
+// （或者直接写成 rgb(0xBD, 0xBA, 0xBA)，值本身就是注释）。
+static_assert(U32(rgb(30, 30, 30)) == IM_COL32(0x1E, 0x1E, 0x1E, 0xFF), "rgb() -> ImU32");
+static_assert(U32(rgba(8, 8, 10, 200)) == IM_COL32(0x08, 0x08, 0x0A, 0xC8), "rgba() -> ImU32（含 alpha）");
+static_assert(rgba(300, -5, 30, 999).x == 1.0f && rgba(300, -5, 30, 999).y == 0.0f, "分量越界会夹到 0..255");
+static_assert(U32(rgb(0, 122, 204), 0.5f) == IM_COL32(0x00, 0x7A, 0xCC, 0x80), "U32(color, alpha) 按倍率改 alpha");
 
 } // namespace gui_dev::cv::Theme
