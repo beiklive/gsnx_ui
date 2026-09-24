@@ -142,6 +142,9 @@ void DemoApp::Configure(BackendConfig& cfg, PlatformKind kind) const {
     cfg.height = 720;
     cfg.vsync = true;
     cfg.resizable = true;
+    if (std::getenv("GUI_DEV_NO_VSYNC")) {
+        cfg.vsync = false;
+    }
 #if defined(GUI_DEV_PLATFORM_switch)
     cfg.vsync = false; // Switch 由 libnx 垂直同步，SDL 再同步会拖帧
 #endif

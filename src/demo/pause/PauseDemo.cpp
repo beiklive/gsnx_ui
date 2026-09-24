@@ -380,6 +380,10 @@ void PauseDemoApp::Configure(BackendConfig& cfg, PlatformKind kind) const {
 #if defined(GUI_DEV_PLATFORM_switch)
     cfg.vsync = false;
 #endif
+    // GUI_DEV_NO_VSYNC=1 关闭垂直同步（性能对照用）
+    if (std::getenv("GUI_DEV_NO_VSYNC")) {
+        cfg.vsync = false;
+    }
     // 验证自适应用：GUI_DEV_WINDOW=1600x720 / 960x720 / 1920x1080 ...
     if (const char* window = std::getenv("GUI_DEV_WINDOW")) {
         int w = 0;

@@ -113,6 +113,7 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
         return BackendStatus::InitFailed;
     }
 
+
     // 非整数倍缩放时用线性过滤，避免锯齿
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
 
