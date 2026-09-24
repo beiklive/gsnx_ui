@@ -80,9 +80,15 @@ if(GUI_DEV_BACKEND STREQUAL "sdl2")
         endif()
     endif()
     pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
+    # 图片解码用 libpng：mac(homebrew) 与 Switch(portlibs) 都自带，
+    # 因此不需要 SDL_image（mac 上没有）也不需要 vendored stb_image。
+    pkg_check_modules(LIBPNG REQUIRED IMPORTED_TARGET libpng)
+
     add_library(gui_dev_backend STATIC
         src/platform/backends/sdl2/Sdl2Backend.cpp
         src/platform/backends/sdl2/Factory.cpp
+        src/platform/backends/sdl2/AssetPaths.cpp
+        src/platform/backends/sdl2/PngLoader.cpp
         ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
         ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer2.cpp)
 
@@ -96,7 +102,7 @@ if(GUI_DEV_BACKEND STREQUAL "sdl2")
         GUI_DEV_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
 
     target_include_directories(gui_dev_backend PUBLIC src)
-    target_link_libraries(gui_dev_backend PUBLIC imgui PkgConfig::SDL2)
+    target_link_libraries(gui_dev_backend PUBLIC imgui PkgConfig::SDL2 PkgConfig::LIBPNG)
 elseif(GUI_DEV_BACKEND STREQUAL "glfw")
     find_package(OpenGL REQUIRED)
     find_package(glfw3 REQUIRED)
@@ -118,6 +124,7 @@ add_library(gui_dev STATIC
     src/ui/UiContext.cpp
     src/ui/Theme.cpp
     src/ui/Icons.cpp
+    src/ui/Texture.cpp
     src/ui/Scene.cpp
     src/ui/Components.cpp)
 target_include_directories(gui_dev PUBLIC src)
@@ -148,4 +155,11 @@ if(GUI_DEV_PLATFORM STREQUAL "switch")
         nx_create_nro(gui_dev_demo
             OUTPUT "${CMAKE_BINARY_DIR}/dist/gui_dev_demo.nro")
     endif()
+
+    # 把运行时图片拷到 NRO 旁边，方便一起丢到 sdmc:/switch/GUI_DEV/assets/
+    # （assets 里的 10MB 字体不进 romfs，否则 NRO 会爆）。
+    add_custom_command(TARGET gui_dev_demo POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/img"
+            "${CMAKE_BINARY_DIR}/dist/assets/img")
 endif()

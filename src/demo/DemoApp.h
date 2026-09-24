@@ -1,34 +1,34 @@
-// 示例应用：用统一组件库搭一个启动器风格的界面。
-// 真正接入时把 DemoApp 换成各核心自己的 App 实现即可，UI 代码不用改。
+// 示例应用：清空原有的启动器界面，从「可聚焦 Box」开始搭组件。
+// 接入真实核心时把 DemoApp 换成自己的 App 实现，组件用法一致。
 #pragma once
 
 #include <string>
-#include <vector>
 
 #include "core/App.h"
 #include "ui/Components.h"
 #include "ui/Scene.h"
+#include "ui/Texture.h"
 
 namespace gui_dev::demo {
 
-struct GameEntry {
-    std::string title;
-    std::string core;
-    std::string release;
-    std::string path;
-};
-
-class LibraryScene final : public Scene {
+// 首页：网格布局的可聚焦 Box。焦点索引由场景维护，
+// 手柄方向键与鼠标悬停共用同一个焦点。
+class HomeScene final : public Scene {
 public:
-    explicit LibraryScene(std::vector<GameEntry> games, std::string version);
+    HomeScene(TextureRef flow_texture, std::string version);
 
-    const char* Name() const override { return "library"; }
+    const char* Name() const override { return "home"; }
+    void OnUpdate(UiContext& ui, float dt) override;
     void OnRender(UiContext& ui) override;
 
 private:
-    std::vector<GameEntry> games_;
+    void FocusMove(int delta);
+
+    TextureRef flow_texture_;
     std::string version_;
-    int selected_ = 0;
+    std::string launched_;
+    int focus_ = 0;
+    int columns_ = 4;
 };
 
 class DemoApp final : public App {

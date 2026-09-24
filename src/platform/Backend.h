@@ -8,6 +8,8 @@
 #include <memory>
 #include <string>
 
+#include <imgui.h>
+
 #include "platform/Input.h"
 
 namespace gui_dev {
@@ -66,6 +68,16 @@ enum class BackendStatus : std::uint8_t {
     Unsupported,
 };
 
+// 已上传到 GPU 的纹理句柄。id 的解释权在后端（SDL2 下是 SDL_Texture*），
+// 上层只把它当不透明标识交给 ImGui 画。
+struct Texture {
+    ImTextureID id = 0;
+    int width = 0;
+    int height = 0;
+
+    bool Valid() const { return id != 0; }
+};
+
 class Backend {
 public:
     virtual ~Backend() = default;
@@ -101,6 +113,14 @@ public:
 
     // 逻辑尺寸 = 设计基准分辨率，UI 布局按它排版，实现负责缩放。
     virtual float UiScale() const = 0;
+
+    // ---- 资源 --------------------------------------------------------------
+    // 解析 assets/ 下的相对路径（见 platform/AssetPaths.h）。
+    virtual std::string ResolveAssetPath(const char* relative_path) const = 0;
+
+    // 加载 assets/ 下的图片为纹理。失败返回 Valid()==false，不抛异常。
+    virtual Texture LoadTexture(const char* relative_asset_path) = 0;
+    virtual void ReleaseTexture(Texture& texture) = 0;
 
 protected:
     Backend() = default;

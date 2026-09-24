@@ -6,7 +6,9 @@
 #include <imgui_impl_sdl2.h>
 #include <imgui_impl_sdlrenderer2.h>
 
+#include "platform/AssetPaths.h"
 #include "platform/Fonts.h"
+#include "platform/backends/sdl2/PngLoader.h"
 
 namespace gui_dev {
 namespace {
@@ -278,6 +280,7 @@ void Sdl2Backend::BeginRenderFrame() {
 
 void Sdl2Backend::EndRenderFrame() { SDL_RenderPresent(renderer_); }
 
+
 bool Sdl2Backend::InitImGuiBackend() {
     if (!ImGui_ImplSDL2_InitForSDLRenderer(window_, renderer_)) {
         return false;
@@ -322,6 +325,62 @@ void Sdl2Backend::GetDrawableSize(int& w, int& h) const {
     if (renderer_) {
         SDL_GetRendererOutputSize(renderer_, &w, &h);
     }
+}
+
+std::string Sdl2Backend::ResolveAssetPath(const char* relative_path) const {
+    return gui_dev::ResolveAssetPath(relative_path);
+}
+
+Texture Sdl2Backend::LoadTexture(const char* relative_asset_path) {
+    Texture texture{};
+    if (renderer_ == nullptr) {
+        return texture;
+    }
+
+    const std::string path = ResolveAssetPath(relative_asset_path);
+    if (path.empty()) {
+        std::fprintf(stderr, "[gui_dev] 找不到资源：%s\n", relative_asset_path);
+        return texture;
+    }
+
+    PngImage image;
+    if (!DecodePng(path.c_str(), image)) {
+        return texture;
+    }
+
+    // PngLoader 输出 RGBA8888；SDL_PIXELFORMAT_RGBA32 在小端上就是 ABGR8888，
+    // 与内存里的 RGBA 字节序一致。
+    SDL_Texture* sdl_texture = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_RGBA32,
+                                                SDL_TEXTUREACCESS_STATIC, image.width, image.height);
+    if (sdl_texture == nullptr) {
+        std::fprintf(stderr, "[gui_dev] SDL_CreateTexture 失败：%s\n", SDL_GetError());
+        FreePngImage(image);
+        return texture;
+    }
+    if (SDL_UpdateTexture(sdl_texture, nullptr, image.pixels, image.width * 4) != 0) {
+        std::fprintf(stderr, "[gui_dev] SDL_UpdateTexture 失败：%s\n", SDL_GetError());
+        SDL_DestroyTexture(sdl_texture);
+        FreePngImage(image);
+        return texture;
+    }
+    SDL_SetTextureBlendMode(sdl_texture, SDL_BLENDMODE_BLEND);
+
+    texture.id = reinterpret_cast<ImTextureID>(sdl_texture);
+    texture.width = image.width;
+    texture.height = image.height;
+    FreePngImage(image);
+
+    std::fprintf(stderr, "[gui_dev] 纹理已加载 %s (%dx%d)\n", path.c_str(), texture.width, texture.height);
+    return texture;
+}
+
+void Sdl2Backend::ReleaseTexture(Texture& texture) {
+    if (texture.id != 0) {
+        SDL_DestroyTexture(reinterpret_cast<SDL_Texture*>(texture.id));
+        texture.id = 0;
+    }
+    texture.width = 0;
+    texture.height = 0;
 }
 
 } // namespace gui_dev

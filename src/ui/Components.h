@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -46,7 +47,6 @@ int Toolbar(UiContext& ui, const char* id, const std::vector<const char*>& label
 
 // 进度条 + 说明文字，用于资源更新、存档读写等长任务。
 void ProgressRow(UiContext& ui, const char* label, float progress01, const char* detail = nullptr);
-
 // 空态提示（无游戏、无存档等）。
 void EmptyState(UiContext& ui, const char* message, const char* hint = nullptr);
 
@@ -55,6 +55,48 @@ bool ConfirmModal(UiContext& ui, const char* id, const char* title, const char* 
 
 // 错误/信息提示条。
 void StatusBanner(UiContext& ui, const char* message, bool is_error = false);
+
+// ---- 可聚焦方框 -----------------------------------------------------------
+
+// 方框样式。尺寸 <= 0 表示按可用空间自适应。
+struct BoxStyle {
+    ImVec2 size{0.0f, 132.0f}; // x<=0：填满可用宽度；y<=0：用 height 兜底
+    float height = 132.0f;
+    float rounding = 12.0f;
+    float border_width = 3.0f;   // 聚焦边框粗细
+    float glow_width = 8.0f;     // 外发光宽度
+    float padding = 16.0f;       // 内容内边距
+    float flow_speed = 0.25f;    // 流光速度：每秒沿边框转几圈
+    float flow_cycles = 1.0f;    // 流光贴图沿周长平铺几遍
+    float flow_dim_alpha = 0.10f; // 流光暗部不透明度（够低才能看清跑动的光斑）
+    float flow_peak_alpha = 1.0f; // 流光光斑不透明度
+    ImU32 fill_color = IM_COL32(0x1C, 0x21, 0x27, 0xFF);
+    ImU32 idle_border_color = IM_COL32(0x2C, 0x32, 0x3A, 0xFF);
+    ImU32 hover_border_color = IM_COL32(0x44, 0x4E, 0x5C, 0xFF);
+    ImU32 focus_fallback_color = IM_COL32(0x4F, 0xA3, 0xFF, 0xFF); // 没有流光贴图时的聚焦色
+    // 流光贴图：assets/img/border_gradient.png（横向周期渐变，逐行相同）。
+    // 无效时退化为静态强调色边框。
+    ImTextureRef flow_texture{};
+};
+
+// 内容绘制回调，参数是扣掉 padding 后的可用尺寸。
+using BoxContentFn = std::function<void(const ImVec2& content_size)>;
+
+struct BoxResult {
+    bool clicked = false; // 本帧被点击激活
+    bool hovered = false;
+};
+
+// 可聚焦方框。焦点由调用方维护（手柄/键盘选择列表里通常是焦点索引），
+// focused 为 true 时用 border_gradient 画流光边框。
+//
+//   BoxResult r = Components::FocusableBox("card0", focus == 0, style, [](const ImVec2&) {
+//       ImGui::TextUnformatted("标题");
+//   });
+//   if (r.hovered) focus = 0;
+//   if (r.clicked) Launch(0);
+BoxResult FocusableBox(const char* id, bool focused, const BoxStyle& style,
+                       const BoxContentFn& draw_content = {});
 
 } // namespace Components
 } // namespace gui_dev

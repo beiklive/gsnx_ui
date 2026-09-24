@@ -23,17 +23,21 @@ GUI_DEV/
 │   │   ├── UiContext.{h,cpp}   # 帧生命周期、字体（含图标字体合并）、字形自检
 │   │   ├── Theme.{h,cpp}       # 统一配色/间距规范
 │   │   ├── Icons.{h,cpp}       # 任天堂按键图标（私用区 U+E0xx / U+E1xx）
+│   │   ├── Texture.{h,cpp}     # 图片纹理 RAII 句柄（走 Backend 加载）
 │   │   ├── Scene.{h,cpp}       # Scene 基类 + SceneStack（菜单栈）
-│   │   └── Components.{h,cpp}  # 页头/页脚/列表/开关/进度/弹窗等基础件
+│   │   └── Components.{h,cpp}  # 页骨架 / 可聚焦 Box / 列表 / 开关 / 进度 / 弹窗
 │   ├── platform/               # ★ 平台层：唯一的平台接缝
-│   │   ├── Backend.h           # 后端接口 + PlatformKind
+│   │   ├── Backend.h           # 后端接口 + PlatformKind + Texture
 │   │   ├── Fonts.h             # 字体来源接口（文本 / 按键图标）
+│   │   ├── AssetPaths.h        # assets/ 相对路径解析
 │   │   ├── Input.h             # 抽象输入动作（Up/Confirm/...）
-│   │   └── backends/sdl2/      # SDL2 后端 + 后端工厂 + 平台字体实现
-│   ├── demo/                   # 示例 App（启动器风格界面）
+│   │   └── backends/sdl2/      # SDL2 后端 + 工厂 + 字体/资产/PNG 解码
+│   ├── demo/                   # 示例 App
 │   └── main.cpp
 ├── third_party/imgui/          # submodule
-├── assets/                     # Switch 图标等资源（可选）
+├── assets/
+│   ├── font/                   # 字体（switch_icons.ttf 已入库）
+│   └── img/                    # UI 图片（border_gradient.png）
 └── build/                      # 构建产物（已 gitignore）
 ```
 
@@ -47,7 +51,7 @@ cmake --build --preset mac
 ./build/mac/gui_dev_demo
 ```
 
-依赖：`brew install sdl2`（或 `sdl2-compat`）。预设里显式指定了
+依赖：`brew install sdl2 libpng`（`sdl2-compat` 也可）。预设里显式指定了
 `PKG_CONFIG_EXECUTABLE=/opt/homebrew/bin/pkg-config`，否则会命中排在 PATH 前面的
 devkitPro pkg-config（它只认 Switch portlibs）。
 
@@ -100,6 +104,59 @@ GUI_DEV_DEBUG_LAYOUT=1 ./build/mac/gui_dev_demo
 # [gui_dev] root canvas pos=(0,0) size=(1280,720) display=(1280,720)
 ```
 
+## 可聚焦 Box（流光聚焦）
+
+游戏机 UI 的焦点是**显式索引**（手柄方向键选择），不是 ImGui 的 nav 焦点，
+所以 `focused` 由调用方传入，组件只负责画。
+
+```cpp
+Components::BoxStyle style;
+style.flow_texture = flow_texture.ImGuiRef();   // assets/img/border_gradient.png
+
+const Components::BoxResult r = Components::FocusableBox("card", focus == i, style,
+    [&](const ImVec2& content_size) {          // 可选：框内的 ImGui 控件
+        ImGui::TextUnformatted("游戏库");
+    });
+if (r.hovered) focus = i;                      // 鼠标悬停接管焦点
+if (r.clicked) Launch(i);                      // 单击激活
+```
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `size.x <= 0` | 填满可用宽度 | 放进 `BeginTable` 单元格即自适应栅格 |
+| `height` | 132 | 高度兜底 |
+| `rounding` / `border_width` / `glow_width` | 12 / 3 / 8 | 圆角、边框粗细、外发光宽度 |
+| `padding` | 16 | 内容内边距（回调拿到的可用尺寸已扣除） |
+| `flow_speed` | 0.25 | 每秒沿边框转几圈 |
+| `flow_cycles` | 1.0 | 贴图沿周长平铺遍数 |
+| `flow_dim_alpha` / `flow_peak_alpha` | 0.10 / 1.0 | 暗部 / 光斑不透明度 |
+| `flow_texture` | 无 | 无效时退化为 `focus_fallback_color` 纯色边框 |
+
+流光实现（`DrawFlowBorder`）：
+
+1. 圆角矩形轮廓 → **等弧长重采样**（约 8px 一段），保证长直边也能逐段插值；
+2. 每段取外法线，把渐变贴图当 band 贴上去，UV 的 u 按**累计弧长 / 周长**映射，
+   再叠加 `GetTime() * flow_speed` 的相位 → 颜色沿边框滚动；
+3. 同一相位上叠一个 `cos³` 包络控制透明度 → 一道光斑绕框跑；
+4. 两遍绘制：宽而淡的外发光 + 细而亮的本体。
+
+贴图要求：横向**周期性无缝**渐变（`border_gradient.png` 是 512×4、周期 256px、全不透明），
+换图只要保持这个性质就无需改代码。
+
+## 图片资源
+
+```cpp
+TextureRef tex(ui.GetBackend(), "img/border_gradient.png");   // 相对 assets/
+if (tex.Valid()) ImGui::Image(tex.ImGuiRef(), tex.Size());
+```
+
+- 路径解析：`platform/AssetPaths.h`。桌面查 `assets/`、`../assets/`、`../../assets/`
+  与源码目录；Switch 查 `sdmc:/switch/GUI_DEV/assets/` 与 `romfs:/`。
+- 解码：**libpng**（mac homebrew / Switch portlibs 都自带）。没用 SDL_image
+  （mac 上没装），也没 vendored stb_image。
+- Switch 构建会把 `assets/img/` 拷到 `dist/assets/img/`，随 NRO 一起丢到
+  `sdmc:/switch/GUI_DEV/assets/` 即可。字体目录不进 romfs（10MB+ 会撑爆 NRO）。
+
 ## 按键图标（任天堂私用区）
 
 图标字形按平台取，**码位一致**，所以 UI 代码不需要分支：
@@ -138,6 +195,8 @@ Components::EndPanel(ui, {{Icons::Glyph(Icons::Button::B), "返回"}});
 | 事项 | 说明 |
 |---|---|
 | imgui 1.92 字体 | 按需光栅化（`RendererHasTextures`），不要手工 `Build()` 图集，`io.FontGlobalScale` 已移除，改用 `style.FontScaleMain` |
+| imgui 1.92 光标 | `SetCursorPos/SetCursorScreenPos` 之后必须紧跟一个 item（如 `Dummy(0,0)`），否则触发 `ErrorCheckUsingSetCursorPosToExtendParentBoundaries` 断言 |
+| imgui 公开头文件 | `IM_PI` / `ImCos` / `ImSqrt` 都在 `imgui_internal.h`，组件层只用公开头，所以自带常量与 `<cmath>` |
 | Switch 符号 | 必须定义 `IMGUI_DISABLE_DEFAULT_SHELL_FUNCTIONS`（imgui 默认 shell 用 `fork/execvp/waitpid`，libnx 没有） |
 | Switch 归档 | 工具链强制 `CMAKE_AR` 为 devkitPro 的 `aarch64-none-elf-ar`；macOS 宿主的 `llvm-ar` 会让 GNU ld 解析不到归档成员符号 |
 | NRO 打包 | 用 devkitPro 的 `nx_create_nro()`；`assets/icon.png` 存在时自动作为图标 |
@@ -152,10 +211,11 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
 
 ## 状态
 
-- 已确认：mac（Debug/Release）与 Switch（NRO）均可编译通过；mac 端可运行不崩溃；
-  mac 端运行时自检 `按键图标 16/16 全部就绪`（16 个码位在 `switch_icons.ttf` 的 cmap 中
-  也已逐个核对存在）。
-- 未验证：NRO 在实机/模拟器上的运行表现（含 HOS NintendoExt 的实际字形是否与上表一致）；
-  Switch 端主字体仍回退到 imgui 内置字体，中文/箭头等非私用区字形会缺；Switch 端尚未接入
-  libnx 分辨率切换（手持↔底座）与 HOME 键退出，钩子已留在 `Backend::DisplayGeneration()` 与
-  `Backend::ShouldQuit()`。
+- 已确认：mac（Debug/Release）与 Switch（NRO）均可编译通过；mac 端连续运行无崩溃、无
+  imgui 断言；`border_gradient.png` 加载为 512×4 纹理；按键图标运行时自检
+  `16/16 全部就绪`；抓帧核对过：画布铺满 1280×720、8 个 Box 栅格排布、焦点 Box 的
+  流光边框完整闭合、注入一次方向键右后焦点正确移到下一项。
+- 未验证：NRO 在实机/模拟器上的运行表现（含 HOS NintendoExt 字形与 pl 共享字体）；
+  Switch 端主字体仍回退到 imgui 内置字体，非私用区的中文会缺字形；Switch 端尚未接入
+  libnx 分辨率切换（手持↔底座）与 HOME 键退出，钩子已留在
+  `Backend::DisplayGeneration()` 与 `Backend::ShouldQuit()`。

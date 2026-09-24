@@ -1,5 +1,6 @@
 #include "ui/Components.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <utility>
@@ -298,6 +299,230 @@ void StatusBanner(UiContext& ui, const char* message, bool is_error) {
     ImGui::TextColored(Theme::ToVec4(color), "%s", message ? message : "");
     ImGui::EndChild();
     ImGui::PopStyleColor();
+}
+
+// --------------------------------------------------------------- 可聚焦方框 ----
+
+namespace {
+
+// 流光路径按等弧长采样，保证每个小段都能独立插值透明度/UV。
+// 段长越大，光斑的渐变台阶越明显，8px 在 720p~1080p 下已经看不出来。
+constexpr float kFlowSegmentLength = 8.0f;
+constexpr int kCornerSegments = 8;
+// IM_PI/ImCos 都在 imgui_internal.h 里，组件层只用公开头文件，所以自带常量。
+constexpr float kPi = 3.14159265358979323846f;
+
+// 顺时针采样的圆角矩形轮廓。
+void BuildRoundedRectOutline(const ImVec2& mn, const ImVec2& mx, float rounding,
+                             ImVector<ImVec2>& out) {
+    out.clear();
+    const float max_rounding = (mx.x - mn.x) * 0.5f < (mx.y - mn.y) * 0.5f ? (mx.x - mn.x) * 0.5f
+                                                                         : (mx.y - mn.y) * 0.5f;
+    float r = rounding;
+    if (r > max_rounding) {
+        r = max_rounding;
+    }
+    if (r <= 0.0f) {
+        out.push_back(ImVec2(mn.x, mn.y));
+        out.push_back(ImVec2(mx.x, mn.y));
+        out.push_back(ImVec2(mx.x, mx.y));
+        out.push_back(ImVec2(mn.x, mx.y));
+        return;
+    }
+
+    // 屏幕坐标 y 轴向下：左上角从 180° 转到 270°，四个角依次衔接。
+    const ImVec2 centers[4] = {
+        ImVec2(mn.x + r, mn.y + r),
+        ImVec2(mx.x - r, mn.y + r),
+        ImVec2(mx.x - r, mx.y - r),
+        ImVec2(mn.x + r, mx.y - r),
+    };
+    const float start_angle[4] = {kPi, kPi * 1.5f, 0.0f, kPi * 0.5f};
+    for (int corner = 0; corner < 4; ++corner) {
+        for (int s = 0; s <= kCornerSegments; ++s) {
+            const float a = start_angle[corner] +
+                            (kPi * 0.5f) * static_cast<float>(s) / static_cast<float>(kCornerSegments);
+            out.push_back(ImVec2(centers[corner].x + std::cos(a) * r, centers[corner].y + std::sin(a) * r));
+        }
+    }
+}
+
+// 把轮廓重采样成等弧长闭合路径；total 为周长。
+void ResampleClosed(const ImVector<ImVec2>& outline, float step, ImVector<ImVec2>& out, float& total) {
+    out.clear();
+    total = 0.0f;
+    const int count = outline.Size;
+    if (count < 2) {
+        return;
+    }
+
+    for (int i = 0; i < count; ++i) {
+        const ImVec2& a = outline[i];
+        const ImVec2& b = outline[(i + 1) % count];
+        total += std::sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
+    }
+    if (total <= 1.0f) {
+        return;
+    }
+
+    int target = static_cast<int>(total / step);
+    if (target < 8) {
+        target = 8;
+    }
+    if (target > 512) {
+        target = 512;
+    }
+    const float spacing = total / static_cast<float>(target);
+
+    // 沿折线按固定间距取点。
+    int emitted = 0;
+    float segment_start = 0.0f;
+    for (int i = 0; i < count && emitted < target; ++i) {
+        const ImVec2& a = outline[i];
+        const ImVec2& b = outline[(i + 1) % count];
+        const float dx = b.x - a.x;
+        const float dy = b.y - a.y;
+        const float len = std::sqrt(dx * dx + dy * dy);
+        if (len <= 0.0001f) {
+            continue;
+        }
+        const float segment_end = segment_start + len;
+        while (emitted < target && static_cast<float>(emitted) * spacing < segment_end) {
+            const float s = static_cast<float>(emitted) * spacing;
+            const float t = (s - segment_start) / len;
+            out.push_back(ImVec2(a.x + dx * t, a.y + dy * t));
+            ++emitted;
+        }
+        segment_start = segment_end;
+    }
+}
+
+// 沿路径画一条带 UV 的小段（四边形）。col 乘到贴图上。
+void AddBand(ImDrawList* draw_list, const ImVec2& p0, const ImVec2& p1, const ImVec2& n,
+             float half_width, float u0, float u1, ImTextureRef texture, ImU32 col) {
+    const ImVec2 outer0(p0.x + n.x * half_width, p0.y + n.y * half_width);
+    const ImVec2 outer1(p1.x + n.x * half_width, p1.y + n.y * half_width);
+    const ImVec2 inner0(p0.x - n.x * half_width, p0.y - n.y * half_width);
+    const ImVec2 inner1(p1.x - n.x * half_width, p1.y - n.y * half_width);
+    draw_list->AddImageQuad(texture, outer0, outer1, inner1, inner0, ImVec2(u0, 0.0f), ImVec2(u1, 0.0f),
+                            ImVec2(u1, 1.0f), ImVec2(u0, 1.0f), col);
+}
+
+inline float WrapCentered(float x) {
+    // 映射到 [-0.5, 0.5)，用于算光斑的余弦包络。
+    return x - std::floor(x + 0.5f);
+}
+
+// 流光边框：贴图 UV 沿周长滚动 + 一个绕框跑的光斑。
+void DrawFlowBorder(ImDrawList* draw_list, const ImVec2& mn, const ImVec2& mx, const BoxStyle& style) {
+    static ImVector<ImVec2> outline;
+    static ImVector<ImVec2> path;
+    // 路径直接落在填充矩形的边界上（与 AddRectFilled 同一套 rect/rounding）。
+    // 若按 border_width/2 内缩又同步改小 rounding，角落处会与填充之间露出缝隙。
+    BuildRoundedRectOutline(mn, mx, style.rounding, outline);
+
+    float total = 0.0f;
+    ResampleClosed(outline, kFlowSegmentLength, path, total);
+    const int count = path.Size;
+    if (count < 4 || total <= 1.0f) {
+        draw_list->AddRect(mn, mx, style.focus_fallback_color, style.rounding, 0, style.border_width);
+        return;
+    }
+
+    const float phase = static_cast<float>(std::fmod(ImGui::GetTime() * style.flow_speed, 1.0));
+    const float half_core = style.border_width * 0.5f;
+    const float half_glow = (style.border_width + style.glow_width) * 0.5f;
+
+    float arc = 0.0f;
+    for (int i = 0; i < count; ++i) {
+        const ImVec2& p0 = path[i];
+        const ImVec2& p1 = path[(i + 1) % count];
+        const float dx = p1.x - p0.x;
+        const float dy = p1.y - p0.y;
+        const float len = std::sqrt(dx * dx + dy * dy);
+        if (len <= 0.0001f) {
+            continue;
+        }
+        // 顺时针路径的外法线
+        const ImVec2 n(dy / len, -dx / len);
+
+        const float t0 = arc / total;
+        const float t1 = (arc + len) / total;
+        const float u0 = t0 * style.flow_cycles + phase;
+        const float u1 = t1 * style.flow_cycles + phase;
+
+        // 光斑：余弦包络，峰在 phase 处（与 UV 用同一个相位，视觉上是同一道光）。
+        const float mid = (t0 + t1) * 0.5f;
+        const float rel = WrapCentered(mid - phase);
+        const float lobe = std::cos(rel * 2.0f * kPi);
+        const float lobe3 = lobe > 0.0f ? lobe * lobe * lobe : 0.0f;
+        const float alpha = style.flow_dim_alpha + (style.flow_peak_alpha - style.flow_dim_alpha) * lobe3;
+
+        // 外发光（宽、淡）+ 本体（细、亮）
+        AddBand(draw_list, p0, p1, n, half_glow, u0, u1, style.flow_texture,
+                IM_COL32(255, 255, 255, static_cast<int>(alpha * 60.0f)));
+        AddBand(draw_list, p0, p1, n, half_core, u0, u1, style.flow_texture,
+                IM_COL32(255, 255, 255, static_cast<int>(alpha * 255.0f)));
+
+        arc += len;
+    }
+}
+
+} // namespace
+
+BoxResult FocusableBox(const char* id, bool focused, const BoxStyle& style,
+                       const BoxContentFn& draw_content) {
+    BoxResult result;
+
+    ImGui::PushID(id);
+
+    ImVec2 box_size = style.size;
+    const ImVec2 available = ImGui::GetContentRegionAvail();
+    if (box_size.x <= 0.0f) {
+        box_size.x = available.x;
+    }
+    if (box_size.y <= 0.0f) {
+        box_size.y = style.height;
+    }
+
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    const ImVec2 box_max(origin.x + box_size.x, origin.y + box_size.y);
+
+    result.clicked = ImGui::InvisibleButton("##hit", box_size, ImGuiButtonFlags_MouseButtonLeft);
+    result.hovered = ImGui::IsItemHovered();
+    // InvisibleButton 已经把布局光标推到框下方，内容要画回框内再复位。
+    const ImVec2 after_box = ImGui::GetCursorScreenPos();
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    draw_list->AddRectFilled(origin, box_max, style.fill_color, style.rounding);
+
+    if (focused) {
+        if (style.flow_texture.GetTexID() != ImTextureID_Invalid) {
+            DrawFlowBorder(draw_list, origin, box_max, style);
+        } else {
+            draw_list->AddRect(origin, box_max, style.focus_fallback_color, style.rounding, 0,
+                               style.border_width);
+        }
+    } else {
+        draw_list->AddRect(origin, box_max,
+                           result.hovered ? style.hover_border_color : style.idle_border_color,
+                           style.rounding, 0, 1.5f);
+    }
+
+    if (draw_content) {
+        ImGui::SetCursorScreenPos(ImVec2(origin.x + style.padding, origin.y + style.padding));
+        ImGui::BeginGroup();
+        draw_content(ImVec2(box_size.x - style.padding * 2.0f, box_size.y - style.padding * 2.0f));
+        ImGui::EndGroup();
+    }
+
+    // 光标复位到框下方。1.92 起 SetCursorPos 后必须紧跟一个 item，
+    // 否则会触发 ErrorCheckUsingSetCursorPosToExtendParentBoundaries 断言。
+    ImGui::SetCursorScreenPos(after_box);
+    ImGui::Dummy(ImVec2(0.0f, 0.0f));
+
+    ImGui::PopID();
+    return result;
 }
 
 } // namespace gui_dev::Components

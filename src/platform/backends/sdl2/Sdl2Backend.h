@@ -37,6 +37,10 @@ public:
     std::uint32_t DisplayGeneration() const override { return display_generation_; }
     float UiScale() const override { return ui_scale_; }
 
+    std::string ResolveAssetPath(const char* relative_path) const override;
+    Texture LoadTexture(const char* relative_asset_path) override;
+    void ReleaseTexture(Texture& texture) override;
+
 private:
     void ApplyAction(InputFrame& in, SDL_Keycode key, InputAction action, bool down);
     float ComputeUiScale() const;
