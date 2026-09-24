@@ -133,6 +133,36 @@ ImVec2 MeasureText(ImFont* font, float font_size, const char* text, float wrap_w
     return use->CalcTextSizeA(size, FLT_MAX, wrap_width, text);
 }
 
+bool GlyphInkExtent(ImFont* font, float font_size, const char* utf8_glyph, float& ink_top, float& ink_bottom) {
+    ImFont* use = font != nullptr ? font : CurrentFont();
+    if (use == nullptr || utf8_glyph == nullptr || utf8_glyph[0] == '\0' || font_size <= 0.0f) {
+        return false;
+    }
+    // 只取第一个码位（图标都是一个字形）
+    const unsigned char* p = reinterpret_cast<const unsigned char*>(utf8_glyph);
+    unsigned int codepoint = p[0];
+    if (codepoint >= 0xF0) {
+        codepoint = ((p[0] & 0x07u) << 18) | ((p[1] & 0x3Fu) << 12) | ((p[2] & 0x3Fu) << 6) | (p[3] & 0x3Fu);
+    } else if (codepoint >= 0xE0) {
+        codepoint = ((p[0] & 0x0Fu) << 12) | ((p[1] & 0x3Fu) << 6) | (p[2] & 0x3Fu);
+    } else if (codepoint >= 0xC0) {
+        codepoint = ((p[0] & 0x1Fu) << 6) | (p[1] & 0x3Fu);
+    }
+    ImFontBaked* baked = use->GetFontBaked(font_size);
+    if (baked == nullptr || baked->Size <= 0.0f) {
+        return false;
+    }
+    ImFontGlyph* glyph = baked->FindGlyphNoFallback(static_cast<ImWchar>(codepoint));
+    if (glyph == nullptr) {
+        return false;
+    }
+    // imgui 渲染时就是用 size / baked->Size 把字形度量缩放到目标字号
+    const float scale = font_size / baked->Size;
+    ink_top = glyph->Y0 * scale;
+    ink_bottom = glyph->Y1 * scale;
+    return true;
+}
+
 void Text(ImDrawList* dl, ImFont* font, float font_size, const ImVec2& pos, ImU32 color, const char* text,
           float wrap_width) {
     if (dl == nullptr || text == nullptr || text[0] == '\0') {

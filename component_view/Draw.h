@@ -19,6 +19,10 @@ void SoftShadow(ImDrawList* dl, const Rect& r, const ShadowStyle& style, float t
 
 // 文本尺寸测量（font 为 nullptr 时用当前字体）
 ImVec2 MeasureText(ImFont* font, float font_size, const char* text, float wrap_width = 0.0f);
+// 单个字形（图标通常就是一个码位）的「墨迹」上下边界，相对行盒顶的偏移（已是 font_size 尺度）。
+// 用途：图标要按看得见的形状居中 —— 行盒下方带 descender 空白，按行盒居中会显得偏上。
+// 返回 false 表示取不到字形（回退到按行盒居中）。
+bool GlyphInkExtent(ImFont* font, float font_size, const char* utf8_glyph, float& ink_top, float& ink_bottom);
 // 文本绘制（返回绘制后的右下角）
 void Text(ImDrawList* dl, ImFont* font, float font_size, const ImVec2& pos, ImU32 color, const char* text,
           float wrap_width = 0.0f);

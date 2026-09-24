@@ -100,11 +100,16 @@ protected:
 
     float mainFontSize() const { return font_size > 0.0f ? font_size : Theme::kFontBody; }
     float subFontSize() const { return subtitle_size > 0.0f ? subtitle_size : Theme::kFontSmall; }
+    // 聚焦时图标和文字（主文字 + 说明行）放大 1.1 倍，跟 focus_mix 平滑过渡
+    float ContentScale() const;
+    float MainSize() const { return mainFontSize() * ContentScale(); }
+    float SubSize() const { return subFontSize() * ContentScale(); }
     float ResolvedFocusMargin() const;
     float ResolvedFocusWidth() const;
     float ResolvedSlotWidth() const;                  // LR 选择器中间那一格的宽度
     virtual bool SubtitleAllowed() const;             // TextButton 返回 false（不带说明行）
-    bool SubtitleVisible() const { return show_subtitle && SubtitleAllowed(); }
+    virtual bool CaptionOutside() const;              // IconButton：说明行画在控件外面
+    bool SubtitleVisible() const { return show_subtitle && SubtitleAllowed() && !CaptionOutside(); }
 
     // 左侧「图标 + 文字」块：
     //   有主文字 = 图标（正方形格，格内水平+垂直居中）+ 文字紧跟其右
@@ -142,6 +147,7 @@ public:
 
 // ------------------------------------------------------------------ 3 纯图标 --
 // 只有两种形态：圆角正方形 / 圆形。边长用 setSide()（默认 52，按 720p 手持尺寸）。
+// 说明行不在按钮里画，而是画在按钮外面：默认在下面，下面空间不够就等距放到上面，都不够就不画。
 class IconButton : public Button {
 public:
     IconButton();
@@ -149,12 +155,17 @@ public:
 
     IconButtonShape shape = IconButtonShape::RoundedSquare;
     float side = 52.0f;
+    float caption_gap = 4.0f; // 说明行与按钮之间的间距
 
     IconButton& setShape(IconButtonShape value);
     IconButton& setSide(float value); // 正方形/圆形的边长
 
 protected:
     ImVec2 MeasureContent(const ImVec2& available) override;
+    void OnDrawOverlay(ImDrawList* dl, const Rect& content) override;
+    bool CaptionOutside() const override { return true; }
+    Rect CaptionLimit() const;      // 可用空间：画布 ∩ 父节点
+    void drawCaption(ImDrawList* dl) const;
 };
 
 // ------------------------------------------------------------------- 4 开关 ---

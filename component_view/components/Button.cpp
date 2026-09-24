@@ -156,11 +156,20 @@ bool Button::SubtitleAllowed() const {
     return true;
 }
 
+bool Button::CaptionOutside() const {
+    return false;
+}
+
+float Button::ContentScale() const {
+    // 聚焦时放大 1.1 倍，跟着焦点动画平滑过渡
+    return 1.0f + 0.1f * Clampf(focus_mix, 0.0f, 1.0f);
+}
+
 Button::LeftBlock Button::computeLeftBlock(const Rect& content) const {
     LeftBlock block;
     const bool show_sub = SubtitleVisible();
-    const float main_size = mainFontSize();
-    const float sub_size = subFontSize();
+    const float main_size = MainSize();
+    const float sub_size = SubSize();
     const ImVec2 main_extent = Draw::MeasureText(nullptr, main_size, text.c_str(), 0.0f);
     const ImVec2 sub_extent =
         show_sub ? Draw::MeasureText(nullptr, sub_size, subtitle.c_str(), 0.0f) : ImVec2(0.0f, 0.0f);
@@ -170,19 +179,18 @@ Button::LeftBlock Button::computeLeftBlock(const Rect& content) const {
     const float gap = (icon.empty() || text.empty()) ? 0.0f : icon_gap;
 
     if (text.empty() && !icon.empty()) {
-        // 纯图标：图标在上、说明行在下方居中（竖排）。给说明行留出位置，图标格相应缩小
+        // 纯图标：图标在按钮里居中；说明行（如果有）是画在外面的，不占这里的位置
         const float text_w = show_sub ? sub_extent.x : 0.0f;
         const float text_h = show_sub ? sub_extent.y : 0.0f;
-        const float cell_v = Maxf(4.0f, content.Height() - (show_sub ? text_h + 2.0f : 0.0f));
-        block.vertical = true;
-        block.width = Maxf(cell_v, text_w);
-        const float total_h = cell_v + (show_sub ? text_h + 2.0f : 0.0f);
+        block.vertical = !show_sub;
+        block.width = Maxf(cell, text_w);
+        const float total_h = cell + (show_sub ? text_h + 2.0f : 0.0f);
         const float block_x = (text_align == TextAlign::Center) ? content.Center().x - block.width * 0.5f
                                                                : content.min.x;
         const float block_y = content.Center().y - total_h * 0.5f;
-        block.icon = Rect::FromPosSize(ImVec2(block_x + (block.width - cell_v) * 0.5f, block_y),
-                                      ImVec2(cell_v, cell_v));
-        block.text = Rect::FromPosSize(ImVec2(block_x + (block.width - text_w) * 0.5f, block_y + cell_v + 2.0f),
+        block.icon = Rect::FromPosSize(ImVec2(block_x + (block.width - cell) * 0.5f, block_y),
+                                      ImVec2(cell, cell));
+        block.text = Rect::FromPosSize(ImVec2(block_x + (block.width - text_w) * 0.5f, block_y + cell + 2.0f),
                                       ImVec2(text_w, text_h));
         return block;
     }
@@ -202,16 +210,22 @@ Button::LeftBlock Button::computeLeftBlock(const Rect& content) const {
 }
 
 void Button::drawLeftBlock(ImDrawList* dl, const LeftBlock& block) const {
-    const float main_size = mainFontSize();
-    const float sub_size = subFontSize();
+    const float main_size = MainSize();
+    const float sub_size = SubSize();
     const bool show_sub = SubtitleVisible();
 
     if (!icon.empty() && block.icon.Width() > 0.0f) {
-        const float glyph_size = block.icon.Height() * 0.86f;
+        // 图标大小跟着格子走（额外 0.86 让四周留白看起来均匀），聚焦时再放大 1.1 倍
+        const float glyph_size = block.icon.Height() * 0.86f * ContentScale();
         const ImVec2 extent = Draw::MeasureText(nullptr, glyph_size, icon.c_str(), 0.0f);
-        // 格内水平 + 垂直居中
-        Draw::Text(dl, nullptr, glyph_size,
-                   ImVec2(block.icon.Center().x - extent.x * 0.5f, block.icon.Center().y - extent.y * 0.5f),
+        // 格内水平居中；垂直按「墨迹」居中：行盒下方有 descender 空白，按行盒居中看起来会偏上
+        float y = block.icon.Center().y - extent.y * 0.5f;
+        float ink_top = 0.0f;
+        float ink_bottom = 0.0f;
+        if (Draw::GlyphInkExtent(nullptr, glyph_size, icon.c_str(), ink_top, ink_bottom)) {
+            y = block.icon.Center().y - (ink_top + ink_bottom) * 0.5f;
+        }
+        Draw::Text(dl, nullptr, glyph_size, ImVec2(block.icon.Center().x - extent.x * 0.5f, y),
                    Theme::U32(text_color), icon.c_str());
     }
     if (text.empty() && !show_sub) {
@@ -256,7 +270,8 @@ float Button::lrKeysWidth() const {
 }
 
 void Button::drawLrRow(ImDrawList* dl, const Rect& right_rect, const char* content, ImU32 content_color) const {
-    const float size = mainFontSize();
+    const float size = mainFontSize();       // L/R 图标保持原尺寸，聚焦放大时不会让整行抖动
+    const float content_size = MainSize();   // 间隔里的文字/数字跟着聚焦放大
     const ImVec2 left_extent = Draw::MeasureText(nullptr, size, kLeftKeyGlyph, 0.0f);
     const ImVec2 right_extent = Draw::MeasureText(nullptr, size, kRightKeyGlyph, 0.0f);
     const float total = left_extent.x + kLrGap + ResolvedSlotWidth() + kLrGap + right_extent.x;
@@ -266,7 +281,7 @@ void Button::drawLrRow(ImDrawList* dl, const Rect& right_rect, const char* conte
                kLeftKeyGlyph);
     const Rect slot = Rect::FromPosSize(ImVec2(x + left_extent.x + kLrGap, right_rect.min.y),
                                        ImVec2(ResolvedSlotWidth(), right_rect.Height()));
-    Draw::MarqueeText(dl, nullptr, size, slot, content_color, content, Global::time,
+    Draw::MarqueeText(dl, nullptr, content_size, slot, content_color, content, Global::time,
                       Global::component_style.marquee_speed);
     const float right_x = x + left_extent.x + kLrGap + ResolvedSlotWidth() + kLrGap;
     Draw::Text(dl, nullptr, size, ImVec2(right_x, center_y - right_extent.y * 0.5f), Theme::U32(Theme::kTextMuted),
@@ -277,7 +292,7 @@ ImVec2 Button::MeasureContent(const ImVec2& available) {
     (void)available;
     const Button* self = this;
     LeftBlock block = self->computeLeftBlock(Rect::FromPosSize(ImVec2(0.0f, 0.0f), ImVec2(0.0f, Theme::kControlHeight)));
-    const float height = Maxf(Theme::kControlHeight, subFontSize() + mainFontSize() + 8.0f);
+    const float height = Maxf(Theme::kControlHeight, SubSize() + MainSize() + 8.0f);
     const float width = block.width + (rightSideWidth() > 0.0f ? rightSideWidth() + 16.0f : 0.0f);
     return ImVec2(Maxf(width, 120.0f), height);
 }
@@ -381,6 +396,47 @@ ImVec2 IconButton::MeasureContent(const ImVec2& available) {
     return ImVec2(inner, inner);
 }
 
+// 说明行能落在哪块区域里：画布 ∩ 父节点（没有父节点就用画布）
+Rect IconButton::CaptionLimit() const {
+    Rect limit = Global::CanvasRect();
+    if (parent != nullptr) {
+        const Rect& outer = parent->rect;
+        limit.min.x = Maxf(limit.min.x, outer.min.x);
+        limit.min.y = Maxf(limit.min.y, outer.min.y);
+        limit.max.x = Minf(limit.max.x, outer.max.x);
+        limit.max.y = Minf(limit.max.y, outer.max.y);
+    }
+    return limit;
+}
+
+// 说明行画在按钮外面：默认在下面；下面空间不够就等距放到上面；上下都不够就不画
+void IconButton::drawCaption(ImDrawList* dl) const {
+    if (!show_subtitle || subtitle.empty()) {
+        return;
+    }
+    const float size = SubSize();
+    const ImVec2 extent = Draw::MeasureText(nullptr, size, subtitle.c_str(), 0.0f);
+    const Rect limit = CaptionLimit();
+    const Rect self = DrawRect();
+    const float below = limit.max.y - self.max.y;
+    const float above = self.min.y - limit.min.y;
+    float y = 0.0f;
+    if (below >= extent.y + caption_gap) {
+        y = self.max.y + caption_gap;
+    } else if (above >= extent.y + caption_gap) {
+        y = self.min.y - caption_gap - extent.y;
+    } else {
+        return; // 上下都放不下：不显示提示文字
+    }
+    Draw::Text(dl, nullptr, size, ImVec2(self.Center().x - extent.x * 0.5f, y), Theme::U32(subtitle_color),
+               subtitle.c_str());
+}
+
+void IconButton::OnDrawOverlay(ImDrawList* dl, const Rect& content) {
+    Button::OnDrawOverlay(dl, content); // 流光聚焦框
+    drawCaption(dl);
+}
+
 // --------------------------------------------------------------- 4 开关 ----
 
 ToggleButton::ToggleButton() {
@@ -407,12 +463,12 @@ ToggleButton& ToggleButton::setChecked(bool value, bool notify) {
 
 float ToggleButton::rightSideWidth() const {
     const char* label = checked ? on_text.c_str() : off_text.c_str();
-    return Draw::MeasureText(nullptr, mainFontSize(), label, 0.0f).x;
+    return Draw::MeasureText(nullptr, MainSize(), label, 0.0f).x;
 }
 
 void ToggleButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
     const char* label = checked ? on_text.c_str() : off_text.c_str();
-    const float size = mainFontSize();
+    const float size = MainSize();
     const ImVec2 extent = Draw::MeasureText(nullptr, size, label, 0.0f);
     Draw::Text(dl, nullptr, size,
                ImVec2(right_rect.max.x - extent.x, right_rect.Center().y - extent.y * 0.5f),
@@ -450,11 +506,11 @@ CustomButton& CustomButton::setRightText(std::string value, ImVec4 color) {
 }
 
 float CustomButton::rightSideWidth() const {
-    return Draw::MeasureText(nullptr, mainFontSize(), right_text.c_str(), 0.0f).x;
+    return Draw::MeasureText(nullptr, MainSize(), right_text.c_str(), 0.0f).x;
 }
 
 void CustomButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
-    const float size = mainFontSize();
+    const float size = MainSize();
     const ImVec2 extent = Draw::MeasureText(nullptr, size, right_text.c_str(), 0.0f);
     Draw::Text(dl, nullptr, size,
                ImVec2(right_rect.max.x - extent.x, right_rect.Center().y - extent.y * 0.5f), Theme::U32(right_color),
