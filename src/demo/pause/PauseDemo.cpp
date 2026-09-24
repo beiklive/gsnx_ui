@@ -366,6 +366,15 @@ void PauseDemoApp::Configure(BackendConfig& cfg, PlatformKind kind) const {
 #if defined(GUI_DEV_PLATFORM_switch)
     cfg.vsync = false;
 #endif
+    // 验证自适应用：GUI_DEV_WINDOW=1600x720 / 960x720 / 1920x1080 ...
+    if (const char* window = std::getenv("GUI_DEV_WINDOW")) {
+        int w = 0;
+        int h = 0;
+        if (std::sscanf(window, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) {
+            cfg.width = w;
+            cfg.height = h;
+        }
+    }
 }
 
 void PauseDemoApp::OnStart(UiContext& ui) {

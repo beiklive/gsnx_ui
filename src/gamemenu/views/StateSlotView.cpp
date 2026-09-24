@@ -79,12 +79,16 @@ bool StateSlotView::OnAction(GameMenuContext& ctx, InputAction action) {
     case InputAction::Right:
         focus_ = focus_ < kPerPage - 1 ? focus_ + 1 : focus_;
         return true;
-    case InputAction::Up:
-        focus_ = focus_ >= 2 ? focus_ - 2 : focus_;
+    case InputAction::Up: {
+        const int up = ctx.layout.slot_columns > 0 ? ctx.layout.slot_columns : 2;
+        focus_ = focus_ >= up ? focus_ - up : focus_;
         return true;
-    case InputAction::Down:
-        focus_ = focus_ < kPerPage - 2 ? focus_ + 2 : focus_;
+    }
+    case InputAction::Down: {
+        const int down = ctx.layout.slot_columns > 0 ? ctx.layout.slot_columns : 2;
+        focus_ = focus_ < kPerPage - down ? focus_ + down : focus_;
         return true;
+    }
     case InputAction::PageLeft:
         page_ = (page_ + PageCount() - 1) % PageCount();
         RefreshSlots();
@@ -126,8 +130,9 @@ void StateSlotView::Draw(GameMenuContext& ctx, ImDrawList* draw_list, const Rect
     const GameMenuTheme& theme = *ctx.theme;
     const MenuAnimationConfig& cfg = theme.animation;
 
-    constexpr int kColumns = 2;
-    constexpr int kRows = kPerPage / kColumns;
+    // 自适应：列数由布局决定（内容区够宽就 3 列 2 行，否则 2 列 3 行）
+    const int kColumns = ctx.layout.slot_columns > 0 ? ctx.layout.slot_columns : 2;
+    const int kRows = (kPerPage + kColumns - 1) / kColumns;
     const float gap = 14.0f;
     const float col_w = (area.Width() - gap * (kColumns - 1)) / static_cast<float>(kColumns);
     const float row_h = (area.Height() - 34.0f - gap * (kRows - 1)) / static_cast<float>(kRows);

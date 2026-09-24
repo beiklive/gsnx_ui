@@ -31,6 +31,7 @@ struct GameMenuContext {
     float dt = 0.0f;
     float open_progress = 0.0f; // 0..1 整体入场进度，用于逐项 stagger
     Rect screen{};              // 当前画布矩形（对话框居中用）
+    GameMenuLayout layout{};    // 按当前画布自适应出来的布局
 };
 
 class GameMenuView {

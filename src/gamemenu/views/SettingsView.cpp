@@ -270,7 +270,14 @@ void SettingsView::Draw(GameMenuContext& ctx, ImDrawList* draw_list, const Rect&
     const MenuAnimationConfig& cfg = theme.animation;
 
     // ---- 左侧分类 ----------------------------------------------------------
-    const float tab_w = 124.0f;
+    // 自适应：分类列宽跟着面板宽走，面板窄时收紧
+    float tab_w = area.Width() * 0.26f;
+    if (tab_w < 108.0f) {
+        tab_w = 108.0f;
+    }
+    if (tab_w > 136.0f) {
+        tab_w = 136.0f;
+    }
     const float tab_h = 48.0f;
     float tab_y = area.min.y + 6.0f;
     for (int i = 0; i < category_count_; ++i) {

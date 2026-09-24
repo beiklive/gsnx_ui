@@ -89,7 +89,10 @@ void DialogView::Draw(GameMenuContext& ctx, ImDrawList* draw_list, const Rect& a
     const float alpha = EaseOutCubic(Clamp01(enter_));
     const GameMenuTheme faded = ThemeWithAlpha(theme, alpha);
 
-    const float width = screen.Width() * 0.46f < 620.0f ? screen.Width() * 0.46f : 620.0f;
+    // 自适应：随画布缩放，但夹在 [420, 640] 之间
+    float width = screen.Width() * 0.46f;
+    if (width < 420.0f) { width = 420.0f; }
+    if (width > 640.0f) { width = 640.0f; }
     // 高度按内容算：标题 54 + 正文行 + 间隔 + 按钮 44 + 下边距
     const float height = 190.0f + static_cast<float>(line_count_) * 36.0f;
     const float dx = (1.0f - e) * 70.0f;

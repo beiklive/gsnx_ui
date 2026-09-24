@@ -115,7 +115,13 @@ void MainMenuView::Draw(GameMenuContext& ctx, ImDrawList* draw_list, const Rect&
     const MenuAnimationConfig& cfg = theme.animation;
     const float row_width = area.Width() - theme.focus_offset - 6.0f;
 
+    // 自适应：算出内容总高，在内容区里垂直居中（画布比 16:9 高时不留大片空白）
+    const float content_height = static_cast<float>(kItemCount) * (theme.row_height + theme.row_gap) +
+                                 theme.group_gap * 2.0f;
     float y = area.min.y + 6.0f;
+    if (content_height < area.Height() - 12.0f) {
+        y += (area.Height() - 12.0f - content_height) * 0.5f;
+    }
     Rect focus_target = area;
 
     for (int i = 0; i < kItemCount; ++i) {

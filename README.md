@@ -201,26 +201,57 @@ demo 里的存档读写、重置、退出、设置项变更**全部是 Mock**（
 
 **所有 UI 尺寸都按 720p 写**（几何、字号、行高），运行时整体等比放大到实际分辨率。
 
-| 设备 | drawable | scale |
-|---|---|---|
-| Switch 手持 | 1280x720 | 1.00（UI 就是设计尺寸） |
-| Switch 底座 | 1920x1080 | 1.50 |
-| 桌面高 DPI | 2560x1440 | 2.00 |
-
-后端（`Sdl2Backend::NewImGuiFrame`）负责换算：
-
 ```cpp
-io.DisplaySize            = drawable / scale;   // 逻辑坐标 = 设计空间
-io.DisplayFramebufferScale = (scale, scale);    // 物理/逻辑比
-style.FontScaleMain        = 1.0f;              // 字号已在设计空间，不能再乘
+// scale 取更受限的一边：保证逻辑画布恒为「>=1280x720」
+scale = clamp(min(h / 720, w / 1280), 0.4, 4.0);
+
+SDL_RenderSetScale(renderer_, scale, scale);        // 几何缩放交给 SDL
+io.DisplaySize             = drawable / scale;      // 逻辑坐标 = 设计空间
+io.DisplayFramebufferScale = (scale, scale);        // 只作为字体光栅化密度
+style.FontScaleMain        = 1.0f;                  // 字号已在设计空间，不能再乘
 ```
 
-这样几何与字号**一起**等比放大。imgui 1.92 会用 `DisplayFramebufferScale` 自动作为字体
-光栅化密度（`imgui.cpp` 里 `g.FontRasterizerDensity = io.DisplayFramebufferScale.x`），
-所以放大后文字仍按物理像素渲染、不会发虚。
+| 画布 | scale | 逻辑画布 | 布局表现 |
+|---|---|---|---|
+| 1280x720（手持 / 16:9） | 1.00 | 1280x720 | 设计基准，原样 |
+| 1920x1080（底座） | 1.50 | 1280x720 | 纯等比放大 |
+| 960x720（4:3 窗口） | 0.75 | 1280x**960** | 画布变高：面板封顶并垂直居中 |
+| 1600x720（宽屏） | 1.00 | **1600**x720 | 画布变宽：面板加宽到上限，槽位改 3 列 |
 
-> 之前的做法是 `DisplaySize = drawable` + 只给字体乘 `FontScaleMain`：
-> 在 1080p 上字会变大而面板/行高不变，文字就会溢出。现在这套不会再出现。
+**两个坑（都踩过）**：
+
+1. `imgui_impl_sdlrenderer2` **不会**用 `FramebufferScale` 缩放顶点——它只把该值用在
+   裁剪矩形上，顶点原样交给 `SDL_RenderGeometryRaw`。所以几何缩放必须显式
+   `SDL_RenderSetScale`（后端注释也写明：用户设了它，就由 SDL 负责缩放）。
+2. `FramebufferScale` 仍然要设成 `scale`：imgui 1.92 用它做**字体光栅化密度**
+   （`imgui.cpp`: `g.FontRasterizerDensity = io.DisplayFramebufferScale.x`），
+   否则字形按逻辑尺寸光栅化再被 SDL 放大 → 发虚。
+
+> 更早的做法是 `DisplaySize = drawable` + 只给字体乘 `FontScaleMain`：
+> 1080p 上字变大而面板/行高不变，文字会溢出面板。现在不会再出现。
+
+### 布局自适应（`ResolveGameMenuLayout`）
+
+缩放只解决「大小」，画布**比例**变化要靠布局层（`GameMenuTheme.h` 里的
+`GameMenuLayout` / `ResolveGameMenuLayout`）：
+
+- **面板宽度**：`screen_w * 0.41`，夹在 `[440, 640]`，且至少给左侧游戏画面留 52%；
+- **面板高度**：可用高度封顶 `700`，多出来的空间**上下均分**（画布很高时面板垂直居中，
+  不会被拉成一条）；
+- **槽位栅格**：内容区宽于 `540` 时改 3 列 2 行，否则 2 列 3 行；上下键的步长跟着列数走；
+- **一级菜单**：内容在内容区里垂直居中，超长画布下不会贴着顶部留一片空白；
+- **设置页**：分类列宽随面板宽度在 `[108, 136]` 之间伸缩；
+- **对话框**：宽度随画布缩放，夹在 `[420, 640]`。
+
+验证方式（demo 支持覆盖窗口尺寸）：
+
+```bash
+GUI_DEV_WINDOW=960x720  ./build/mac/gui_dev_pause_demo   # 4:3：面板居中不裁剪
+GUI_DEV_WINDOW=1600x720 ./build/mac/gui_dev_pause_demo   # 宽屏：面板 640 + 槽位 3 列
+GUI_DEV_WINDOW=1920x1080 ./build/mac/gui_dev_pause_demo  # 底座：纯 1.5 倍等比
+```
+
+快照见 `docs/pause-adaptive-4x3.png`。
 
 基准数值集中在 `GameMenuTheme`（菜单）与 `ui/Theme.h`（组件层），
 绘制代码里不出现尺寸魔法数字。720p 下的关键值：正文字号 25、标题 36、
@@ -417,8 +448,10 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   正确右移、主字体为 HOS `switch_font.ttf`、16 个按键图标与 35 个 Material 图标逐个
   渲染正确；Switch NRO 内已确认含 `font/MaterialIcons-Regular.ttf` 与
   `img/border_gradient.png` 的 romfs。界面快照见 `docs/ui-preview.png`。
-- 已确认（尺寸基准）：按 720p 设计 + `DisplayFramebufferScale` 等比缩放的机制；
-  720p 下正文 25px / 标题 36px / 行高 56px，抓帧核对无遮挡与溢出。
+- 已确认（尺寸基准 + 自适应）：按 720p 设计 + `SDL_RenderSetScale` 等比缩放；
+  720p 下正文 25px / 标题 36px / 行高 56px；在 1280x720 / 960x720(4:3) /
+  1600x720(宽屏) 三种画布下抓帧核对：逻辑画布分别为 1280x720 / 1280x960 / 1600x720，
+  面板分别 525 / 525(居中) / 640，槽位分别 2 列 / 2 列 / 3 列，均无裁剪与溢出。
 - 已确认（暂停菜单）：mac 端脚本化注入按键走通
   `ZL+ZR 打开 → 焦点移动 → A 进存档页 → B 返回 → A 进设置页 → 改选项 → 重置确认框`，
   抓帧逐个核对（见 `docs/pause-*.png`）；两个 demo 正常退出码 0；

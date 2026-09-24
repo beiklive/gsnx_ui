@@ -14,7 +14,8 @@
 namespace gui_dev {
 namespace {
 
-// UI 设计基准高度（720p）。所有 UI 尺寸都按这个空间设计。
+// UI 设计基准（720p）。所有 UI 尺寸都按这个空间设计。
+constexpr float kDesignWidth = 1280.0f;
 constexpr float kDesignHeight = 720.0f;
 
 inline std::size_t Idx(InputAction a) { return static_cast<std::size_t>(a); }
@@ -112,6 +113,9 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
         return BackendStatus::InitFailed;
     }
 
+    // 非整数倍缩放时用线性过滤，避免锯齿
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+
     if (SDL_NumJoysticks() > 0 && SDL_IsGameController(0)) {
         controller_ = SDL_GameControllerOpen(0);
     }
@@ -127,17 +131,24 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
 }
 
 float Sdl2Backend::ComputeUiScale() const {
-    // 设计基准：1280x720。UI 里写的一切尺寸都是这个空间里的值，
-    // 运行时整体等比放大到实际 drawable（手持 720p -> 1.0，底座 1080p -> 1.5）。
+    // 设计基准：1280x720。UI 里写的一切尺寸都是这个空间里的值。
+    //
+    // scale = min(h/720, w/1280)：取两者中更受限的一个，于是逻辑画布恒为
+    // 「>=1280x720」——设计布局永远能完整放下，不会因为画布变窄而被压扁，
+    // 多出来的空间交给布局层自适应（面板居中、槽位改列数）。
+    //   16:9 任意分辨率：两个比值相等 -> 纯等比放大（720p -> 1.0，1080p -> 1.5）
+    //   4:3 / 更窄     ：受宽度限制    -> 逻辑画布变高，面板垂直居中
     int w = 0;
     int h = 0;
     GetDrawableSize(w, h);
-    if (h <= 0) {
+    if (h <= 0 || w <= 0) {
         return 1.0f;
     }
-    float scale = static_cast<float>(h) / kDesignHeight;
-    if (scale < 0.5f) {
-        scale = 0.5f;
+    const float by_height = static_cast<float>(h) / kDesignHeight;
+    const float by_width = static_cast<float>(w) / kDesignWidth;
+    float scale = by_height < by_width ? by_height : by_width;
+    if (scale < 0.4f) {
+        scale = 0.4f;
     }
     if (scale > 4.0f) {
         scale = 4.0f;
@@ -295,7 +306,9 @@ void Sdl2Backend::BeginRenderFrame() {
     ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer_);
 }
 
-void Sdl2Backend::EndRenderFrame() { SDL_RenderPresent(renderer_); }
+void Sdl2Backend::EndRenderFrame() {
+    SDL_RenderPresent(renderer_);
+}
 
 
 bool Sdl2Backend::InitImGuiBackend() {
@@ -327,15 +340,22 @@ void Sdl2Backend::NewImGuiFrame() {
     int h = 0;
     GetDrawableSize(w, h);
 
-    // 逻辑空间 = 1280x720 设计空间：DisplaySize 是逻辑尺寸，DisplayFramebufferScale
-    // 是物理/逻辑比。imgui 1.92 会用 FramebufferScale 自动作为字体光栅化密度，
-    // 所以几何与字号一起等比放大，文字仍按物理像素渲染（不糊）。
+    // 逻辑空间 = 1280x720 设计空间：DisplaySize 是逻辑尺寸。
+    //
+    // 几何缩放必须交给 SDL：imgui_impl_sdlrenderer2 只把 FramebufferScale 用在
+    // 裁剪矩形上，顶点是原样交给 SDL_RenderGeometryRaw 的（后端注释里写明：
+    // 用户若设了 SDL_RenderSetScale 就由 SDL 负责缩放）。所以这里显式设置。
     const float scale = ui_scale_ > 0.0f ? ui_scale_ : 1.0f;
+    SDL_RenderSetScale(renderer_, scale, scale);
     io.DisplaySize = ImVec2(static_cast<float>(w) / scale, static_cast<float>(h) / scale);
+    // 此值在 SDL 后端里只作为「字体光栅化密度」使用：imgui 1.92 会用它把字形
+    // 光栅化到物理像素密度（imgui.cpp: g.FontRasterizerDensity = DisplayFramebufferScale.x），
+    // 这样放大后文字依然锐利。
     io.DisplayFramebufferScale = ImVec2(scale, scale);
     // 字号已经在设计空间里定死，这里不能再乘一次（否则会双重放大）。
     ImGui::GetStyle().FontScaleMain = 1.0f;
     io.DeltaTime = delta_time_ > 0.0f ? delta_time_ : (1.0f / 60.0f);
+
 
     ImGui::NewFrame();
 }

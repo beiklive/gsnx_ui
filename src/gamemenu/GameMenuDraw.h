@@ -13,24 +13,7 @@
 
 namespace gui_dev::gamemenu {
 
-struct Rect {
-    ImVec2 min{};
-    ImVec2 max{};
-
-    float Width() const { return max.x - min.x; }
-    float Height() const { return max.y - min.y; }
-    ImVec2 Size() const { return ImVec2(Width(), Height()); }
-    ImVec2 Center() const { return ImVec2((min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f); }
-    bool Contains(const ImVec2& p) const {
-        return p.x >= min.x && p.x < max.x && p.y >= min.y && p.y < max.y;
-    }
-    Rect Inflated(float x, float y) const { return Rect{ImVec2(min.x - x, min.y - y), ImVec2(max.x + x, max.y + y)}; }
-    Rect Offset(float x, float y) const { return Rect{ImVec2(min.x + x, min.y + y), ImVec2(max.x + x, max.y + y)}; }
-};
-
-inline Rect MakeRect(float x, float y, float w, float h) {
-    return Rect{ImVec2(x, y), ImVec2(x + w, y + h)};
-}
+// Rect / MakeRect 定义在 GameMenuTheme.h（布局解析也要用）
 
 // ---- 颜色 ------------------------------------------------------------------
 

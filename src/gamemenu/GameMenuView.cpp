@@ -150,6 +150,11 @@ void GameMenuHost::Update(float dt, const PadState& pad) {
     ctx_.host = this;
     ctx_.dt = dt;
 
+    // 画布 = 逻辑空间尺寸（后端已按 720p 基准换算好），布局按它自适应
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    ctx_.screen = MakeRect(0.0f, 0.0f, display.x, display.y);
+    ctx_.layout = ResolveGameMenuLayout(*theme_, ctx_.screen);
+
     const MenuAnimationConfig& cfg = theme_->animation;
 
     // 热键 ZL + ZR：同时按住为一次开关（边沿触发，避免连发）
@@ -235,15 +240,13 @@ void GameMenuHost::Draw(ImDrawList* draw_list, const Rect& screen) {
         views_.back()->DrawScreenOverlay(ctx_, draw_list, screen);
     }
 
-    // ---- 面板几何：靠右，从屏幕右侧外滑入 ----
-    const float panel_w = theme_->menu_width < screen.Width() * 0.46f ? theme_->menu_width
-                                                                     : screen.Width() * 0.46f;
-    const float panel_h = screen.Height() - theme_->menu_top - theme_->menu_bottom_margin;
-    const float target_x = screen.max.x - theme_->menu_right_margin - panel_w;
+    // ---- 面板几何：位置/尺寸都来自自适应布局，从屏幕右侧外滑入 ----
+    const float panel_w = ctx_.layout.panel_width;
+    const float panel_h = ctx_.layout.panel_height;
     const float offscreen = panel_w + theme_->skew * 2.0f + 90.0f;
-    const float panel_x = target_x + (1.0f - slide) * offscreen;
+    const float panel_x = ctx_.layout.panel_x + (1.0f - slide) * offscreen;
 
-    const Rect panel = MakeRect(panel_x, screen.min.y + theme_->menu_top, panel_w, panel_h);
+    const Rect panel = MakeRect(panel_x, ctx_.layout.panel_y, panel_w, panel_h);
 
     // 背板（红色斜切，略偏移，漫画切割感）
     if (slide > 0.02f) {

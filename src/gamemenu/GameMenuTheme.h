@@ -12,6 +12,30 @@
 
 namespace gui_dev::gamemenu {
 
+// 画布/元素矩形（几何与布局解析共用）
+struct Rect {
+    ImVec2 min{};
+    ImVec2 max{};
+
+    float Width() const { return max.x - min.x; }
+    float Height() const { return max.y - min.y; }
+    ImVec2 Size() const { return ImVec2(Width(), Height()); }
+    ImVec2 Center() const { return ImVec2((min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f); }
+    bool Contains(const ImVec2& p) const {
+        return p.x >= min.x && p.x < max.x && p.y >= min.y && p.y < max.y;
+    }
+    Rect Inflated(float x, float y) const {
+        return Rect{ImVec2(min.x - x, min.y - y), ImVec2(max.x + x, max.y + y)};
+    }
+    Rect Offset(float x, float y) const {
+        return Rect{ImVec2(min.x + x, min.y + y), ImVec2(max.x + x, max.y + y)};
+    }
+};
+
+inline Rect MakeRect(float x, float y, float w, float h) {
+    return Rect{ImVec2(x, y), ImVec2(x + w, y + h)};
+}
+
 struct GameMenuTheme {
     // ---- 三色体系 ----------------------------------------------------------
     ImU32 background = IM_COL32(0x0B, 0x0B, 0x0D, 0xFF);    // 近黑
@@ -47,10 +71,18 @@ struct GameMenuTheme {
     float sweep_width = 62.0f;         // 扫描高光条宽度
 
     // 720p 布局：菜单靠右，游戏画面保留在左侧（需求 §15）
+    // 这些是 1280x720 下的基准值；实际画布不同比例时由 ResolveLayout 自适应。
     float menu_right_margin = 48.0f;
-    float menu_width = 520.0f;   // 约 40% 屏宽
+    float menu_width = 520.0f;      // 基准宽（720p 下约 41% 屏宽）
+    float menu_width_ratio = 0.41f;  // 画布更宽时按比例取宽
+    float menu_min_width = 440.0f;   // 再窄也不小于这个
+    float menu_max_width = 640.0f;   // 再宽也不超过这个（免得远离游戏画面）
     float menu_top = 48.0f;
     float menu_bottom_margin = 32.0f;
+    float menu_max_height = 700.0f;  // 画布很高时面板不跟着无限拉长
+    float slot_wide_threshold = 540.0f; // 内容区宽于此时槽位改 3 列 2 行
+    int slot_columns_narrow = 2;
+    int slot_columns_wide = 3;
     float row_height = 56.0f;
     float row_gap = 8.0f;
     float group_gap = 19.0f;   // 分组之间（用分隔线，不用文字）
@@ -67,6 +99,22 @@ struct GameMenuTheme {
 };
 
 const GameMenuTheme& DefaultGameMenuTheme();
+
+// ---- 自适应布局 ------------------------------------------------------------
+// 720p 的设计值只是基准：画布比例变化时（桌面窗口、非 16:9）由这里算出实际布局。
+// scale = min(h/720, w/1280) 保证逻辑画布 ≥ 1280x720，所以这里只需要处理
+// 「更宽」与「更高」两种情况。
+struct GameMenuLayout {
+    float panel_width = 520.0f;
+    float panel_height = 640.0f;
+    float panel_x = 0.0f;
+    float panel_y = 48.0f;
+    int slot_columns = 2;
+    int slot_rows = 3;
+    bool wide = false; // 画布比 16:9 更宽（槽位可多排一列）
+};
+
+GameMenuLayout ResolveGameMenuLayout(const GameMenuTheme& theme, const Rect& screen);
 
 // 把主题里所有颜色的 alpha 乘上 scale。
 // 逐项出现的淡入直接用它，避免在元素的每个颜色上穿一个 alpha 参数。
