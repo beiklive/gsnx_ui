@@ -305,10 +305,13 @@ void StatusBanner(UiContext& ui, const char* message, bool is_error) {
 
 namespace {
 
-// 流光路径按等弧长采样，保证每个小段都能独立插值透明度/UV。
-// 段长越大，光斑的渐变台阶越明显，8px 在 720p~1080p 下已经看不出来。
-constexpr float kFlowSegmentLength = 8.0f;
-constexpr int kCornerSegments = 8;
+// 流光路径按等弧长采样。段长越小，圆角处越接近真圆弧（8px 时一个 12px 半径的
+// 圆角只有两段，肉眼可见折线；2px 时约 9 段，配合共用顶点法线就看不出来了）。
+constexpr float kDefaultFlowSegmentLength = 2.0f;
+// 轮廓自身的圆角分段数，需细于重采样步长，避免重采样去拟合折线。
+constexpr int kCornerSegments = 12;
+// 段数上限，防止超大方框把顶点数拉爆。
+constexpr int kMaxFlowSegments = 2048;
 // IM_PI/ImCos 都在 imgui_internal.h 里，组件层只用公开头文件，所以自带常量。
 constexpr float kPi = 3.14159265358979323846f;
 
@@ -369,8 +372,8 @@ void ResampleClosed(const ImVector<ImVec2>& outline, float step, ImVector<ImVec2
     if (target < 8) {
         target = 8;
     }
-    if (target > 512) {
-        target = 512;
+    if (target > kMaxFlowSegments) {
+        target = kMaxFlowSegments;
     }
     const float spacing = total / static_cast<float>(target);
 
@@ -397,15 +400,110 @@ void ResampleClosed(const ImVector<ImVec2>& outline, float step, ImVector<ImVec2
     }
 }
 
-// 沿路径画一条带 UV 的小段（四边形）。col 乘到贴图上。
-void AddBand(ImDrawList* draw_list, const ImVec2& p0, const ImVec2& p1, const ImVec2& n,
-             float half_width, float u0, float u1, ImTextureRef texture, ImU32 col) {
-    const ImVec2 outer0(p0.x + n.x * half_width, p0.y + n.y * half_width);
-    const ImVec2 outer1(p1.x + n.x * half_width, p1.y + n.y * half_width);
-    const ImVec2 inner0(p0.x - n.x * half_width, p0.y - n.y * half_width);
-    const ImVec2 inner1(p1.x - n.x * half_width, p1.y - n.y * half_width);
-    draw_list->AddImageQuad(texture, outer0, outer1, inner1, inner0, ImVec2(u0, 0.0f), ImVec2(u1, 0.0f),
+// 顶点法线：相邻两段外法线的角平分线，并按 1/cos 做 miter 修正，
+// 保证沿法线偏移出的带子在整个周长上**等宽**。
+// 相邻四边形共用同一组顶点法线，所以拐角处不会出现缝隙或 V 形缺口。
+void BuildVertexNormals(const ImVector<ImVec2>& path, ImVector<ImVec2>& normals) {
+    const int count = path.Size;
+    normals.resize(count);
+    for (int i = 0; i < count; ++i) {
+        const ImVec2& prev = path[(i - 1 + count) % count];
+        const ImVec2& cur = path[i];
+        const ImVec2& next = path[(i + 1) % count];
+
+        ImVec2 d0(cur.x - prev.x, cur.y - prev.y);
+        ImVec2 d1(next.x - cur.x, next.y - cur.y);
+        const float l0 = std::sqrt(d0.x * d0.x + d0.y * d0.y);
+        const float l1 = std::sqrt(d1.x * d1.x + d1.y * d1.y);
+        if (l0 <= 0.0001f || l1 <= 0.0001f) {
+            normals[i] = ImVec2(0.0f, 0.0f);
+            continue;
+        }
+        d0.x /= l0; d0.y /= l0;
+        d1.x /= l1; d1.y /= l1;
+
+        // 顺时针路径的外法线：(dy, -dx)
+        const ImVec2 n0(d0.y, -d0.x);
+        const ImVec2 n1(d1.y, -d1.x);
+
+        ImVec2 bisector(n0.x + n1.x, n0.y + n1.y);
+        const float bl = std::sqrt(bisector.x * bisector.x + bisector.y * bisector.y);
+        if (bl <= 0.0001f) {
+            normals[i] = n1; // 近乎 180° 反向，退化为当前段法线
+            continue;
+        }
+        bisector.x /= bl;
+        bisector.y /= bl;
+
+        // miter：把顶点沿角平分线外推，使垂直厚度保持 half_width
+        float cos_half = bisector.x * n1.x + bisector.y * n1.y;
+        if (cos_half < 0.25f) {
+            cos_half = 0.25f; // 限制极端尖角，避免顶点飞出屏幕
+        }
+        normals[i] = ImVec2(bisector.x / cos_half, bisector.y / cos_half);
+    }
+}
+
+// 一条带 UV 的四边形。off0/off1 是沿顶点法线的偏移（正 = 向外）。
+// 相邻段共用顶点位置与法线，因此拼起来是连续带子而非一堆独立四边形。
+void AddBandQuad(ImDrawList* draw_list, const ImVec2& p0, const ImVec2& p1, const ImVec2& n0,
+                 const ImVec2& n1, float off0, float off1, float u0, float u1, ImTextureRef texture,
+                 ImU32 col) {
+    const ImVec2 q0(p0.x + n0.x * off0, p0.y + n0.y * off0);
+    const ImVec2 q1(p1.x + n1.x * off0, p1.y + n1.y * off0);
+    const ImVec2 q2(p1.x + n1.x * off1, p1.y + n1.y * off1);
+    const ImVec2 q3(p0.x + n0.x * off1, p0.y + n0.y * off1);
+    draw_list->AddImageQuad(texture, q0, q1, q2, q3, ImVec2(u0, 0.0f), ImVec2(u1, 0.0f),
                             ImVec2(u1, 1.0f), ImVec2(u0, 1.0f), col);
+}
+
+// 一段的完整绘制：外发光 + 本体 + 内外两道羽化肩，靠 alpha 过渡消除硬边锯齿。
+void AddFlowSegment(ImDrawList* draw_list, const ImVec2& p0, const ImVec2& p1, const ImVec2& n0,
+                    const ImVec2& n1, float u0, float u1, ImTextureRef texture,
+                    const BoxStyle& style, float alpha) {
+    const float half_core = style.border_width * 0.5f;
+    const float half_glow = (style.border_width + style.glow_width) * 0.5f;
+    // 本体两侧各两级羽化肩：靠 alpha 阶梯消除斜边/圆角处的硬像素台阶。
+    // 这是 imgui 自己给 AddRect 做抗锯齿的同一思路（边缘多画一圈低 alpha 顶点）。
+    constexpr float kFeatherInner = 0.6f;
+    constexpr float kFeatherOuter = 0.7f;
+
+    auto emit = [&](const ImVec2& a0, const ImVec2& a1, const ImVec2& m0, const ImVec2& m1,
+                    float v0, float v1) {
+        const ImU32 glow = IM_COL32(255, 255, 255, static_cast<int>(alpha * 55.0f));
+        const ImU32 shoulder_near = IM_COL32(255, 255, 255, static_cast<int>(alpha * 90.0f));
+        const ImU32 shoulder_far = IM_COL32(255, 255, 255, static_cast<int>(alpha * 30.0f));
+        const ImU32 core = IM_COL32(255, 255, 255, static_cast<int>(alpha * 255.0f));
+
+        AddBandQuad(draw_list, a0, a1, m0, m1, half_glow, -half_glow, v0, v1, texture, glow);
+        AddBandQuad(draw_list, a0, a1, m0, m1, half_core + kFeatherInner + kFeatherOuter,
+                    half_core + kFeatherInner, v0, v1, texture, shoulder_far);
+        AddBandQuad(draw_list, a0, a1, m0, m1, half_core + kFeatherInner, half_core, v0, v1, texture,
+                    shoulder_near);
+        AddBandQuad(draw_list, a0, a1, m0, m1, half_core, -half_core, v0, v1, texture, core);
+        AddBandQuad(draw_list, a0, a1, m0, m1, -half_core, -half_core - kFeatherInner, v0, v1, texture,
+                    shoulder_near);
+        AddBandQuad(draw_list, a0, a1, m0, m1, -half_core - kFeatherInner,
+                    -half_core - kFeatherInner - kFeatherOuter, v0, v1, texture, shoulder_far);
+    };
+
+    // UV 按整数边界拆段，保证每个四边形的 u 都落在 [0,1]。
+    // SDL2 没有纹理 wrap 模式设置（默认 clamp），u>1 会被夹住导致渐变断裂，
+    // 这里在软件层解决，不依赖采样器行为。
+    const float base = std::floor(u0);
+    const float f0 = u0 - base;
+    const float f1 = u1 - base;
+    if (f1 <= 1.0f) {
+        emit(p0, p1, n0, n1, f0, f1);
+        return;
+    }
+
+    const float span = f1 - f0;
+    const float frac = span > 0.0001f ? (1.0f - f0) / span : 0.5f;
+    const ImVec2 pm(p0.x + (p1.x - p0.x) * frac, p0.y + (p1.y - p0.y) * frac);
+    const ImVec2 nm(n0.x + (n1.x - n0.x) * frac, n0.y + (n1.y - n0.y) * frac);
+    emit(p0, pm, n0, nm, f0, 1.0f);
+    emit(pm, p1, nm, n1, 0.0f, f1 - 1.0f);
 }
 
 inline float WrapCentered(float x) {
@@ -417,34 +515,33 @@ inline float WrapCentered(float x) {
 void DrawFlowBorder(ImDrawList* draw_list, const ImVec2& mn, const ImVec2& mx, const BoxStyle& style) {
     static ImVector<ImVec2> outline;
     static ImVector<ImVec2> path;
+    static ImVector<ImVec2> normals;
     // 路径直接落在填充矩形的边界上（与 AddRectFilled 同一套 rect/rounding）。
     // 若按 border_width/2 内缩又同步改小 rounding，角落处会与填充之间露出缝隙。
     BuildRoundedRectOutline(mn, mx, style.rounding, outline);
 
+    const float step = style.flow_segment_length > 0.2f ? style.flow_segment_length
+                                                       : kDefaultFlowSegmentLength;
     float total = 0.0f;
-    ResampleClosed(outline, kFlowSegmentLength, path, total);
+    ResampleClosed(outline, step, path, total);
     const int count = path.Size;
     if (count < 4 || total <= 1.0f) {
         draw_list->AddRect(mn, mx, style.focus_fallback_color, style.rounding, 0, style.border_width);
         return;
     }
+    BuildVertexNormals(path, normals);
 
     const float phase = static_cast<float>(std::fmod(ImGui::GetTime() * style.flow_speed, 1.0));
-    const float half_core = style.border_width * 0.5f;
-    const float half_glow = (style.border_width + style.glow_width) * 0.5f;
 
     float arc = 0.0f;
     for (int i = 0; i < count; ++i) {
+        const int j = (i + 1) % count;
         const ImVec2& p0 = path[i];
-        const ImVec2& p1 = path[(i + 1) % count];
-        const float dx = p1.x - p0.x;
-        const float dy = p1.y - p0.y;
-        const float len = std::sqrt(dx * dx + dy * dy);
+        const ImVec2& p1 = path[j];
+        const float len = std::sqrt((p1.x - p0.x) * (p1.x - p0.x) + (p1.y - p0.y) * (p1.y - p0.y));
         if (len <= 0.0001f) {
             continue;
         }
-        // 顺时针路径的外法线
-        const ImVec2 n(dy / len, -dx / len);
 
         const float t0 = arc / total;
         const float t1 = (arc + len) / total;
@@ -458,12 +555,8 @@ void DrawFlowBorder(ImDrawList* draw_list, const ImVec2& mn, const ImVec2& mx, c
         const float lobe3 = lobe > 0.0f ? lobe * lobe * lobe : 0.0f;
         const float alpha = style.flow_dim_alpha + (style.flow_peak_alpha - style.flow_dim_alpha) * lobe3;
 
-        // 外发光（宽、淡）+ 本体（细、亮）
-        AddBand(draw_list, p0, p1, n, half_glow, u0, u1, style.flow_texture,
-                IM_COL32(255, 255, 255, static_cast<int>(alpha * 60.0f)));
-        AddBand(draw_list, p0, p1, n, half_core, u0, u1, style.flow_texture,
-                IM_COL32(255, 255, 255, static_cast<int>(alpha * 255.0f)));
-
+        AddFlowSegment(draw_list, p0, p1, normals[i], normals[j], u0, u1, style.flow_texture, style,
+                       alpha);
         arc += len;
     }
 }

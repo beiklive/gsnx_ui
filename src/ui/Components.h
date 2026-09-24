@@ -66,10 +66,13 @@ struct BoxStyle {
     float border_width = 3.0f;   // 聚焦边框粗细
     float glow_width = 8.0f;     // 外发光宽度
     float padding = 16.0f;       // 内容内边距
-    float flow_speed = 0.25f;    // 流光速度：每秒沿边框转几圈
+    float flow_speed = 0.30f;    // 流光速度：每秒沿边框转几圈
     float flow_cycles = 1.0f;    // 流光贴图沿周长平铺几遍
     float flow_dim_alpha = 0.10f; // 流光暗部不透明度（够低才能看清跑动的光斑）
     float flow_peak_alpha = 1.0f; // 流光光斑不透明度
+    // 流光路径的等弧长采样步长（像素）。越小圆角越接近真圆弧；
+    // 2.0 时一个 12px 半径圆角约 9 段，肉眼已看不出折线。
+    float flow_segment_length = 2.0f;
     ImU32 fill_color = IM_COL32(0x1C, 0x21, 0x27, 0xFF);
     ImU32 idle_border_color = IM_COL32(0x2C, 0x32, 0x3A, 0xFF);
     ImU32 hover_border_color = IM_COL32(0x44, 0x4E, 0x5C, 0xFF);
