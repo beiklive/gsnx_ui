@@ -135,6 +135,10 @@ public:
     // 逻辑尺寸 = 设计基准分辨率，UI 布局按它排版，实现负责缩放。
     virtual float UiScale() const = 0;
 
+    // 驱动/后端描述，例如 "SDL 2.32.72 + metal"。用于诊断与课程展示。
+    // 返回的是后端内部持有的字符串（Init 时构建一次），调用方不需要释放、也不产生分配。
+    virtual const char* DriverName() const = 0;
+
     // ---- 资源 --------------------------------------------------------------
     // 解析 assets/ 下的相对路径（见 platform/AssetPaths.h）。
     virtual std::string ResolveAssetPath(const char* relative_path) const = 0;

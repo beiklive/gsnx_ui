@@ -19,6 +19,7 @@ struct CourseEntry {
 const std::vector<CourseEntry>& CourseEntries();
 
 // ---- 各课时工厂 ------------------------------------------------------------
+std::unique_ptr<Scene> CreateLesson00Build();
 std::unique_ptr<Scene> CreateLesson01Window();
 std::unique_ptr<Scene> CreateLesson02Lifecycle();
 std::unique_ptr<Scene> CreateLesson03FrameLoop();

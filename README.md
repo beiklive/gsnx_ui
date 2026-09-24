@@ -127,11 +127,16 @@ GUI_DEV_EXIT_AFTER=60 ./build/mac/gui_dev_demo   # 跑满 60 帧后正常退出�
 每课时 = **讲解（源码文件头）+ 可运行示例 + 练习 + 验收标准**，L/R 切换课时，Esc 退出。
 
 ```bash
-cmake --build --preset mac && ./build/mac/gui_dev_course
+git submodule update --init --recursive      # 依赖：imgui（见 src/course/README.md）
+cmake --preset mac && cmake --build --preset mac
+./build/mac/gui_dev_course                   # L/R 切课，Esc 退出
 ```
+
+编译细节、依赖、加课时步骤、编译报错排查：**[src/course/README.md](src/course/README.md)**（也是课程第 0 课的内容）。
 
 | 课时 | 主题 | 关键内容 |
 |---|---|---|
+| 0 | 编译与运行 | 依赖 / 三条命令 / 四个目标 / 加课时 4 步 / 7 条真实报错对照表 |
 | 1 | 建立窗口 | ImGui 不建窗口 -> 三层结构；BackendConfig 六字段；drawable/scale/logical 实况 |
 | 2 | 生命周期 | 六阶段顺序；所有权（App/Scene 比 Backend 活得久）；退出崩溃复盘；三条规则 |
 | 3 | 帧循环解剖 | 一帧五个动作；立即模式的三个后果；顶点/索引/帧时实况；负载滑杆 |

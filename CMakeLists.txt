@@ -164,6 +164,7 @@ add_executable(gui_dev_course
     src/course/CourseLessons.cpp
     src/course/CourseLog.cpp
     src/course/CourseUi.cpp
+    src/course/Lesson00_Build.cpp
     src/course/Lesson01_Window.cpp
     src/course/Lesson02_Lifecycle.cpp
     src/course/Lesson03_FrameLoop.cpp

@@ -140,7 +140,7 @@ public:
         const float scale = ui.GetBackend().UiScale();
         const ImVec2 logical = ImGui::GetIO().DisplaySize;
 
-        KeyValue("平台 / 后端", "%s / SDL2 + SDL_Renderer2", PlatformName());
+        KeyValue("平台 / 驱动", "%s / %s", PlatformName(), ui.GetBackend().DriverName());
         KeyValue("drawable（真实像素）", "%d x %d", drawable_w, drawable_h);
         KeyValue("ui scale（设计→物理）", "%.3f", static_cast<double>(scale));
         KeyValue("logical（UI 排版空间）", "%.0f x %.0f", logical.x, logical.y);

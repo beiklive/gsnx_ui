@@ -125,6 +125,21 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
     ui_scale_ = ComputeUiScale();
     perf_counter_ = SDL_GetPerformanceCounter();
 
+    // 驱动描述：只在这里拼一次（每帧读的是 c_str()，不产生分配）
+    {
+        SDL_version version{};
+        SDL_GetVersion(&version);
+        SDL_RendererInfo info{};
+        const char* renderer_name = "?";
+        if (SDL_GetRendererInfo(renderer_, &info) == 0 && info.name != nullptr) {
+            renderer_name = info.name;
+        }
+        char buffer[96];
+        std::snprintf(buffer, sizeof(buffer), "SDL %d.%d.%d + %s", version.major, version.minor,
+                      version.patch, renderer_name);
+        driver_name_ = buffer;
+    }
+
     // 平台服务：Switch 上是 pl:u（共享字体）与 romfs（打包资源）。
     // 失败只丢字体/图标，不阻止启动；必须在字体收集与纹理加载之前完成。
     PlatformServicesInit();

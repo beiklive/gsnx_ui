@@ -37,6 +37,7 @@ public:
     void GetDrawableSize(int& w, int& h) const override;
     std::uint32_t DisplayGeneration() const override { return display_generation_; }
     float UiScale() const override { return ui_scale_; }
+    const char* DriverName() const override { return driver_name_.c_str(); }
 
     std::string ResolveAssetPath(const char* relative_path) const override;
     Texture LoadTexture(const char* relative_asset_path) override;
@@ -61,6 +62,8 @@ private:
     float ui_scale_ = 1.0f;
 
     BackendConfig cfg_{};
+    // Init 时构建一次（避免每帧分配）
+    std::string driver_name_{"unknown"};
 };
 
 } // namespace gui_dev
