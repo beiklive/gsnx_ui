@@ -22,7 +22,8 @@ public:
     // ---- 链式设置 ----------------------------------------------------------
     Box& moveTo(float x, float y);           // 位置（相对父节点内容区左上角）
     Box& resize(float width, float height);  // 尺寸（外框尺寸）
-    Box& fillWith(ImU32 color);              // 底色
+    Box& fillWith(ImU32 color);              // 底色（打包值）
+    Box& fillWith(const ImVec4& color);      // 底色（Theme 的 rgba()/rgb() 结果）
     Box& roundCorners(float value);          // 圆角
     Box& outline(float width, ImU32 color);  // 边框
     Box& dropShadow(float blur, ImU32 color); // 阴影

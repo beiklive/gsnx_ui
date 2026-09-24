@@ -1,9 +1,10 @@
 // 组件库调色板与尺寸规范：VSCode Dark+ 配色（背景不使用纯黑）。
 //
-// 颜色统一用 **RGBA**（ImVec4，分量 0..1，w = alpha），和 ImGui 的样式系统一致：
-//   * 直接写字面量：Theme::kBgEditor = ImVec4{0.118, 0.118, 0.118, 1.0}
-//   * 想按十六进制写：Theme::RGBA(0x1E1E1EFF)（#RRGGBBAA）
-//   * 交给 ImDrawList / Widget 的 ImU32 属性时：Theme::U32(color) 或 Theme::U32(color, alpha)
+// 颜色写法跟 CSS 一样，分量都是 **0..255**：
+//   rgb(r, g, b)        不透明
+//   rgba(r, g, b, a)    带 alpha（a=255 时等同于 rgb）
+// 返回类型是 ImVec4（分量 0..1），和 ImGui 的样式系统一致；要交给
+// ImDrawList / Widget 的 ImU32 属性时用 Theme::U32(color) 转换。
 #pragma once
 
 #include <imgui.h>
@@ -11,13 +12,16 @@
 namespace gui_dev::cv::Theme {
 
 // ---- 颜色工具（都能在编译期求值） ------------------------------------------
-// #RRGGBBAA -> ImVec4。写配色时可以用它，避免 IM_COL32 的端序打包差异。
-inline constexpr ImVec4 RGBA(unsigned int rgba) {
-    return ImVec4(static_cast<float>((rgba >> 24) & 0xFFu) / 255.0f,
-                  static_cast<float>((rgba >> 16) & 0xFFu) / 255.0f,
-                  static_cast<float>((rgba >> 8) & 0xFFu) / 255.0f,
-                  static_cast<float>(rgba & 0xFFu) / 255.0f);
+inline constexpr int ClampByte(int v) { return v < 0 ? 0 : (v > 255 ? 255 : v); }
+
+// rgba(r, g, b, a)：分量 0..255（越界会被夹到 0..255），返回 ImVec4（0..1）
+inline constexpr ImVec4 rgba(int r, int g, int b, int a = 255) {
+    return ImVec4(static_cast<float>(ClampByte(r)) / 255.0f, static_cast<float>(ClampByte(g)) / 255.0f,
+                  static_cast<float>(ClampByte(b)) / 255.0f, static_cast<float>(ClampByte(a)) / 255.0f);
 }
+
+// rgb(r, g, b)：不透明版本
+inline constexpr ImVec4 rgb(int r, int g, int b) { return rgba(r, g, b, 255); }
 
 // ImVec4 -> ImU32（ImDrawList 与 Widget 的 ImU32 属性用的打包值）
 inline constexpr ImU32 U32(const ImVec4& c, float alpha_mul = 1.0f) {
@@ -38,47 +42,47 @@ inline constexpr ImVec4 Mix(const ImVec4& a, const ImVec4& b, float t) {
 }
 ImU32 Mix(ImU32 a, ImU32 b, float t);
 
-// ---- VSCode Dark+ 调色板（RGBA） ------------------------------------------
-// 编辑器底色 #1E1E1E 而不是 #000000：纯黑在大屏上对比过强、边缘有光晕感。
-inline constexpr ImVec4 kBgEditor{0.118, 0.118, 0.118, 1.000}; // #1E1E1E
-inline constexpr ImVec4 kBgSideBar{0.145, 0.145, 0.149, 1.000}; // #252526
-inline constexpr ImVec4 kBgPanel{0.145, 0.145, 0.149, 1.000}; // #252526
-inline constexpr ImVec4 kBgActivity{0.200, 0.200, 0.200, 1.000}; // #333333
-inline constexpr ImVec4 kBgWidget{0.176, 0.176, 0.188, 1.000}; // #2D2D30
-inline constexpr ImVec4 kBgWidgetHi{0.216, 0.216, 0.227, 1.000}; // #37373A
-inline constexpr ImVec4 kBgInput{0.235, 0.235, 0.235, 1.000}; // #3C3C3C
-inline constexpr ImVec4 kBorder{0.235, 0.235, 0.235, 1.000}; // #3C3C3C
-inline constexpr ImVec4 kBorderStrong{0.329, 0.329, 0.345, 1.000}; // #545458
-inline constexpr ImVec4 kTextPrimary{0.831, 0.831, 0.831, 1.000}; // #D4D4D4
-inline constexpr ImVec4 kTextBright{1.000, 1.000, 1.000, 1.000}; // #FFFFFF
-inline constexpr ImVec4 kTextMuted{0.522, 0.522, 0.522, 1.000}; // #858585
-inline constexpr ImVec4 kTextDisabled{0.416, 0.416, 0.416, 1.000}; // #6A6A6A
-inline constexpr ImVec4 kAccent{0.000, 0.478, 0.800, 1.000}; // #007ACC  // VSCode 焦点蓝
-inline constexpr ImVec4 kAccentHover{0.067, 0.467, 0.733, 1.000}; // #1177BB
-inline constexpr ImVec4 kButton{0.055, 0.388, 0.612, 1.000}; // #0E639C
-inline constexpr ImVec4 kButtonActive{0.039, 0.294, 0.467, 1.000}; // #0A4B77
-inline constexpr ImVec4 kSelection{0.149, 0.310, 0.471, 1.000}; // #264F78
-inline constexpr ImVec4 kError{0.945, 0.298, 0.298, 1.000}; // #F14C4C
-inline constexpr ImVec4 kWarning{0.800, 0.655, 0.000, 1.000}; // #CCA700
-inline constexpr ImVec4 kTeal{0.306, 0.788, 0.690, 1.000}; // #4EC9B0
-inline constexpr ImVec4 kOrange{0.808, 0.569, 0.471, 1.000}; // #CE9178
-inline constexpr ImVec4 kPurple{0.773, 0.525, 0.753, 1.000}; // #C586C0
-inline constexpr ImVec4 kYellow{0.863, 0.863, 0.667, 1.000}; // #DCDCAA
-inline constexpr ImVec4 kBlue{0.337, 0.612, 0.839, 1.000}; // #569CD6
-inline constexpr ImVec4 kGreen{0.416, 0.600, 0.333, 1.000}; // #6A9955
-inline constexpr ImVec4 kWhite{1.000, 1.000, 1.000, 1.000}; // #FFFFFF
+// ---- VSCode Dark+ 调色板 ---------------------------------------------------
+// 编辑器底色 rgb(30, 30, 30) 而不是纯黑：纯黑在大屏上对比过强、边缘有光晕感。
+inline constexpr ImVec4 kBgEditor = rgb(30, 30, 30); // #1E1E1E
+inline constexpr ImVec4 kBgSideBar = rgb(37, 37, 38); // #252526
+inline constexpr ImVec4 kBgPanel = rgb(37, 37, 38); // #252526
+inline constexpr ImVec4 kBgActivity = rgb(51, 51, 51); // #333333
+inline constexpr ImVec4 kBgWidget = rgb(45, 45, 48); // #2D2D30
+inline constexpr ImVec4 kBgWidgetHi = rgb(55, 55, 58); // #37373A
+inline constexpr ImVec4 kBgInput = rgb(60, 60, 60); // #3C3C3C
+inline constexpr ImVec4 kBorder = rgb(60, 60, 60); // #3C3C3C
+inline constexpr ImVec4 kBorderStrong = rgb(84, 84, 88); // #545458
+inline constexpr ImVec4 kTextPrimary = rgb(212, 212, 212); // #D4D4D4
+inline constexpr ImVec4 kTextBright = rgb(255, 255, 255); // #FFFFFF
+inline constexpr ImVec4 kTextMuted = rgb(133, 133, 133); // #858585
+inline constexpr ImVec4 kTextDisabled = rgb(106, 106, 106); // #6A6A6A
+inline constexpr ImVec4 kAccent = rgb(0, 122, 204); // #007ACC  // VSCode 焦点蓝
+inline constexpr ImVec4 kAccentHover = rgb(17, 119, 187); // #1177BB
+inline constexpr ImVec4 kButton = rgb(14, 99, 156); // #0E639C
+inline constexpr ImVec4 kButtonActive = rgb(10, 75, 119); // #0A4B77
+inline constexpr ImVec4 kSelection = rgb(38, 79, 120); // #264F78
+inline constexpr ImVec4 kError = rgb(241, 76, 76); // #F14C4C
+inline constexpr ImVec4 kWarning = rgb(204, 167, 0); // #CCA700
+inline constexpr ImVec4 kTeal = rgb(78, 201, 176); // #4EC9B0
+inline constexpr ImVec4 kOrange = rgb(206, 145, 120); // #CE9178
+inline constexpr ImVec4 kPurple = rgb(197, 134, 192); // #C586C0
+inline constexpr ImVec4 kYellow = rgb(220, 220, 170); // #DCDCAA
+inline constexpr ImVec4 kBlue = rgb(86, 156, 214); // #569CD6
+inline constexpr ImVec4 kGreen = rgb(106, 153, 85); // #6A9955
+inline constexpr ImVec4 kWhite = rgb(255, 255, 255); // #FFFFFF
 inline constexpr ImVec4 kSuccess = kTeal;
-inline constexpr ImVec4 kTrack{0.227, 0.227, 0.239, 1.000}; // #3A3A3D  // 滑条 / 进度条底色
-inline constexpr ImVec4 kTrackFill{0.000, 0.478, 0.800, 1.000}; // #007ACC
-inline constexpr ImVec4 kScrim{0.031, 0.031, 0.039, 0.784}; // #08080AC8  // 弹层遮罩
-inline constexpr ImVec4 kListRow{0.165, 0.165, 0.176, 1.000}; // #2A2A2D
-inline constexpr ImVec4 kListRowAlt{0.141, 0.141, 0.153, 1.000}; // #242427
-inline constexpr ImVec4 kListRowFocus{0.149, 0.310, 0.471, 1.000}; // #264F78
-inline constexpr ImVec4 kKeyBg{0.200, 0.200, 0.216, 1.000}; // #333337  // 虚拟键盘按键
-inline constexpr ImVec4 kKeyBgTop{0.239, 0.239, 0.259, 1.000}; // #3D3D42
-inline constexpr ImVec4 kKeyBgActive{0.055, 0.388, 0.612, 1.000}; // #0E639C
-inline constexpr ImVec4 kShadow{0.000, 0.000, 0.000, 0.549}; // #0000008C
-inline constexpr ImVec4 kShadowSoft{0.000, 0.000, 0.000, 0.314}; // #00000050
+inline constexpr ImVec4 kTrack = rgb(58, 58, 61); // #3A3A3D  // 滑条 / 进度条底色
+inline constexpr ImVec4 kTrackFill = rgb(0, 122, 204); // #007ACC
+inline constexpr ImVec4 kScrim = rgba(8, 8, 10, 200); // #08080AC8  // 弹层遮罩
+inline constexpr ImVec4 kListRow = rgb(42, 42, 45); // #2A2A2D
+inline constexpr ImVec4 kListRowAlt = rgb(36, 36, 39); // #242427
+inline constexpr ImVec4 kListRowFocus = rgb(38, 79, 120); // #264F78
+inline constexpr ImVec4 kKeyBg = rgb(51, 51, 55); // #333337  // 虚拟键盘按键
+inline constexpr ImVec4 kKeyBgTop = rgb(61, 61, 66); // #3D3D42
+inline constexpr ImVec4 kKeyBgActive = rgb(14, 99, 156); // #0E639C
+inline constexpr ImVec4 kShadow = rgba(0, 0, 0, 140); // #0000008C
+inline constexpr ImVec4 kShadowSoft = rgba(0, 0, 0, 80); // #00000050
 
 // ---- 尺寸（720p 设计空间，后端按 UiScale 统一放大） -------------------------
 // 基准是「720p 手持屏」：字号/行高/间距都按在 6 寸屏上握着看设计，
@@ -110,9 +114,10 @@ inline constexpr float kPagePadding    = 18.0f;
 // 把调色板套到 ImGui 默认样式上（用到标准控件时视觉一致）。
 void ApplyToImGui();
 
-// ---- 自检：RGBA 字面量必须精确还原成原来的十六进制 ---------------------------
-// （换表示形式不改颜色，编译期就能发现手抖写错的分量）
-static_assert(U32(RGBA(0x1E1E1EFF)) == IM_COL32(0x1E, 0x1E, 0x1E, 0xFF), "RGBA/U32 换算要与 IM_COL32 一致");
+// ---- 自检：rgb()/rgba() 必须精确还原成注释里的十六进制 ----------------------
+// （写错分量编译期就报错，换写法不改颜色）
+static_assert(U32(rgb(30, 30, 30)) == IM_COL32(30, 30, 30, 255), "rgb() -> ImU32");
+static_assert(U32(rgba(8, 8, 10, 200)) == IM_COL32(8, 8, 10, 200), "rgba() -> ImU32（含 alpha）");
 static_assert(U32(kBgEditor) == IM_COL32(0x1E, 0x1E, 0x1E, 0xFF), "kBgEditor");
 static_assert(U32(kBgWidget) == IM_COL32(0x2D, 0x2D, 0x30, 0xFF), "kBgWidget");
 static_assert(U32(kTextPrimary) == IM_COL32(0xD4, 0xD4, 0xD4, 0xFF), "kTextPrimary");

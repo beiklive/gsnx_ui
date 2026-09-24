@@ -160,24 +160,27 @@ void OnBuild() override {
 `Box` 提供的链式设置：`moveTo / resize / fillWith / roundCorners / outline / dropShadow`
 （名字不能叫 `border` / `shadow` —— 那是 `Widget` 的成员变量）。
 
-### 颜色一律用 RGBA（ImVec4）
+### 颜色一律写成 rgb() / rgba()（分量 0..255）
 
-`Theme.h` 里的颜色都是 `ImVec4{ r, g, b, a }`（分量 0..1，w 就是 alpha），和 ImGui 的样式系统同一种类型：
+`Theme.h` 里的颜色写法跟 CSS 一样，分量都是 **0..255**；返回类型是 `ImVec4`（内部 0..1），
+和 ImGui 的样式系统同一种类型：
 
 ```cpp
-inline constexpr ImVec4 kAccent{0.000, 0.478, 0.800, 1.000}; // #007ACC
+inline constexpr ImVec4 kAccent = rgb(0, 122, 204);      // #007ACC
+inline constexpr ImVec4 kScrim  = rgba(8, 8, 10, 200);   // #08080AC8（带 alpha 用 rgba）
 ```
-
-配套三个工具（都能编译期求值）：
 
 | 工具 | 用途 |
 |---|---|
-| `Theme::RGBA(0xRRGGBBAA)` | 想按十六进制写时用它，避免 `IM_COL32` 的端序打包差异 |
-| `Theme::U32(color)` / `U32(color, alpha)` | 交给 `ImDrawList` / `Widget` 的 `ImU32` 属性时转换 |
+| `Theme::rgb(r, g, b)` / `Theme::rgba(r, g, b, a)` | 0..255 写颜色，越界自动夹到 0..255，返回 `ImVec4` |
+| `Theme::U32(color)` / `U32(color, alpha)` | 转成 `ImU32`（`ImDrawList` 与 `Widget` 的 ImU32 属性要这个） |
 | `Theme::Alpha(color, k)` / `Theme::Mix(a, b, t)` | 改透明度 / 插值（`ImVec4` 与 `ImU32` 两种重载都在） |
 
-`Theme.h` 里还有一组 `static_assert`，保证每个 RGBA 字面量都能精确还原成原来的十六进制
-（换表示形式不改颜色，写错分量编译期就报错）。
+`Widget::SetBackground` 和 `Box::fillWith` 都有 `ImVec4` 重载，所以平时直接
+`box->fillWith(Theme::kBgWidget)` 就行，只有画 draw list 时才需要 `Theme::U32(...)`。
+
+`Theme.h` 末尾有一组 `static_assert`，保证每个 `rgb()/rgba()` 都能精确还原成注释里的十六进制
+（换写法不改颜色，写错分量编译期就报错）。
 
 ### 坐标系（先记住这三条）
 

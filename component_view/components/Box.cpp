@@ -29,6 +29,11 @@ Box& Box::fillWith(ImU32 color) {
     return *this;
 }
 
+Box& Box::fillWith(const ImVec4& color) {
+    background = Theme::U32(color);
+    return *this;
+}
+
 Box& Box::roundCorners(float value) {
     corner_radius = value;
     return *this;

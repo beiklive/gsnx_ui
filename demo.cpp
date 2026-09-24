@@ -34,7 +34,7 @@ public:
         box_ = Root().Emplace<Box>("box");
         box_->moveTo(0.0f, 0.0f);
         box_->resize(128.0f, 128.0f);
-        box_->fillWith(gui_dev::cv::Theme::U32(gui_dev::cv::Theme::kBgWidget));
+        box_->fillWith(gui_dev::cv::Theme::kBgWidget); // rgba()/rgb() 的结果可以直接用
         box_->roundCorners(gui_dev::cv::Theme::kRadius);
     }
 

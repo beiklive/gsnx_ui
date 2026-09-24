@@ -274,6 +274,11 @@ signals:
         background = color;
         return *this;
     }
+    // 直接吃 Theme 的 ImVec4（rgba()/rgb() 的结果），省掉一层 U32()
+    Widget& SetBackground(const ImVec4& color) {
+        background = Theme::U32(color);
+        return *this;
+    }
     Widget& SetBorder(float width, ImU32 color) {
         border.width = width;
         border.color = color;
