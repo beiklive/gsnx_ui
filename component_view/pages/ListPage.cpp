@@ -24,8 +24,8 @@ void ListPage::Build(Widget* host, UiContext& ui) {
     vertical_->orientation = List::Orientation::Vertical;
     vertical_->show_index = true;
     vertical_->loop = true;
-    vertical_->item_size = ImVec2(0.0f, 40.0f);
-    vertical_->item_gap = ImVec2(0.0f, 4.0f);
+    vertical_->item_size = ImVec2(0.0f, 31.2f);
+    vertical_->item_gap = ImVec2(0.0f, 3.1f);
     vertical_->SetBackground(Theme::kBgEditor);
     vertical_->SetBorder(1.0f, Theme::kBorderStrong);
     vertical_->SetRadius(Theme::kRadiusSmall);
@@ -48,8 +48,8 @@ void ListPage::Build(Widget* host, UiContext& ui) {
     horizontal_ = column->Emplace<List>("list_horizontal");
     horizontal_->SetSize(430.0f, 74.0f);
     horizontal_->orientation = List::Orientation::Horizontal;
-    horizontal_->item_size = ImVec2(132.0f, 68.0f);
-    horizontal_->item_gap = ImVec2(8.0f, 0.0f);
+    horizontal_->item_size = ImVec2(103.0f, 53.0f);
+    horizontal_->item_gap = ImVec2(6.2f, 0.0f);
     horizontal_->SetBackground(Theme::kBgEditor);
     horizontal_->SetBorder(1.0f, Theme::kBorderStrong);
     horizontal_->SetRadius(Theme::kRadiusSmall);
@@ -59,11 +59,11 @@ void ListPage::Build(Widget* host, UiContext& ui) {
 
     // 网格列表
     List* grid = column->Emplace<List>("list_grid");
-    grid->SetSize(430.0f, 120.0f);
+    grid->SetSize(335.4f, 93.6f);
     grid->orientation = List::Orientation::Grid;
     grid->columns = 4;
-    grid->item_size = ImVec2(0.0f, 52.0f);
-    grid->item_gap = ImVec2(8.0f, 8.0f);
+    grid->item_size = ImVec2(0.0f, 40.6f);
+    grid->item_gap = ImVec2(6.2f, 6.2f);
     grid->zebra = false;
     grid->SetBackground(Theme::kBgEditor);
     grid->SetBorder(1.0f, Theme::kBorderStrong);
@@ -74,7 +74,7 @@ void ListPage::Build(Widget* host, UiContext& ui) {
 
     if (std::getenv("GUI_DEV_ICON_DEBUG") != nullptr) {
         Box* probe = helpers::Row(host, 12.0f);
-        probe->SetSize(0.0f, 32.0f);
+        probe->SetSize(0.0f, 32.1f);
         const Icons::Material samples[] = {Icons::Material::Save,   Icons::Material::Memory, Icons::Material::Storage,
                                            Icons::Material::Edit,   Icons::Material::Play,   Icons::Material::Search,
                                            Icons::Material::Games,  Icons::Material::Games};
@@ -118,7 +118,7 @@ void ListPage::FillProperties(std::vector<PropSection>& out) const {
     PushSection(out, "Layout", {
                                Row("Orientation", "Vertical / Horizontal / Grid"),
                                Row("Columns", "Grid = 4"),
-                               Row("Item Size", "0x40 / 132x68 / 0x52"),
+                               Row("Item Size", "0x32 / 103x53 / 0x40"),
                                Row("Item Count", vertical_ != nullptr ? std::to_string(vertical_->ItemCount()) : "0"),
                            });
     PushSection(out, "State", {

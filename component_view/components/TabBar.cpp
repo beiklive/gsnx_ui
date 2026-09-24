@@ -20,7 +20,7 @@ TabBar::TabBar() : Widget("tab_bar") {
     overflow = Overflow::Scroll;
     scroll_bar = true;
     scroll_bar_auto_hide = false;
-    padding = EdgeInsets::All(6.0f);
+    padding = EdgeInsets::All(4.0f);
 }
 
 TabBar::TabBar(std::string widget_name) : TabBar() {
@@ -91,7 +91,7 @@ ImVec2 TabBar::MeasureContent(const ImVec2& available) {
     float widest = 0.0f;
     for (const Tab& tab : tabs_) {
         const float text = Draw::MeasureText(nullptr, font_size > 0.0f ? font_size : Theme::kFontBody, tab.text.c_str(), 0.0f).x;
-        widest = Maxf(widest, text + 56.0f);
+        widest = Maxf(widest, text + 42.0f);
     }
     if (orientation == Orientation::Vertical) {
         return ImVec2(widest, static_cast<float>(count) * span - gap);
@@ -224,7 +224,7 @@ void TabBar::OnDrawContent(ImDrawList* dl, const Rect& content) {
                                     radius);
         }
 
-        float cursor_x = row.min.x + 14.0f * scale;
+        float cursor_x = row.min.x + 10.0f * scale;
         if (!tab.icon.empty()) {
             const float icon_size = font * 1.05f;
             const ImVec2 extent = Draw::MeasureText(nullptr, icon_size, tab.icon.c_str(), 0.0f);

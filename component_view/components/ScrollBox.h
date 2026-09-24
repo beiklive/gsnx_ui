@@ -23,7 +23,7 @@ public:
     explicit ScrollBox(std::string widget_name);
 
     Direction direction = Direction::Vertical;
-    float page_scale = 0.85f;   // 一次翻页滚动多少屏
+    float page_scale = 0.8f;   // 一次翻页滚动多少屏
     bool show_hint = true;      // 有滚动空间时显示方向提示箭头
     bool snap_items = false;    // 目标吸附到子项高度
 

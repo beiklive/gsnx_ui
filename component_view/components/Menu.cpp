@@ -22,7 +22,7 @@ Menu::Menu() : Widget("menu") {
     focus_frame_offset = 4.0f;
     overflow = Overflow::Scroll;
     scroll_bar = true;
-    padding = EdgeInsets::All(8.0f);
+    padding = EdgeInsets::All(5.0f);
     sections_.emplace_back();
     stack_.push_back(&sections_.front());
 }
@@ -330,19 +330,19 @@ void Menu::OnDrawContent(ImDrawList* dl, const Rect& content) {
             Draw::RoundedRectFilled(dl, row, Theme::Alpha(row_focus_color, focus_mix_local_), radius, radius, radius,
                                     radius);
             const Rect indicator = Rect::FromPosSize(
-                ImVec2(row.min.x - 4.0f * scale, row.Center().y - row.Height() * 0.28f),
-                ImVec2(3.5f * scale, row.Height() * 0.56f));
+                ImVec2(row.min.x - 3.0f * scale, row.Center().y - row.Height() * 0.28f),
+                ImVec2(2.5f * scale, row.Height() * 0.56f));
             Draw::RoundedRectFilled(dl, indicator, Theme::Alpha(indicator_color, focus_mix_local_), 2.0f * scale,
                                     2.0f * scale, 2.0f * scale, 2.0f * scale);
         }
 
-        float cursor_x = row.min.x + 16.0f * scale;
+        float cursor_x = row.min.x + 12.0f * scale;
         if (show_index) {
             char buffer[8];
             std::snprintf(buffer, sizeof(buffer), "%d", i + 1);
             Draw::Text(dl, nullptr, Theme::kFontSmall * scale, ImVec2(cursor_x, row.Center().y - font * 0.4f),
                        Tint(Theme::kTextMuted), buffer);
-            cursor_x += 24.0f * scale;
+            cursor_x += 18.0f * scale;
         }
         if (!entry.icon.empty()) {
             const float icon_size = font * 1.1f;
@@ -355,7 +355,7 @@ void Menu::OnDrawContent(ImDrawList* dl, const Rect& content) {
 
         float right_width = 0.0f;
         if (entry.submenu >= 0) {
-            right_width += 22.0f * scale;
+            right_width += 16.0f * scale;
         }
         if (!entry.shortcut.empty()) {
             right_width +=
@@ -371,7 +371,7 @@ void Menu::OnDrawContent(ImDrawList* dl, const Rect& content) {
             Draw::Ellipsize(nullptr, font, entry.label.c_str(), row.max.x - cursor_x - right_width - 12.0f * scale);
         Draw::Text(dl, nullptr, font, ImVec2(cursor_x, row.Center().y - font * 0.5f), Tint(color), shown);
 
-        float right_x = row.max.x - 16.0f * scale;
+        float right_x = row.max.x - 12.0f * scale;
         if (!entry.shortcut.empty()) {
             const ImVec2 extent = Draw::MeasureText(nullptr, Theme::kFontSmall * scale, entry.shortcut.c_str(), 0.0f);
             right_x -= extent.x;

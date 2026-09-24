@@ -8,7 +8,7 @@ PropertyPanel::PropertyPanel() : Widget("property_panel") {
     interactive = false;
     focusable = false;
     overflow = Overflow::Hidden; // 内容超出面板时裁剪，不画到面板外面
-    padding = EdgeInsets::All(14.0f);
+    padding = EdgeInsets::All(10.0f);
     background = Theme::kBgSideBar;
     corner_radius = Theme::kRadius;
     border = BorderStyle{1.0f, Theme::kBorder, 0.0f};

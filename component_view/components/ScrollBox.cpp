@@ -9,9 +9,9 @@ ScrollBox::ScrollBox() : Widget("scroll_box") {
     scroll_bar = true;
     scroll_bar_auto_hide = true;
     scroll_overscroll = true;
-    padding = EdgeInsets::All(12.0f);
+    padding = EdgeInsets::All(9.0f);
     layout = LayoutMode::Vertical;
-    gap = ImVec2(0.0f, 10.0f);
+    gap = ImVec2(0.0f, 7.0f);
     align_x = Align::Stretch;
 }
 

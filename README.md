@@ -124,6 +124,20 @@ GUI_DEV_EXIT_AFTER=60 ./build/mac/gui_dev_demo   # 跑满 60 帧后正常退出�
 所有控件都能用 `↑ ↓ ← → / A / B / X / Y / L / R / ZL / ZR / + / -` 操作，
 文本输入走自绘虚拟键盘（**绝不调用系统键盘**），也没有传统桌面控件。
 
+尺寸按 **720p 手持屏**（1280x720 逻辑空间，握在手里的 6 寸屏）设计，不是桌面显示器的比例：
+
+| 项目 | 值 | 项目 | 值 |
+|---|---|---|---|
+| 标题 / 小节 | 26 / 19 px | 正文 / 注释 | 17 / 13 px |
+| 控件高度 | 34 px | 列表行高 | 32 px |
+| 键盘按键 | 30 px | HUD 高度 | 36 px |
+| 小圆角 / 圆角 / 大圆角 | 3 / 6 / 12 px | 间距 | 6 / 10 / 16 px |
+| 左侧 Tab 列宽 | 186 px | 页面内边距 | 18 px |
+
+改密度只需要动 `component_view/Theme.h` 里那一组常量（`kFont*` / `kGap*` / `kRadius*` /
+`kControlHeight` / `kListRowHeight` / `kKeySize` / `kHudHeight` / `kTabColumnWidth` / `kPagePadding`），
+组件与页面的像素值都从这些常量或各自的默认值来。
+
 ```bash
 ./build/mac/gui_dev_demo        # 左侧 16 个控件 Tab，右侧是「真的能操作」的展示区
 ```
@@ -687,6 +701,12 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   滚到第 4 项、offset 328px）、滑块 ←→/L R/ZL ZR 与大thumb焦点环、虚拟键盘 QWERTY 打字
   （输入 `q` 两次，预览与缓冲同步）、Dialog 模态 + 遮罩 + Focus Trap、Menu 进入子菜单
   （Depth 2 + 面包屑）、ImageButton 封面焦点放大与角标。
+- 已确认（720p 手持基准）：把字号/行高/间距/面板几何整体从「桌面比例」压到手持尺度
+  （正文 22→17、标题 34→26、控件高 44→34、列表行 46→32、键盘键 42→30、HUD 46→36、
+  左列 236→186），16 个 Tab 在 720p 下不再需要滚动；抓帧复核 docs/showcase-*.png，
+  列表页同屏可见 6 行（行高 25px）、键盘 5 行完整显示（键高 30px）、属性面板四组全部完整；
+  mac Debug/Release 与 Switch 均编译通过，四个 demo `GUI_DEV_EXIT_AFTER` 退出码 0，
+  960x720 / 1600x900 / 640x360 窗口均不崩。
 - 已知字体问题：`assets/font/MaterialIcons-Regular.ttf` 里 `sports_esports`(U+EAE2) 的
   字形与预期不符（渲染成一个「A+」形状），已改用 `games`(U+E30F)；其余 34 个 Material
   码位逐个核对正常。另外 `◀ ▶ ⌫`(U+25C0/U+25B6/U+232B) 这类符号在原字体里缺字形，

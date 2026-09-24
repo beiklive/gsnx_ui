@@ -21,7 +21,7 @@ Slider::Slider() : Widget("slider") {
     focus_frame = true;
     focus_frame_offset = 4.0f;
     focus_scale = 1.02f;
-    padding = EdgeInsets::Symmetric(14.0f, 10.0f);
+    padding = EdgeInsets::Symmetric(10.0f, 7.0f);
     corner_radius = Theme::kRadiusSmall;
 }
 

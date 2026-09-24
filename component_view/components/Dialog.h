@@ -30,9 +30,9 @@ public:
     bool dismiss_on_cancel = true; // B 是否直接关闭
     bool vertical_buttons = false;
 
-    float button_width = 132.0f;
+    float button_width = 104.0f;
     float button_height = Theme::kControlHeight;
-    float button_gap = 12.0f;
+    float button_gap = 9.0f;
     float animation_speed = 12.0f;
     ImU32 panel_bg = Theme::kBgSideBar;
     ImU32 title_color = Theme::kTextBright;

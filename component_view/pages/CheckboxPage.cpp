@@ -24,14 +24,14 @@ void CheckboxPage::Build(Widget* host, UiContext& ui) {
     master_ = column->Emplace<Checkbox>("全选：启用全部选项", false);
     master_->SetName("checkbox_master");
     master_->SetBackground(Theme::kBgEditor);
-    master_->padding = EdgeInsets::Symmetric(14.0f, 8.0f);
+    master_->padding = EdgeInsets::Symmetric(10.9f, 6.2f);
 
     boxes_.clear();
     static const char* const kLabels[] = {"扫描子目录", "显示隐藏文件", "启动时自动加载金手指", "实验性：异步解压"};
     for (int i = 0; i < 4; ++i) {
         Checkbox* box = column->Emplace<Checkbox>(kLabels[i], i < 2);
         box->SetName("checkbox_" + std::to_string(i));
-        box->box_size = 24.0f;
+        box->box_size = 18.7f;
         boxes_.push_back(box);
     }
     boxes_[3]->SetEnabled(false);
@@ -47,7 +47,7 @@ void CheckboxPage::Build(Widget* host, UiContext& ui) {
 
     Box* info = helpers::Column(row, 10.0f);
     info->SetSize(400.0f, 150.0f);
-    info->SetPadding(EdgeInsets::All(16.0f));
+    info->SetPadding(EdgeInsets::All(12.5f));
     info->SetBackground(Theme::kBgEditor);
     info->SetBorder(1.0f, Theme::kBorder);
     info->SetRadius(Theme::kRadiusSmall);

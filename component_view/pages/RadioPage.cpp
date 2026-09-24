@@ -27,7 +27,7 @@ void RadioPage::Build(Widget* host, UiContext& ui) {
     group_->SetBackground(Theme::kBgEditor);
     group_->SetBorder(1.0f, Theme::kBorderStrong);
     group_->SetRadius(Theme::kRadiusSmall);
-    group_->row_height = 44.0f;
+    group_->row_height = 34.3f;
     group_->AddOption("画面：整数缩放", "最近邻");
     group_->AddOption("画面：线性过滤", "更平滑");
     group_->AddOption("画面：CRT 扫描线", "实验性");
@@ -42,9 +42,9 @@ void RadioPage::Build(Widget* host, UiContext& ui) {
     right->align_x = Align::Start;
 
     horizontal_ = right->Emplace<RadioGroup>("radio_horizontal");
-    horizontal_->SetSize(410.0f, 52.0f);
+    horizontal_->SetSize(410.0f, 52.1f);
     horizontal_->vertical = false;
-    horizontal_->row_height = 50.0f;
+    horizontal_->row_height = 39.0f;
     horizontal_->SetBackground(Theme::kBgEditor);
     horizontal_->SetBorder(1.0f, Theme::kBorderStrong);
     horizontal_->SetRadius(Theme::kRadiusSmall);
@@ -56,13 +56,13 @@ void RadioPage::Build(Widget* host, UiContext& ui) {
     horizontal_->SetCursor(2);
 
     Box* info = right->Emplace<Box>("radio_info");
-    info->SetSize(410.0f, 150.0f);
-    info->SetPadding(EdgeInsets::All(14.0f));
+    info->SetSize(319.8f, 117.0f);
+    info->SetPadding(EdgeInsets::All(10.9f));
     info->SetBackground(Theme::kBgEditor);
     info->SetBorder(1.0f, Theme::kBorder);
     info->SetRadius(Theme::kRadiusSmall);
     info->layout = LayoutMode::Vertical;
-    info->gap = ImVec2(0.0f, 6.0f);
+    info->gap = ImVec2(0.0f, 4.7f);
     info->align_x = Align::Start;
     info->AddLabel("RadioGroup = 一个焦点停靠点", Theme::kFontSmall, Theme::kTextBright);
     info->AddLabel("↑ ↓ 移动高亮（光标），A 选定", Theme::kFontSmall, Theme::kTextPrimary);

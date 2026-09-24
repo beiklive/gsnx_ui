@@ -20,9 +20,9 @@ Checkbox::Checkbox() : Widget("checkbox") {
     focusable = true;
     focus_on_hover = true;
     focus_frame = true;
-    focus_frame_offset = 4.0f;
+    focus_frame_offset = 3.0f;
     focus_scale = 1.02f;
-    padding = EdgeInsets::Symmetric(12.0f, 8.0f);
+    padding = EdgeInsets::Symmetric(9.0f, 6.0f);
     corner_radius = Theme::kRadiusSmall;
 }
 
@@ -86,7 +86,7 @@ void Checkbox::OnDrawContent(ImDrawList* dl, const Rect& content) {
     const float scale = DrawScale();
     const float box = box_size * scale;
     const Rect indicator = Rect::FromPosSize(ImVec2(content.min.x, content.Center().y - box * 0.5f), ImVec2(box, box));
-    const float radius = 6.0f * scale;
+    const float radius = 5.0f * scale;
 
     const ImU32 fill = Theme::Mix(box_bg, box_bg_checked, check_mix_);
     Draw::RoundedRectFilled(dl, indicator, Tint(fill), radius, radius, radius, radius);
@@ -94,7 +94,7 @@ void Checkbox::OnDrawContent(ImDrawList* dl, const Rect& content) {
                              Theme::Alpha(Theme::Mix(box_border, box_bg_checked, check_mix_),
                                           EffectiveOpacity() * (0.7f + 0.3f * hover_mix_)),
                              1.5f * scale, radius, radius, radius, radius);
-    Draw::CheckMark(dl, indicator, Tint(check_color), 2.4f * scale, check_mix_);
+    Draw::CheckMark(dl, indicator, Tint(check_color), 2.0f * scale, check_mix_);
 
     if (!label.empty()) {
         const float size = (font_size > 0.0f ? font_size : Theme::kFontBody) * scale;
@@ -112,7 +112,7 @@ RadioGroup::RadioGroup() : Widget("radio_group") {
     focus_frame = true;
     focus_frame_offset = 4.0f;
     overflow = Overflow::Scroll;
-    padding = EdgeInsets::All(6.0f);
+    padding = EdgeInsets::All(4.0f);
 }
 
 RadioGroup::RadioGroup(std::string widget_name) : RadioGroup() {

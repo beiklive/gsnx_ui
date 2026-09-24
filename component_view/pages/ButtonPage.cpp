@@ -15,30 +15,30 @@ void ButtonPage::Build(Widget* host, UiContext& ui) {
     (void)ui;
     // 第一行：五种状态
     Box* states = helpers::Row(host, 14.0f);
-    states->SetSize(0.0f, 52.0f);
+    states->SetSize(0.0f, 52.1f);
 
     primary_ = states->Emplace<Button>("NORMAL");
     primary_->SetName("btn_normal");
-    primary_->FitContent(20.0f, 48.0f);
+    primary_->FitContent(15.6f, 37.4f);
     primary_->on_click = [this](Widget&) { ++confirm_count_; };
     primary_->on_aux = [this](Widget&) { ++aux_count_; };
     primary_->on_aux2 = [this](Widget&) { ++aux_count_; };
 
     Button* focused_demo = states->Emplace<Button>("FOCUSED");
     focused_demo->SetName("btn_focused");
-    focused_demo->Secondary().FitContent(20.0f, 48.0f);
+    focused_demo->Secondary().FitContent(15.6f, 37.4f);
     focused_demo->focus_scale = 1.08f;
     focused_demo->focus_frame = true;
 
     Button* pressed = states->Emplace<Button>("PRESSED");
     pressed->SetName("btn_pressed");
-    pressed->Secondary().FitContent(20.0f, 48.0f);
+    pressed->Secondary().FitContent(15.6f, 37.4f);
     pressed->press_scale = 0.9f;      // 按住 A 时明显缩小
     pressed->press_translate = 4.0f;
 
     selected_ = states->Emplace<Button>("SELECTED");
     selected_->SetName("btn_selected");
-    selected_->Secondary().FitContent(20.0f, 48.0f);
+    selected_->Secondary().FitContent(15.6f, 37.4f);
     selected_->selected = true;
     selected_->on_click = [this](Widget& widget) {
         widget.selected = !widget.selected;
@@ -47,12 +47,12 @@ void ButtonPage::Build(Widget* host, UiContext& ui) {
 
     disabled_ = states->Emplace<Button>("DISABLED");
     disabled_->SetName("btn_disabled");
-    disabled_->Secondary().FitContent(20.0f, 48.0f);
+    disabled_->Secondary().FitContent(15.6f, 37.4f);
     disabled_->SetEnabled(false);
 
     // 第二行：图标 + 文本（键盘风格）
     Box* icons = helpers::Row(host, 14.0f);
-    icons->SetSize(0.0f, 52.0f);
+    icons->SetSize(0.0f, 52.1f);
 
     struct Item {
         const char* text;
@@ -66,9 +66,9 @@ void ButtonPage::Build(Widget* host, UiContext& ui) {
     };
     for (const Item& item : items) {
         Button* button = icons->Emplace<Button>(item.text);
-        button->Ghost().FitContent(12.0f, 44.0f);
+        button->Ghost().FitContent(9.4f, 34.3f);
         button->SetIcon(Icons::Glyph(item.glyph));
-        button->icon_gap = 6.0f;
+        button->icon_gap = 3.7f;
         button->on_click = [this](Widget&) { ++confirm_count_; };
     }
 

@@ -32,8 +32,8 @@ public:
     bool show_percent = true;
     bool revert_on_cancel = true;
 
-    float track_thickness = 8.0f;
-    float thumb_radius = 11.0f;
+    float track_thickness = 6.0f;
+    float thumb_radius = 8.0f;
     float label_width = 0.0f; // 0 = 自动（按 label 宽度）
     ImU32 track_color = Theme::kTrack;
     ImU32 fill_color = Theme::kTrackFill;

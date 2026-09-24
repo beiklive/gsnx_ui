@@ -26,7 +26,7 @@ public:
 
     float letter_spacing = 0.0f;
     float line_spacing = 0.0f;
-    float line_height_scale = 1.18f;
+    float line_height_scale = 1.16f;
 
     TextAlign text_align = TextAlign::Left;
     VerticalAlign vertical_align = VerticalAlign::Middle;

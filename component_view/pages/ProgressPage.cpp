@@ -26,14 +26,14 @@ void ProgressPage::Build(Widget* host, UiContext& ui) {
     bars_.clear();
     Progress* determinate = column->Emplace<Progress>(0.0f, 0.0f, 100.0f);
     determinate->SetName("progress_determinate");
-    determinate->SetSize(500.0f, 26.0f);
+    determinate->SetSize(390.0f, 20.3f);
     determinate->SetLabel("下载进度");
     determinate->show_percentage = true;
     bars_.push_back(determinate);
 
     Progress* install = column->Emplace<Progress>(0.0f, 0.0f, 100.0f);
     install->SetName("progress_install");
-    install->SetSize(500.0f, 26.0f);
+    install->SetSize(390.0f, 20.3f);
     install->SetLabel("安装到 SD 卡");
     install->fill_color = Theme::kTeal;
     install->show_percentage = true;
@@ -41,7 +41,7 @@ void ProgressPage::Build(Widget* host, UiContext& ui) {
 
     Progress* indeterminate = column->Emplace<Progress>(0.0f, 0.0f, 100.0f);
     indeterminate->SetName("progress_indeterminate");
-    indeterminate->SetSize(500.0f, 26.0f);
+    indeterminate->SetSize(390.0f, 20.3f);
     indeterminate->SetLabel("扫描游戏库");
     indeterminate->indeterminate = true;
     indeterminate->show_percentage = false;
@@ -53,7 +53,7 @@ void ProgressPage::Build(Widget* host, UiContext& ui) {
 
     Progress* vertical = right->Emplace<Progress>(0.0f, 0.0f, 100.0f);
     vertical->SetName("progress_vertical");
-    vertical->SetSize(40.0f, 130.0f);
+    vertical->SetSize(31.2f, 101.4f);
     vertical->vertical = true;
     vertical->thickness = 22.0f;
     vertical->show_percentage = true;
@@ -61,7 +61,7 @@ void ProgressPage::Build(Widget* host, UiContext& ui) {
 
     toggle_ = right->Emplace<Button>("暂停 / 继续");
     toggle_->SetName("progress_toggle");
-    toggle_->Secondary().FitContent(18.0f, 44.0f);
+    toggle_->Secondary().FitContent(14.0f, 34.3f);
     toggle_->SetIcon(Icons::Glyph(Icons::Button::A));
     toggle_->on_click = [this](Widget&) { running_ = !running_; };
 
@@ -107,8 +107,8 @@ void ProgressPage::FillProperties(std::vector<PropSection>& out) const {
                                Row("Indeterminate", "扫描游戏库（不定态）", true),
                            });
     PushSection(out, "Layout", {
-                               Row("Horizontal", "500x26"),
-                               Row("Vertical", "40x130"),
+                               Row("Horizontal", "390x20"),
+                               Row("Vertical", "31x101"),
                                Row("Rounded", "是（半径 = 高度/2）"),
                                Row("Fill / Track", "kTrackFill / kTrack"),
                            });

@@ -17,12 +17,12 @@ public:
     PropertyPanel();
 
     bool two_columns = true;
-    float row_height = 19.0f;
-    float section_gap = 10.0f;
-    float title_gap = 5.0f;
-    float column_gap = 26.0f;
+    float row_height = 15.0f;
+    float section_gap = 8.0f;
+    float title_gap = 4.0f;
+    float column_gap = 20.0f;
     float name_ratio = 0.46f;
-    float font_size = 14.0f;
+    float font_size = 0.0f; // 0 = Theme::kFontSmall
     ImU32 section_title_color = Theme::kAccent;
     ImU32 name_color = Theme::kTextMuted;
     ImU32 value_color = Theme::kTextPrimary;

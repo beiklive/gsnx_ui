@@ -36,7 +36,7 @@ public:
     // 动画
     float transition_speed = 16.0f;
     float press_scale = 0.97f; // 按下时的缩放
-    float press_translate = 2.0f; // 按下时向下位移
+    float press_translate = 1.5f; // 按下时向下位移
 
     // 辅助操作（X / Y）
     std::function<void(Widget&)> on_aux;
@@ -53,7 +53,7 @@ public:
     Button& SetHint(std::string glyph);
     Button& SetFontSize(float value);
     Button& SetIconGap(float value);
-    Button& FitContent(float horizontal_padding = 18.0f, float height = Theme::kControlHeight);
+    Button& FitContent(float horizontal_padding = 12.0f, float height = Theme::kControlHeight);
 
 protected:
     ImVec2 MeasureContent(const ImVec2& available) override;

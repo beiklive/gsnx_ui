@@ -31,7 +31,7 @@ void DialogPage::Build(Widget* host, UiContext& ui) {
     for (const Scenario& scenario : scenarios) {
         Button* button = row->Emplace<Button>(scenario.label);
         button->SetName(std::string("dialog_open:") + scenario.label);
-        button->Secondary().FitContent(18.0f, 52.0f);
+        button->Secondary().FitContent(14.0f, 40.6f);
         const int buttons = scenario.buttons;
         const bool vertical = scenario.vertical;
         button->on_click = [this, buttons, vertical](Widget&) {
@@ -59,7 +59,7 @@ void DialogPage::Build(Widget* host, UiContext& ui) {
 
     Box* info = helpers::Column(host, 8.0f);
     info->SetSize(0.0f, 90.0f);
-    info->SetPadding(EdgeInsets::All(16.0f));
+    info->SetPadding(EdgeInsets::All(12.5f));
     info->SetBackground(Theme::kBgEditor);
     info->SetBorder(1.0f, Theme::kBorder);
     info->SetRadius(Theme::kRadiusSmall);

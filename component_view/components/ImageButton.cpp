@@ -20,8 +20,8 @@ ImageButton::ImageButton() : Widget("image_button") {
     focusable = true;
     focus_on_hover = true;
     focus_frame = true;
-    focus_frame_offset = 4.0f;
-    focus_frame_width = 2.5f;
+    focus_frame_offset = 3.0f;
+    focus_frame_width = 2.0f;
     focus_scale = focus_scale_amount;
     corner_radius = Theme::kRadiusLarge;
 }
@@ -163,7 +163,7 @@ void ImageButton::OnDrawContent(ImDrawList* dl, const Rect& content) {
 
     // 选中标记（左上角一条强调色带）
     if (selected) {
-        const Rect marker = Rect::FromPosSize(content.min, ImVec2(5.0f * scale, content.Height()));
+        const Rect marker = Rect::FromPosSize(content.min, ImVec2(4.0f * scale, content.Height()));
         Draw::RoundedRectFilled(dl, marker, Theme::kAccent, 2.0f * scale, 0.0f, 0.0f, 2.0f * scale);
     }
 
@@ -178,7 +178,7 @@ void ImageButton::OnDrawContent(ImDrawList* dl, const Rect& content) {
     if (caption_inside && !caption.empty()) {
         // 注意：局部变量不能和成员同名，否则初始化表达式读到的是自己（未初始化）
         const float strip_font = (this->caption_size > 0.0f ? this->caption_size : Theme::kFontSmall) * scale;
-        const float strip_height = strip_font + 16.0f * scale;
+        const float strip_height = strip_font + 10.0f * scale;
         const Rect strip = Rect::FromPosSize(ImVec2(content.min.x, content.max.y - strip_height),
                                              ImVec2(content.Width(), strip_height));
         Draw::RoundedRectFilled(dl, strip, Theme::Alpha(IM_COL32(0, 0, 0, 255), 0.62f), 0.0f, 0.0f, radius, radius);
@@ -196,13 +196,12 @@ void ImageButton::OnDrawContent(ImDrawList* dl, const Rect& content) {
     if (!badge.empty()) {
         const float badge_size = Theme::kFontTiny * scale;
         const ImVec2 extent = Draw::MeasureText(nullptr, badge_size, badge.c_str(), 0.0f);
-        const float pad = 8.0f * scale;
+        const float pad = 5.0f * scale;
         const Rect badge_rect = Rect::FromPosSize(ImVec2(content.max.x - extent.x - pad * 2.0f - 6.0f * scale,
                                                           content.min.y + 6.0f * scale),
-                                                  ImVec2(extent.x + pad * 2.0f, badge_size + 8.0f * scale));
-        Draw::RoundedRectFilled(dl, badge_rect, Tint(badge_bg), (badge_size + 8.0f * scale) * 0.5f,
-                                (badge_size + 8.0f * scale) * 0.5f, (badge_size + 8.0f * scale) * 0.5f,
-                                (badge_size + 8.0f * scale) * 0.5f);
+                                                  ImVec2(extent.x + pad * 2.0f, badge_size + 5.0f * scale));
+        const float badge_radius = (badge_size + 5.0f * scale) * 0.5f;
+        Draw::RoundedRectFilled(dl, badge_rect, Tint(badge_bg), badge_radius, badge_radius, badge_radius, badge_radius);
         Draw::Text(dl, nullptr, badge_size,
                    ImVec2(badge_rect.Center().x - extent.x * 0.5f, badge_rect.Center().y - extent.y * 0.5f),
                    Tint(badge_fg), badge.c_str());

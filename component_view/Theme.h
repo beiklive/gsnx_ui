@@ -55,24 +55,31 @@ inline constexpr ImU32 kShadow        = IM_COL32(0x00, 0x00, 0x00, 0x8C);
 inline constexpr ImU32 kShadowSoft    = IM_COL32(0x00, 0x00, 0x00, 0x50);
 
 // ---- 尺寸（720p 设计空间，后端按 UiScale 统一放大） -------------------------
-inline constexpr float kFontTitle  = 34.0f;
-inline constexpr float kFontHeader = 26.0f;
-inline constexpr float kFontBody   = 22.0f;
-inline constexpr float kFontSmall  = 16.0f;
-inline constexpr float kFontTiny   = 13.0f;
+// 基准是「720p 手持屏」：字号/行高/间距都按在 6 寸屏上握着看设计，
+// 不是桌面显示器上看的比例。改这里就能整体调整密度。
+inline constexpr float kFontTitle  = 26.0f;
+inline constexpr float kFontHeader = 19.0f;
+inline constexpr float kFontBody   = 17.0f;
+inline constexpr float kFontSmall  = 13.0f;
+inline constexpr float kFontTiny   = 11.0f;
 
 inline constexpr float kRadiusNone  = 0.0f;
-inline constexpr float kRadiusSmall = 4.0f;
-inline constexpr float kRadius      = 8.0f;
-inline constexpr float kRadiusLarge = 16.0f;
+inline constexpr float kRadiusSmall = 3.0f;
+inline constexpr float kRadius      = 6.0f;
+inline constexpr float kRadiusLarge = 12.0f;
 
-inline constexpr float kGapSmall = 8.0f;
-inline constexpr float kGap      = 14.0f;
-inline constexpr float kGapLarge = 24.0f;
+inline constexpr float kGapSmall = 6.0f;
+inline constexpr float kGap      = 10.0f;
+inline constexpr float kGapLarge = 16.0f;
 
-inline constexpr float kControlHeight = 44.0f;
-inline constexpr float kListRowHeight = 46.0f;
-inline constexpr float kKeySize       = 46.0f;
+inline constexpr float kControlHeight = 34.0f;
+inline constexpr float kListRowHeight = 32.0f;
+inline constexpr float kKeySize       = 30.0f;
+
+// 720p 手持基准下几个常用的「页面骨架」尺寸
+inline constexpr float kHudHeight     = 36.0f;
+inline constexpr float kTabColumnWidth = 186.0f;
+inline constexpr float kPagePadding    = 18.0f;
 
 // ---- 颜色工具 ------------------------------------------------------------
 // 取同色不同透明度：alpha 是 0..1 的倍率。

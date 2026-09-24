@@ -29,10 +29,10 @@ public:
     explicit TabBar(std::string widget_name);
 
     Orientation orientation = Orientation::Vertical;
-    ImVec2 tab_size{0.0f, 38.0f}; // width=0 表示撑满
-    float gap = 4.0f;
-    float indicator_width = 4.0f;
-    float icon_gap = 10.0f;
+    ImVec2 tab_size{0.0f, 28.0f}; // width=0 表示撑满
+    float gap = 3.0f;
+    float indicator_width = 3.0f;
+    float icon_gap = 8.0f;
     float font_size = 0.0f;
     bool immediate = true; // 移动光标立即切换
     bool wrap_pages = true;

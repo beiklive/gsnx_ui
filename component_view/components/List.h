@@ -37,7 +37,7 @@ public:
     Orientation orientation = Orientation::Vertical;
     int columns = 2;                       // Grid 用
     ImVec2 item_size{0.0f, Theme::kListRowHeight}; // width=0 表示撑满
-    ImVec2 item_gap{8.0f, 6.0f};
+    ImVec2 item_gap{6.0f, 4.0f};
     float item_radius = Theme::kRadiusSmall;
     bool loop = true;
     bool show_index = false;         // 左侧序号
@@ -45,7 +45,7 @@ public:
     bool item_enter_animation = true;
     float enter_speed = 4.0f;
     int fast_scroll_items = 5;
-    float focus_indicator_width = 4.0f;
+    float focus_indicator_width = 3.0f;
     ImU32 row_color = Theme::kListRow;
     ImU32 row_alt_color = Theme::kListRowAlt;
     ImU32 row_focus_color = Theme::kListRowFocus;

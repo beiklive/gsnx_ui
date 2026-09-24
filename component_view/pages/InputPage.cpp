@@ -18,14 +18,14 @@ void InputPage::Build(Widget* host, UiContext& ui) {
 
     name_ = column->Emplace<InputField>("游戏名称", "Super Mario World");
     name_->SetName("input_name");
-    name_->SetSize(600.0f, 68.0f);
+    name_->SetSize(600.0f, 67.9f);
     name_->SetPlaceholder("请输入名称");
     name_->hint = "A 打开虚拟键盘";
     name_->on_edit_requested = [this](InputField& field) { OpenKeyboard(&field); };
 
     password_ = column->Emplace<InputField>("金手指密钥", "");
     password_->SetName("input_password");
-    password_->SetSize(600.0f, 68.0f);
+    password_->SetSize(600.0f, 67.9f);
     password_->SetPassword(true);
     password_->SetPlaceholder("（密码）");
     password_->hint = "A 编辑 · X 清空 · Y 退格";
@@ -33,7 +33,7 @@ void InputPage::Build(Widget* host, UiContext& ui) {
 
     readonly_ = column->Emplace<InputField>("只读字段", "sdmc:/switch/GUI_DEV/");
     readonly_->SetName("input_readonly");
-    readonly_->SetSize(600.0f, 68.0f);
+    readonly_->SetSize(600.0f, 67.9f);
     readonly_->SetReadOnly(true);
     readonly_->SetPrefix("路径 ");
     readonly_->SetSuffix(" (只读)");
@@ -67,7 +67,7 @@ void InputPage::BuildOverlay(Widget* overlay) {
     keyboard_ = overlay_->Emplace<VirtualKeyboard>();
     keyboard_->SetName("overlay_keyboard");
     keyboard_->SetSize(900.0f, 420.0f);
-    keyboard_->SetPosition(190.0f, 120.0f);
+    keyboard_->SetPosition(148.2f, 93.6f);
     keyboard_->on_accept = [this](const std::string& value) {
         if (target_ != nullptr) {
             target_->SetText(value, true);

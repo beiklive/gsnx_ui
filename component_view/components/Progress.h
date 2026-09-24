@@ -23,8 +23,8 @@ public:
     bool rounded = true;
     bool show_percentage = true;
     bool show_value_text = false;
-    float thickness = 12.0f;
-    float label_gap = 10.0f;
+    float thickness = 9.0f;
+    float label_gap = 7.0f;
     float animation_speed = 8.0f;
     float indeterminate_speed = 0.55f; // 每秒跑过的比例
     ImU32 track_color = Theme::kTrack;

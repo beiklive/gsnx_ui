@@ -36,10 +36,10 @@ public:
 
     std::string title;
     bool vertical = true;
-    float row_height = 46.0f;
-    float gap = 4.0f;
+    float row_height = 32.0f;
+    float gap = 3.0f;
     float row_radius = Theme::kRadiusSmall;
-    float icon_gap = 12.0f;
+    float icon_gap = 9.0f;
     float font_size = 0.0f;
     bool loop = true;
     bool show_index = false;

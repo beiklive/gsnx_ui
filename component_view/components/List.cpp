@@ -22,7 +22,7 @@ List::List() : Widget("list") {
     focus_frame_offset = 3.0f;
     overflow = Overflow::Scroll;
     scroll_bar = true;
-    padding = EdgeInsets::All(6.0f);
+    padding = EdgeInsets::All(4.0f);
 }
 
 List::List(std::string widget_name) : List() {
@@ -272,13 +272,13 @@ void List::OnDrawContent(ImDrawList* dl, const Rect& content) {
         }
 
         const float text_size = Theme::kFontBody * scale;
-        float cursor_x = row.min.x + 14.0f * scale;
+        float cursor_x = row.min.x + 10.0f * scale;
         if (show_index) {
             char buffer[16];
             std::snprintf(buffer, sizeof(buffer), "%02d", i + 1);
             Draw::Text(dl, nullptr, Theme::kFontSmall * scale, ImVec2(cursor_x, row.Center().y - text_size * 0.4f),
                        Theme::Alpha(Theme::kTextMuted, EffectiveOpacity() * appear), buffer);
-            cursor_x += 34.0f * scale;
+            cursor_x += 26.0f * scale;
         }
         if (!item.icon.empty()) {
             const float icon_size = Theme::kFontBody * 1.25f * scale;
@@ -287,13 +287,13 @@ void List::OnDrawContent(ImDrawList* dl, const Rect& content) {
                        Theme::Alpha(item.disabled ? Theme::kTextDisabled : Theme::kTextPrimary,
                                     EffectiveOpacity() * appear),
                        item.icon.c_str());
-            cursor_x += extent.x + 10.0f * scale;
+            cursor_x += extent.x + 8.0f * scale;
         }
 
         const float detail_size = Theme::kFontSmall * scale;
         float detail_width = 0.0f;
         if (!item.detail.empty()) {
-            detail_width = Draw::MeasureText(nullptr, detail_size, item.detail.c_str(), 0.0f).x + 16.0f * scale;
+            detail_width = Draw::MeasureText(nullptr, detail_size, item.detail.c_str(), 0.0f).x + 12.0f * scale;
         }
         const float text_room = row.max.x - detail_width - cursor_x - 12.0f * scale;
         const ImU32 text_color = item.disabled
@@ -307,7 +307,7 @@ void List::OnDrawContent(ImDrawList* dl, const Rect& content) {
         if (!item.detail.empty()) {
             const ImVec2 extent = Draw::MeasureText(nullptr, detail_size, item.detail.c_str(), 0.0f);
             Draw::Text(dl, nullptr, detail_size,
-                       ImVec2(row.max.x - 14.0f * scale - extent.x, row.Center().y - extent.y * 0.5f),
+                       ImVec2(row.max.x - 10.0f * scale - extent.x, row.Center().y - extent.y * 0.5f),
                        Theme::Alpha(Theme::kTextMuted, EffectiveOpacity() * appear), item.detail.c_str());
         }
     }

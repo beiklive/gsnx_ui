@@ -43,7 +43,7 @@ void ImageButtonPage::Build(Widget* host, UiContext& ui) {
         ImageButton* button = row->Emplace<ImageButton>(
             g_cover_texture.Valid() ? g_cover_texture.ImGuiRef() : ImTextureRef(), native);
         button->SetName(std::string("cover:") + cover.title);
-        button->SetSize(196.0f, 192.0f);
+        button->SetSize(152.9f, 149.8f);
         button->corner_radius = Theme::kRadiusLarge;
         button->fit = ImageButton::Fit::Stretch;
         // 贴图是 512x4 的渐变条：UV 在竖直方向重复，铺成彩色条带
@@ -108,7 +108,7 @@ void ImageButtonPage::FillProperties(std::vector<PropSection>& out) const {
     PushSection(out, "Focus", {
                                Row("Focus Scale", "1.06", true),
                                Row("Press Scale", "0.96"),
-                               Row("Focus Border", "2.5px 强调色 + 描边动画", true),
+                               Row("Focus Border", "2px 强调色 + 描边动画", true),
                                Row("Current", std::to_string(selected_ + 1), true),
                            });
     PushSection(out, "Navigation", {

@@ -20,12 +20,12 @@ Dialog::Dialog() : Widget("dialog") {
     focus_frame = true;
     focus_frame_offset = 6.0f;
     visible = false;
-    padding = EdgeInsets::All(24.0f);
+    padding = EdgeInsets::All(16.0f);
     corner_radius = Theme::kRadiusLarge;
     background = Theme::kBgSideBar;
     border = BorderStyle{1.0f, Theme::kBorderStrong, 0.0f};
-    shadow = ShadowStyle::Soft(40.0f);
-    shadow.offset = ImVec2(0.0f, 14.0f);
+    shadow = ShadowStyle::Soft(28.0f);
+    shadow.offset = ImVec2(0.0f, 10.0f);
     shadow.color = IM_COL32(0, 0, 0, 180);
     layout = LayoutMode::Free;
     z_order = 1000;
@@ -113,11 +113,11 @@ ImVec2 Dialog::MeasureContent(const ImVec2& available) {
     (void)available;
     const float text_size = Theme::kFontBody;
     const ImVec2 message_extent = Draw::MeasureText(nullptr, text_size, message.c_str(), 0.0f);
-    const float width = Maxf(420.0f, message_extent.x + 80.0f);
+    const float width = Maxf(330.0f, message_extent.x + 60.0f);
     if (vertical_buttons) {
-        return ImVec2(width, 150.0f + static_cast<float>(buttons.size()) * (button_height + button_gap));
+        return ImVec2(width, 104.0f + static_cast<float>(buttons.size()) * (button_height + button_gap));
     }
-    return ImVec2(width, 150.0f + button_height);
+    return ImVec2(width, 104.0f + button_height);
 }
 
 void Dialog::OnUpdate(float dt) {
@@ -186,13 +186,13 @@ void Dialog::OnDrawContent(ImDrawList* dl, const Rect& content) {
     }
     if (!title.empty()) {
         const float title_size = Theme::kFontHeader * scale;
-        const float x = icon.empty() ? content.min.x : content.min.x + Theme::kFontTitle * scale + 14.0f * scale;
+        const float x = icon.empty() ? content.min.x : content.min.x + Theme::kFontTitle * scale + 10.0f * scale;
         Draw::Text(dl, nullptr, title_size, ImVec2(x, content.min.y + 2.0f * scale),
                    Tint(Theme::Alpha(title_color, alpha)), title.c_str());
     }
     if (!message.empty()) {
         const float text_size = Theme::kFontBody * scale;
-        Draw::Text(dl, nullptr, text_size, ImVec2(content.min.x, content.min.y + 52.0f * scale),
+        Draw::Text(dl, nullptr, text_size, ImVec2(content.min.x, content.min.y + 38.0f * scale),
                    Tint(Theme::Alpha(message_color, alpha)), message.c_str());
     }
 

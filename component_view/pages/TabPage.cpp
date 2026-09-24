@@ -25,7 +25,7 @@ void TabPage::Build(Widget* host, UiContext& ui) {
     horizontal_ = column->Emplace<TabBar>("tab_horizontal");
     horizontal_->SetSize(500.0f, 46.0f);
     horizontal_->orientation = TabBar::Orientation::Horizontal;
-    horizontal_->tab_size = ImVec2(112.0f, 44.0f);
+    horizontal_->tab_size = ImVec2(87.4f, 34.3f);
     horizontal_->immediate = true;
     horizontal_->AddTab("画面", Icons::Glyph(Icons::Material::ImagePlaceholder));
     horizontal_->AddTab("音频", Icons::Glyph(Icons::Material::Memory));
@@ -36,9 +36,9 @@ void TabPage::Build(Widget* host, UiContext& ui) {
 
     // 垂直 Tab（可滚动，演示自动滚动）
     vertical_ = column->Emplace<TabBar>("tab_vertical");
-    vertical_->SetSize(230.0f, 138.0f);
+    vertical_->SetSize(230.0f, 137.9f);
     vertical_->orientation = TabBar::Orientation::Vertical;
-    vertical_->tab_size = ImVec2(0.0f, 34.0f);
+    vertical_->tab_size = ImVec2(0.0f, 26.5f);
     vertical_->immediate = false;
     vertical_->AddTab("Vertical 01");
     vertical_->AddTab("Vertical 02");
@@ -52,7 +52,7 @@ void TabPage::Build(Widget* host, UiContext& ui) {
     // 右侧说明
     Box* info = helpers::Column(row, 10.0f);
     info->SetSize(390.0f, 196.0f);
-    info->SetPadding(EdgeInsets::All(16.0f));
+    info->SetPadding(EdgeInsets::All(12.5f));
     info->SetBackground(Theme::kBgEditor);
     info->SetBorder(1.0f, Theme::kBorder);
     info->SetRadius(Theme::kRadiusSmall);
@@ -90,7 +90,7 @@ std::vector<std::pair<Icons::Button, std::string>> TabPage::Navigation() const {
 void TabPage::FillProperties(std::vector<PropSection>& out) const {
     PushSection(out, "Layout", {
                                Row("Orientation", "Horizontal / Vertical"),
-                               Row("Tab Size", "112x44 / 撑满 x 34"),
+                               Row("Tab Size", "88x34 / 撑满 x 22"),
                                Row("Gap", "4"),
                                Row("Scroll", "垂直 Tab 超出时自动滚动"),
                            });

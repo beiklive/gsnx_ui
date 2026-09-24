@@ -22,12 +22,12 @@ void ImagePage::Build(Widget* host, UiContext& ui) {
 
     (void)ui;
     Box* row = helpers::Row(host, 16.0f);
-    row->SetSize(0.0f, 118.0f);
+    row->SetSize(0.0f, 117.9f);
 
     if (has_texture_) {
         // Contain：完整显示
         Image* contain = row->Emplace<Image>(g_flow_texture.ImGuiRef(), native);
-        contain->SetSize(190.0f, 112.0f);
+        contain->SetSize(148.2f, 87.4f);
         contain->SetRadius(Theme::kRadius);
         contain->fit = Image::Fit::Contain;
         contain->SetBackground(Theme::kBgEditor);
@@ -35,25 +35,25 @@ void ImagePage::Build(Widget* host, UiContext& ui) {
 
         // Cover：裁切填满
         Image* cover = row->Emplace<Image>(g_flow_texture.ImGuiRef(), native);
-        cover->SetSize(150.0f, 112.0f);
+        cover->SetSize(117.0f, 87.4f);
         cover->SetRadius(Theme::kRadius);
         cover->fit = Image::Fit::Cover;
 
         // Stretch：拉伸
         Image* stretch = row->Emplace<Image>(g_flow_texture.ImGuiRef(), native);
-        stretch->SetSize(120.0f, 112.0f);
+        stretch->SetSize(93.6f, 87.4f);
         stretch->SetRadius(Theme::kRadiusSmall);
         stretch->fit = Image::Fit::Stretch;
 
         // 圆形裁剪
         Image* circle = row->Emplace<Image>(g_flow_texture.ImGuiRef(), native);
-        circle->SetSize(112.0f, 112.0f);
+        circle->SetSize(87.4f, 87.4f);
         circle->SetRadius(56.0f);
         circle->fit = Image::Fit::Cover;
 
         // UV 裁切 + Flip
         Image* cropped = row->Emplace<Image>(g_flow_texture.ImGuiRef(), native);
-        cropped->SetSize(150.0f, 112.0f);
+        cropped->SetSize(117.0f, 87.4f);
         cropped->SetRadius(Theme::kRadius);
         cropped->fit = Image::Fit::Stretch;
         cropped->SetUV(ImVec2(0.0f, 0.0f), ImVec2(0.5f, 1.0f));
@@ -61,11 +61,11 @@ void ImagePage::Build(Widget* host, UiContext& ui) {
 
         // 旋转 + 半透明
         rotating_ = row->Emplace<Image>(g_flow_texture.ImGuiRef(), native);
-        rotating_->SetSize(120.0f, 112.0f);
+        rotating_->SetSize(120.0f, 112.1f);
         rotating_->fit = Image::Fit::Cover;
         rotating_->tint = Theme::Alpha(Theme::kTeal, 0.85f);
     } else {
-        helpers::Tile(row, "贴图加载失败", 200.0f, 112.0f, Theme::kRadius, Theme::kBgWidget, Theme::kError);
+        helpers::Tile(row, "贴图加载失败", 156.0f, 87.4f, Theme::kRadius, Theme::kBgWidget, Theme::kError);
     }
 
     Box* footer = helpers::Row(host, 16.0f);

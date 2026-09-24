@@ -20,31 +20,31 @@ void LabelPage::Build(Widget* host, UiContext& ui) {
     // 对齐
     Box* align_row = helpers::Row(host, 14.0f);
     align_row->SetSize(0.0f, 46.0f);
-    Box* left = helpers::Tile(align_row, "", 160.0f, 44.0f, Theme::kRadiusSmall, Theme::kBgEditor, Theme::kBorder);
+    Box* left = helpers::Tile(align_row, "", 124.8f, 34.3f, Theme::kRadiusSmall, Theme::kBgEditor, Theme::kBorder);
     left->AddLabel("左对齐", Theme::kFontSmall, Theme::kTextPrimary);
-    Box* center = helpers::Tile(align_row, "", 160.0f, 44.0f, Theme::kRadiusSmall, Theme::kBgEditor, Theme::kBorder);
+    Box* center = helpers::Tile(align_row, "", 124.8f, 34.3f, Theme::kRadiusSmall, Theme::kBgEditor, Theme::kBorder);
     center->AddLabel("居中", Theme::kFontSmall, Theme::kTextPrimary)
         ->SetAlign(TextAlign::Center, VerticalAlign::Middle);
-    Box* right = helpers::Tile(align_row, "", 160.0f, 44.0f, Theme::kRadiusSmall, Theme::kBgEditor, Theme::kBorder);
+    Box* right = helpers::Tile(align_row, "", 124.8f, 34.3f, Theme::kRadiusSmall, Theme::kBgEditor, Theme::kBorder);
     right->AddLabel("右对齐", Theme::kFontSmall, Theme::kTextPrimary)
         ->SetAlign(TextAlign::Right, VerticalAlign::Middle);
 
     // 省略号 / 跑马灯 / 描边
     Box* styles = helpers::Row(host, 14.0f);
     styles->SetSize(0.0f, 46.0f);
-    Box* ellipsis_tile = helpers::Tile(styles, "", 250.0f, 44.0f, Theme::kRadiusSmall, Theme::kBgEditor, Theme::kBorder);
+    Box* ellipsis_tile = helpers::Tile(styles, "", 195.0f, 34.3f, Theme::kRadiusSmall, Theme::kBgEditor, Theme::kBorder);
     Label* ellipsis = ellipsis_tile->AddLabel("这一段文字会以省略号结尾显示…", Theme::kFontSmall, Theme::kTextPrimary);
     ellipsis->ellipsis = true;
-    ellipsis->SetSize(226.0f, 0.0f);
+    ellipsis->SetSize(176.3f, 0.0f);
 
     marquee_ = nullptr;
-    Box* marquee_tile = helpers::Tile(styles, "", 300.0f, 44.0f, Theme::kRadiusSmall, Theme::kBgEditor, Theme::kBorder);
+    Box* marquee_tile = helpers::Tile(styles, "", 234.0f, 34.3f, Theme::kRadiusSmall, Theme::kBgEditor, Theme::kBorder);
     marquee_ = marquee_tile->AddLabel("跑马灯：这是一段很长的文案，超宽之后会自动横向滚动", Theme::kFontSmall,
                                       Theme::kTextPrimary);
     marquee_->SetMarquee(true, 46.0f);
-    marquee_->SetSize(272.0f, 0.0f);
+    marquee_->SetSize(272.1f, 0.0f);
 
-    Box* outline_tile = helpers::Tile(styles, "", 200.0f, 44.0f, Theme::kRadiusSmall, Theme::kBgWidget,
+    Box* outline_tile = helpers::Tile(styles, "", 156.0f, 34.3f, Theme::kRadiusSmall, Theme::kBgWidget,
                                       Theme::kBorder);
     Label* outline = outline_tile->AddLabel("描边 + 阴影", Theme::kFontBody, Theme::kTextBright);
     outline->SetOutline(Theme::Alpha(IM_COL32(0, 0, 0, 255), 0.85f));

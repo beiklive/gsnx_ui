@@ -20,7 +20,7 @@ void SliderPage::Build(Widget* host, UiContext& ui) {
 
     volume_ = column->Emplace<Slider>("音量", 65.0f, 0.0f, 100.0f);
     volume_->SetName("slider_volume");
-    volume_->SetSize(680.0f, 52.0f);
+    volume_->SetSize(680.0f, 52.1f);
     volume_->SetStep(1.0f, 10.0f, 25.0f);
     volume_->show_percent = true;
     volume_->on_changed = [this](Slider& slider, float value) {
@@ -36,7 +36,7 @@ void SliderPage::Build(Widget* host, UiContext& ui) {
 
     speed_ = column->Emplace<Slider>("快进倍速", 2.0f, 0.5f, 8.0f);
     speed_->SetName("slider_speed");
-    speed_->SetSize(680.0f, 52.0f);
+    speed_->SetSize(680.0f, 52.1f);
     speed_->SetStep(0.5f, 2.0f, 4.0f);
     speed_->show_percent = false; // 显示原始值
     speed_->fill_color = Theme::kOrange;
@@ -53,7 +53,7 @@ void SliderPage::Build(Widget* host, UiContext& ui) {
     meter_row->SetSize(680.0f, 40.0f);
     meter_row->Emplace<Label>("联动", Theme::kFontSmall, Theme::kTextMuted);
     meter_ = meter_row->Emplace<Progress>(65.0f, 0.0f, 100.0f);
-    meter_->SetSize(560.0f, 18.0f);
+    meter_->SetSize(560.0f, 17.9f);
     meter_->show_percentage = true;
 
     Box* info = helpers::Row(host, 18.0f);
@@ -100,9 +100,9 @@ void SliderPage::FillProperties(std::vector<PropSection>& out) const {
                                Row("Page Step (ZL ZR)", "25 / 4.0"),
                            });
     PushSection(out, "Visual", {
-                               Row("Track", "8px 圆角"),
+                               Row("Track", "6px 圆角"),
                                Row("Fill", "kTrackFill / kOrange"),
-                               Row("Thumb", "11px + 焦点放大 1.22", true),
+                               Row("Thumb", "8px + 焦点放大 1.22", true),
                                Row("Value Label", "百分比 / 原始值"),
                                Row("Ticks", "步进小于等于 24 档时显示"),
                            });

@@ -74,7 +74,7 @@ VirtualKeyboard::VirtualKeyboard() : Widget("virtual_keyboard") {
     capture_horizontal = true; // 键盘自己管方向键
     capture_vertical = true;
     overflow = Overflow::Hidden;
-    padding = EdgeInsets::All(16.0f);
+    padding = EdgeInsets::All(10.0f);
     corner_radius = Theme::kRadiusLarge;
     background = Theme::kBgSideBar;
     border = BorderStyle{1.0f, Theme::kBorderStrong, 0.0f};
@@ -218,8 +218,8 @@ void VirtualKeyboard::ClearBuffer() {
 ImVec2 VirtualKeyboard::MeasureContent(const ImVec2& available) {
     (void)available;
     // 尺寸由使用方给定；这里给一个合理的默认值
-    const float width = static_cast<float>(columns) * 46.0f + static_cast<float>(columns - 1) * key_gap + 32.0f;
-    return ImVec2(width, preview_height + 5.0f * (key_height + key_gap) + 32.0f);
+    const float width = static_cast<float>(columns) * 34.0f + static_cast<float>(columns - 1) * key_gap + 24.0f;
+    return ImVec2(width, preview_height + 5.0f * (key_height + key_gap) + 24.0f);
 }
 
 void VirtualKeyboard::BuildLayout(const Rect& content) {
@@ -230,7 +230,7 @@ void VirtualKeyboard::BuildLayout(const Rect& content) {
     const float key_width = (available_width - gap * static_cast<float>(columns - 1)) / static_cast<float>(columns);
     const float key_h = key_height * DrawScale();
 
-    const float grid_top = content.min.y + (show_preview ? (preview_height * DrawScale() + 12.0f * DrawScale()) : 0.0f);
+    const float grid_top = content.min.y + (show_preview ? (preview_height * DrawScale() + 8.0f * DrawScale()) : 0.0f);
 
     const char* const(*table)[10] = kLetters;
     if (page == Page::Symbols) {
@@ -475,14 +475,14 @@ void VirtualKeyboard::OnDrawContent(ImDrawList* dl, const Rect& content) {
         const float text_size = Theme::kFontHeader * scale;
         const float text_y = preview.Center().y - text_size * 0.5f + 6.0f * scale;
         if (!prompt.empty()) {
-            Draw::Text(dl, nullptr, prompt_size, ImVec2(preview.min.x + 12.0f * scale, preview.min.y + 6.0f * scale),
+            Draw::Text(dl, nullptr, prompt_size, ImVec2(preview.min.x + 9.0f * scale, preview.min.y + 4.0f * scale),
                        Tint(Theme::kTextMuted), prompt.c_str());
         }
         const std::string display = DisplayBuffer();
         const std::string head = display.substr(0, ByteOffsetOf(display, caret_));
         const std::string tail = display.substr(ByteOffsetOf(display, caret_));
         const float head_width = Draw::MeasureText(nullptr, text_size, head.c_str(), 0.0f).x;
-        const float start_x = preview.min.x + 14.0f * scale;
+        const float start_x = preview.min.x + 10.0f * scale;
         Draw::Text(dl, nullptr, text_size, ImVec2(start_x, text_y), Tint(Theme::kTextBright), head.c_str());
         Draw::Text(dl, nullptr, text_size, ImVec2(start_x + head_width, text_y), Tint(Theme::kTextPrimary), tail.c_str());
 
@@ -530,7 +530,7 @@ void VirtualKeyboard::OnDrawContent(ImDrawList* dl, const Rect& content) {
         if (is_focus) {
             fill = Theme::Mix(fill, key_bg_focus, 0.9f);
         }
-        const float radius = 6.0f * scale;
+        const float radius = 4.0f * scale;
         const float grow = is_focus ? 2.0f * scale * (0.6f + 0.4f * press_mix_) : 0.0f;
         const Rect rect = key.rect.Expanded(grow);
         Draw::RoundedRectFilled(dl, rect, Tint(fill), radius, radius, radius, radius);

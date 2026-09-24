@@ -46,9 +46,9 @@ public:
     bool show_preview = true;
     bool loop_columns = false;
 
-    float key_height = 42.0f;
-    float key_gap = 6.0f;
-    float preview_height = 54.0f;
+    float key_height = 30.0f;
+    float key_gap = 4.0f;
+    float preview_height = 34.0f;
     int columns = 10;
 
     ImU32 panel_bg = Theme::kBgSideBar;

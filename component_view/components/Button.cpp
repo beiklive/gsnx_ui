@@ -21,7 +21,7 @@ Button::Button() : Widget("button") {
     focus_on_hover = true;
     focus_frame = true;
     focus_scale = 1.03f;
-    focus_frame_offset = 3.0f;
+    focus_frame_offset = 2.5f;
     Primary();
 }
 
@@ -46,7 +46,7 @@ Button& Button::Primary() {
     background = color_normal;
     border = BorderStyle{0.0f, 0, 0.0f};
     corner_radius = Theme::kRadiusSmall;
-    padding = EdgeInsets::Symmetric(18.0f, 10.0f);
+    padding = EdgeInsets::Symmetric(12.0f, 7.0f);
     return *this;
 }
 

@@ -14,16 +14,16 @@ void KeyboardPage::Build(Widget* host, UiContext& ui) {
     (void)ui;
     // 键盘是内嵌在展示区里的（也可以放进弹层，见 INPUT / DIALOG 页）
     Box* column = helpers::Column(host, 10.0f);
-    column->SetSize(920.0f, 272.0f);
+    column->SetSize(920.0f, 272.1f);
     column->align_x = Align::Start;
 
     keyboard_ = column->Emplace<VirtualKeyboard>();
     keyboard_->SetName("keyboard_inline");
     keyboard_->SetSize(900.0f, 240.0f);
-    keyboard_->key_height = 31.0f;
-    keyboard_->key_gap = 5.0f;
-    keyboard_->preview_height = 36.0f;
-    keyboard_->padding = EdgeInsets::All(10.0f);
+    keyboard_->key_height = 24.2f;
+    keyboard_->key_gap = 3.9f;
+    keyboard_->preview_height = 28.1f;
+    keyboard_->padding = EdgeInsets::All(7.8f);
     keyboard_->max_length = 24;
     keyboard_->SetPrompt("键盘页 · 内嵌模式");
     keyboard_->SetInitial("Hello GUI_DEV");
@@ -75,7 +75,7 @@ void KeyboardPage::FillProperties(std::vector<PropSection>& out) const {
                                Row("Symbols", "符号页"),
                                Row("Numbers", "数字页"),
                                Row("Columns", "10"),
-                               Row("Key Size", "42px（可调）"),
+                               Row("Key Size", "30px（可调）"),
                            });
     PushSection(out, "Editing", {
                                 Row("Buffer", keyboard_ != nullptr ? keyboard_->buffer : ""),

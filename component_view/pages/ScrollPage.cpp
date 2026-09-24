@@ -15,25 +15,25 @@ namespace gui_dev::cv {
 void ScrollPage::Build(Widget* host, UiContext& ui) {
     (void)ui;
     Box* row = helpers::Row(host, 18.0f);
-    row->SetSize(0.0f, 232.0f);
+    row->SetSize(0.0f, 232.1f);
 
     // 可滚动区域：里面放可聚焦的卡片，焦点移动时自动滚动
     scroll_ = row->Emplace<ScrollBox>("scroll_vertical");
-    scroll_->SetSize(460.0f, 228.0f);
+    scroll_->SetSize(460.0f, 227.9f);
     scroll_->SetBackground(Theme::kBgEditor);
     scroll_->SetBorder(1.0f, Theme::kBorderStrong);
     scroll_->SetRadius(Theme::kRadiusSmall);
     scroll_->layout = LayoutMode::Vertical;
-    scroll_->gap = ImVec2(0.0f, 8.0f);
+    scroll_->gap = ImVec2(0.0f, 6.2f);
     scroll_->align_x = Align::Stretch;
-    scroll_->padding = EdgeInsets::All(12.0f);
+    scroll_->padding = EdgeInsets::All(9.4f);
 
     cards_.clear();
     for (int i = 0; i < 10; ++i) {
         Button* card = scroll_->Emplace<Button>("滚动内容 " + std::to_string(i + 1));
         card->SetName("scroll_card_" + std::to_string(i));
         card->Secondary();
-        card->FitContent(16.0f, 48.0f);
+        card->FitContent(12.5f, 37.4f);
         card->size.x = 0.0f; // 撑满滚动容器宽度
         card->icon = Icons::Glyph(i % 2 == 0 ? Icons::Material::Storage : Icons::Material::Memory);
         card->on_click = [this, i](Widget&) {
@@ -45,17 +45,17 @@ void ScrollPage::Build(Widget* host, UiContext& ui) {
     }
 
     Box* column = helpers::Column(row, 12.0f);
-    column->SetSize(0.0f, 228.0f);
+    column->SetSize(0.0f, 227.9f);
 
     // 水平滚动
     ScrollBox* horizontal = column->Emplace<ScrollBox>("scroll_horizontal");
-    horizontal->SetSize(440.0f, 110.0f);
+    horizontal->SetSize(343.2f, 85.8f);
     horizontal->SetBackground(Theme::kBgEditor);
     horizontal->SetBorder(1.0f, Theme::kBorderStrong);
     horizontal->SetRadius(Theme::kRadiusSmall);
     horizontal->layout = LayoutMode::Horizontal;
-    horizontal->gap = ImVec2(10.0f, 0.0f);
-    horizontal->padding = EdgeInsets::All(10.0f);
+    horizontal->gap = ImVec2(7.8f, 0.0f);
+    horizontal->padding = EdgeInsets::All(7.8f);
     for (int i = 0; i < 12; ++i) {
         Box* tile = helpers::Tile(horizontal, "横向 " + std::to_string(i + 1), 108.0f, 86.0f, Theme::kRadiusSmall,
                                   Theme::kBgWidget, Theme::kBorder);
@@ -66,18 +66,18 @@ void ScrollPage::Build(Widget* host, UiContext& ui) {
 
     // 吸附滚动
     ScrollBox* snapped = column->Emplace<ScrollBox>("scroll_snap");
-    snapped->SetSize(440.0f, 106.0f);
+    snapped->SetSize(343.2f, 82.7f);
     snapped->SetBackground(Theme::kBgEditor);
     snapped->SetBorder(1.0f, Theme::kBorderStrong);
     snapped->SetRadius(Theme::kRadiusSmall);
     snapped->layout = LayoutMode::Vertical;
-    snapped->gap = ImVec2(0.0f, 6.0f);
-    snapped->padding = EdgeInsets::All(10.0f);
+    snapped->gap = ImVec2(0.0f, 4.7f);
+    snapped->padding = EdgeInsets::All(7.8f);
     snapped->scroll_overscroll = false;
     for (int i = 0; i < 5; ++i) {
         Label* line = snapped->Emplace<Label>("吸附滚动示例行 " + std::to_string(i + 1), Theme::kFontSmall,
                                              Theme::kTextPrimary);
-        line->SetSize(0.0f, 22.0f);
+        line->SetSize(0.0f, 17.2f);
     }
 
     status_ = helpers::Caption(host, "方向键移动焦点：容器会把焦点项自动滚进可见区", Theme::kFontSmall, Theme::kTeal);
@@ -110,7 +110,7 @@ std::vector<std::pair<Icons::Button, std::string>> ScrollPage::Navigation() cons
 void ScrollPage::FillProperties(std::vector<PropSection>& out) const {
     PushSection(out, "Layout", {
                                Row("Direction", "Vertical / Horizontal"),
-                               Row("Padding", "12 / 10"),
+                               Row("Padding", "9 / 7"),
                                Row("Gap", "8"),
                                Row("Clip", "overflow = scroll（自动裁剪）"),
                            });

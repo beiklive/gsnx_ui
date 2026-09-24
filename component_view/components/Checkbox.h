@@ -19,8 +19,8 @@ public:
 
     std::string label;
     bool checked = false;
-    float box_size = 26.0f;
-    float label_gap = 12.0f;
+    float box_size = 20.0f;
+    float label_gap = 9.0f;
     float font_size = 0.0f;
     ImU32 box_bg = Theme::kBgWidget;
     ImU32 box_bg_checked = Theme::kAccent;
@@ -62,8 +62,8 @@ public:
     };
 
     bool vertical = true;
-    float row_height = 40.0f;
-    float dot_size = 24.0f;
+    float row_height = 32.0f;
+    float dot_size = 19.0f;
     float label_gap = 12.0f;
     float font_size = 0.0f;
     bool loop = true;

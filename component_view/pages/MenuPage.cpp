@@ -18,7 +18,7 @@ void MenuPage::Build(Widget* host, UiContext& ui) {
     row->align_y = Align::Start;
 
     menu_ = row->Emplace<Menu>("menu_main");
-    menu_->SetSize(420.0f, 232.0f);
+    menu_->SetSize(420.0f, 232.1f);
     menu_->SetBackground(Theme::kBgEditor);
     menu_->SetBorder(1.0f, Theme::kBorderStrong);
     menu_->SetRadius(Theme::kRadiusSmall);
@@ -58,7 +58,7 @@ void MenuPage::Build(Widget* host, UiContext& ui) {
 
     Box* info = helpers::Column(row, 10.0f);
     info->SetSize(500.0f, 236.0f);
-    info->SetPadding(EdgeInsets::All(16.0f));
+    info->SetPadding(EdgeInsets::All(12.5f));
     info->SetBackground(Theme::kBgEditor);
     info->SetBorder(1.0f, Theme::kBorder);
     info->SetRadius(Theme::kRadiusSmall);

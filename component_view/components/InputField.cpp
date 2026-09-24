@@ -33,9 +33,9 @@ InputField::InputField() : Widget("input_field") {
     focusable = true;
     focus_on_hover = true;
     focus_frame = true;
-    focus_frame_offset = 4.0f;
+    focus_frame_offset = 3.0f;
     focus_scale = 1.01f;
-    padding = EdgeInsets::Symmetric(14.0f, 10.0f);
+    padding = EdgeInsets::Symmetric(10.0f, 7.0f);
     corner_radius = Theme::kRadiusSmall;
 }
 
@@ -218,7 +218,7 @@ ImVec2 InputField::MeasureContent(const ImVec2& available) {
     const float size = ResolvedFontSize();
     const ImVec2 text_extent =
         Draw::MeasureText(nullptr, size, text.empty() ? placeholder.c_str() : text.c_str(), 0.0f);
-    float width = text_extent.x + 40.0f;
+    float width = text_extent.x + 30.0f;
     if (!prefix.empty()) {
         width += Draw::MeasureText(nullptr, size, prefix.c_str(), 0.0f).x + 6.0f;
     }
@@ -288,7 +288,7 @@ void InputField::OnDrawContent(ImDrawList* dl, const Rect& content) {
                                                    EffectiveOpacity() * (0.8f + 0.2f * focus_edge_)),
                              (1.0f + focus_edge_) * scale, radius, radius, radius, radius);
 
-    float cursor_x = box.min.x + 12.0f * scale;
+    float cursor_x = box.min.x + 9.0f * scale;
     const float center_y = box.Center().y;
 
     if (!prefix.empty()) {
