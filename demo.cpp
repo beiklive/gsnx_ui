@@ -27,6 +27,7 @@ using gui_dev::cv::Box;
 using gui_dev::cv::Button;
 using gui_dev::cv::CustomButton;
 using gui_dev::cv::IconButton;
+using gui_dev::cv::IconButtonShape;
 using gui_dev::cv::IconTextButton;
 using gui_dev::cv::OptionButton;
 using gui_dev::cv::Page;
@@ -66,21 +67,15 @@ public:
             return button;
         };
 
-        // 1 普通按钮：文字居中
+        // 1 普通按钮（弹窗的确认 / 取消这类提示文字）：文字居中，不带说明行
         TextButton* plain = Root().Emplace<TextButton>("普通按钮");
-        plain->setSubtitle("文字居中显示；这行小字可以用 showSubtitle(false) 关掉");
         place(plain, "btn_text");
 
-        // 2 图标 + 文字：图标到边框上下左右距离相同，图标和文字都靠左
+        // 2 图标 + 文字：图标占左侧正方形格（格内水平+垂直居中），文字紧跟其右
         IconTextButton* icon_text =
             Root().Emplace<IconTextButton>(Icons::Glyph(Icons::Material::Play), "图标 + 文字按钮");
-        icon_text->setSubtitle("图标是正方形，四周留白相同；图标在左、文字紧随其后");
+        icon_text->setSubtitle("图标是正方形格，格内居中；图标在左、文字紧跟其右");
         place(icon_text, "btn_icon_text");
-
-        // 3 纯图标按钮
-        IconButton* icon_only = Root().Emplace<IconButton>(Icons::Glyph(Icons::Material::Settings));
-        icon_only->setSubtitle("只显示图标（图标在框内居中）");
-        place(icon_only, "btn_icon");
 
         // 4 开关按钮：右侧显示 开/关（开=蓝、关=灰），A/点击切换
         ToggleButton* toggle = Root().Emplace<ToggleButton>(Icons::Glyph(Icons::Material::Wifi), "无线网络");
@@ -100,11 +95,11 @@ public:
         custom->setSubtitle("右侧文字的内容与颜色都可以改（setRightText）");
         place(custom, "btn_custom");
 
-        // 6 LR 选项选择器：右侧 [L] 选项 [R]，L/R 键切换
+        // 6 LR 选项选择器：右侧 [L] 固定间隔 [R]，L/R 键切换；选项太长就在间隔里滚动
         OptionButton* option =
             Root().Emplace<OptionButton>(Icons::Glyph(Icons::Material::ImagePlaceholder), "画面缩放");
-        option->setOptions({"整数缩放", "线性过滤", "CRT 扫描线"});
-        option->setSubtitle("L / R 键切换选项");
+        option->setOptions({"整数缩放", "线性过滤", "CRT 扫描线（像素风，速度慢）"});
+        option->setSubtitle("L / R 键切换选项；选项超长会在间隔里滚动");
         connect(option, &OptionButton::selectionChanged, this, [](int index) {
             if (TraceSignal()) {
                 std::printf("[signal] option index = %d\n", index);
@@ -113,10 +108,10 @@ public:
         });
         place(option, "btn_option");
 
-        // 7 LR 数值选择器：右侧 [L] 数值 [R]，初始化时给范围/步长/精度
+        // 7 LR 数值选择器：右侧 [L] 固定间隔 [R]，初始化时给范围/步长/精度
         ValueButton* value = Root().Emplace<ValueButton>(Icons::Glyph(Icons::Material::Memory), "音量");
         value->setup(65.0f, 0.0f, 100.0f, 5.0f, 0);
-        value->setSubtitle("L / R 调值，步长 5、范围 0~100");
+        value->setSubtitle("L / R 调值（长按加速），松开才发 valueChanged");
         connect(value, &ValueButton::valueChanged, this, [](float current) {
             if (TraceSignal()) {
                 std::printf("[signal] value = %.2f\n", static_cast<double>(current));
@@ -125,10 +120,26 @@ public:
         });
         place(value, "btn_value");
 
+        // 3 纯图标按钮：只有圆角正方形和圆形两种形态，边长 setSide()；
+        // 有说明行时说明行落到图标下方居中（图标格自动给说明行让位）
+        IconButton* icon_square = Root().Emplace<IconButton>(Icons::Glyph(Icons::Material::Settings));
+        icon_square->setSide(76.0f);
+        icon_square->setShape(IconButtonShape::RoundedSquare);
+        icon_square->setSubtitle("圆角方形");
+        icon_square->moveTo(440.0f, 166.0f);
+        buttons_.push_back(icon_square);
+
+        IconButton* icon_circle = Root().Emplace<IconButton>(Icons::Glyph(Icons::Material::Favorite));
+        icon_circle->setSide(76.0f);
+        icon_circle->setShape(IconButtonShape::Circle);
+        icon_circle->moveTo(526.0f, 166.0f);
+        icon_circle->setSubtitle("圆形");
+        buttons_.push_back(icon_circle);
+
         // 顺手保留一个可聚焦 Box（容器/控件两种身份），放在按钮右侧
         box_ = Root().Emplace<Box>("box");
         box_->moveTo(440.0f, 20.0f);
-        box_->resize(128.0f, 128.0f);
+        box_->resize(124.0f, 124.0f);
         box_->fillWith(Theme::kBgWidget);
         box_->roundCorners(Global::component_style.corner_radius);
         box_->makeFocusable();

@@ -45,6 +45,10 @@ void TextOutlined(ImDrawList* dl, ImFont* font, float font_size, const ImVec2& p
                   const char* text, float wrap_width = 0.0f);
 // 按可用宽度裁切，放不下时用 "…" 结尾（返回的是内部轮转缓冲，别跨帧保存）。
 const char* Ellipsize(ImFont* font, float font_size, const char* text, float max_width);
+// 在 slot 里居中显示一行文字；放不下就横向循环滚动（跑马灯），超出部分按 slot 裁掉。
+// phase 传 Global::time（秒），speed 是滚动速度 px/s。
+void MarqueeText(ImDrawList* dl, ImFont* font, float font_size, const Rect& slot, ImU32 color, const char* text,
+                 float phase, float speed = 26.0f);
 
 // ---- 形状增强 -------------------------------------------------------------
 // 对勾（复选框勾选动画用，t = 0..1 控制绘制进度）

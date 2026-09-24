@@ -221,6 +221,12 @@ void Sdl2Backend::ApplyAction(InputFrame& in, SDL_Keycode key, InputAction actio
 }
 
 void Sdl2Backend::PollEvents(InputFrame& in) {
+    // held 是电平语义：SDL 只在按下那一刻发一次 KEYDOWN，所以先把上一帧的按住状态继承下来，
+    // 事件里再更新；这样「按住不放」在每帧都成立（长按加速要用），
+    // pressed 也才真的等于「本帧刚按下」（原来每帧清零，系统按键重复会被当成连续按下）。
+    for (std::size_t i = 0; i < kInputActionCount; ++i) {
+        in.pad.held[i] = pad_held_[i];
+    }
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         ImGui_ImplSDL2_ProcessEvent(&e);
@@ -328,6 +334,11 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
                         kTriggerThreshold;
         ApplyAction(in, 0, InputAction::TriggerLeft, zl);
         ApplyAction(in, 0, InputAction::TriggerRight, zr);
+    }
+
+    // 存回本帧的按住状态，供下一帧继承
+    for (std::size_t i = 0; i < kInputActionCount; ++i) {
+        pad_held_[i] = in.pad.held[i];
     }
 
     // 分辨率变化检测：Switch 手持<->底座、桌面窗口缩放、Retina 迁移都会走到这里。

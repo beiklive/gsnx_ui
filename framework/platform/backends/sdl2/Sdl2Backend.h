@@ -62,6 +62,8 @@ private:
     ImVec2 touch_pos_{0.0f, 0.0f};
     // 平台是否自己把触摸合成成鼠标事件（SDL_TOUCH_MOUSEID）
     bool touch_synthesizes_mouse_ = false;
+    // 上一帧的按住状态：SDL 只在按下/松开时各发一次事件，held 要在帧之间继承（长按要用）
+    bool pad_held_[static_cast<std::size_t>(InputAction::Count)] = {};
     std::uint64_t perf_counter_ = 0;
     float delta_time_ = 0.0f;
 

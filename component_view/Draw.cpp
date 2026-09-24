@@ -211,6 +211,30 @@ const char* Ellipsize(ImFont* font, float font_size, const char* text, float max
     return out;
 }
 
+void MarqueeText(ImDrawList* dl, ImFont* font, float font_size, const Rect& slot, ImU32 color, const char* text,
+                 float phase, float speed) {
+    if (dl == nullptr || text == nullptr || text[0] == '\0' || !slot.Valid()) {
+        return;
+    }
+    const ImVec2 extent = MeasureText(font, font_size, text, 0.0f);
+    if (extent.x <= slot.Width() + 0.5f) {
+        // 放得下：在间隔里居中
+        Text(dl, font, font_size, ImVec2(slot.Center().x - extent.x * 0.5f, slot.Center().y - extent.y * 0.5f), color,
+             text);
+        return;
+    }
+    // 放不下：跑马灯。整段长度 = 文字宽 + 间隔（gap 让首尾不贴在一起），循环滚动
+    const float gap = 24.0f;
+    const float span = extent.x + gap;
+    float offset = std::fmod(Maxf(phase, 0.0f) * Maxf(speed, 1.0f), span);
+    dl->PushClipRect(slot.min, slot.max, true);
+    for (int i = 0; i < 2; ++i) {
+        Text(dl, font, font_size, ImVec2(slot.min.x - offset + static_cast<float>(i) * span, slot.Center().y - extent.y * 0.5f),
+             color, text);
+    }
+    dl->PopClipRect();
+}
+
 void CheckMark(ImDrawList* dl, const Rect& box, ImU32 color, float thickness, float t) {
     if (dl == nullptr || t <= 0.01f) {
         return;

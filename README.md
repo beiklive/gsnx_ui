@@ -147,20 +147,23 @@ cmake --preset mac && cmake --build --preset mac
 
 ### 现在的 demo 长什么样
 
-左列 7 个按钮，右侧一个可聚焦 Box：
+左列 6 个行内按钮 + 右上角一个可聚焦 Box + 右下角两个纯图标按钮（圆角正方形 / 圆形）：
 
 ```cpp
 // demo.cpp
 void OnBuild() override {
-    TextButton* plain = Root().Emplace<TextButton>("普通按钮");
-    plain->setSubtitle("文字居中显示；这行小字可以用 showSubtitle(false) 关掉");
+    TextButton* plain = Root().Emplace<TextButton>("普通按钮");  // 弹窗提示文字：不带说明行
     plain->moveTo(20.0f, 20.0f);
     plain->resize(396.0f, 52.0f);
 
-    box_ = Root().Emplace<Box>("box");   // 可聚焦容器
+    IconButton* circle = Root().Emplace<IconButton>(Icons::Glyph(Icons::Material::Favorite));
+    circle->setSide(76.0f);                          // 只有圆角正方形 / 圆形两种形态
+    circle->setShape(IconButtonShape::Circle);
+    circle->setSubtitle("圆形");                      // 有说明行时落到图标下方居中
+    circle->moveTo(526.0f, 166.0f);
+
+    box_ = Root().Emplace<Box>("box");               // 可聚焦容器
     box_->moveTo(440.0f, 20.0f);
-    box_->resize(128.0f, 128.0f);
-    box_->makeFocusable();
 }
 ```
 
@@ -179,23 +182,36 @@ void OnBuild() override {
 | 阴影 | 右下 `offset(4,4)` / blur 10 / `rgba(0,0,0,120)` | `setShadow(offset, blur, color)` |
 | 聚焦框 | 完整闭合的流光框，与按钮留 **2px** 边距，宽 2px | `setFlowingFocus(bool)` + `focus_margin / focus_width / focus_saturation / focus_brightness / focus_phase_offset` |
 | 内容留白 | 8px | `setContentPadding(px)` |
+| 图标格 | 正方形，边长 = 内容区高度（四周留白相同） | `setIconCellSize(px)` |
+| LR 间隔 | 120px 固定宽，内容居中、超长滚动 | `setSlotWidth(px)` |
 
 流光框的相位跟 `Global::time` 走（`focus_flow_speed` 控制流速），颜色是沿圆角边框按弧长流动的 HSV，
 所以四边一直是闭合的，不会出现"只有上下两条线"的聚焦效果。
 
 | # | 类 | 构造 | 左侧 | 右侧 |
 |---|---|---|---|---|
-| 1 | `TextButton` | `("文字")` | 文字水平居中 | — |
-| 2 | `IconTextButton` | `(icon, "文字")` | 图标（正方形，四周留白相同）+ 文字，都靠左 | — |
-| 3 | `IconButton` | `(icon)` | 只有图标 | — |
+| 1 | `TextButton` | `("文字")` | 文字水平居中，**不带说明行**（弹窗的确认/取消这类提示文字） | — |
+| 2 | `IconTextButton` | `(icon, "文字")` | 图标占左侧正方形格（格内水平+垂直居中）+ 文字紧跟其右 | — |
+| 3 | `IconButton` | `(icon)` | 只有图标，两种形态：`setShape(RoundedSquare/Circle)` + `setSide(px)` | — |
 | 4 | `ToggleButton` | `(icon, "文字")` | 图标 + 文字 | 开 / 关（开=蓝、关=灰），A/点击切换，`toggled(bool)` |
 | 5 | `CustomButton` | `(icon, "文字")` | 图标 + 文字 | 自定义文字：`setRightText(text, color)` |
-| 6 | `OptionButton` | `(icon, "文字")` | 图标 + 文字 | `[L] 选项 [R]`，`setOptions({...})`，L/R 切换，`selectionChanged(int)` |
-| 7 | `ValueButton` | `(icon, "文字")` | 图标 + 文字 | `[L] 数值 [R]`，`setup(初值, 最小, 最大, 步长, 小数位)`，L/R 调值，`valueChanged(float)` |
+| 6 | `OptionButton` | `(icon, "文字")` | 图标 + 文字 | `[L] 选项 [R]`：固定间隔、居中、超长滚动；`setOptions({...})`，L/R 切换，`selectionChanged(int)` |
+| 7 | `ValueButton` | `(icon, "文字")` | 图标 + 文字 | `[L] 数值 [R]`：同上；`setup(初值, 最小, 最大, 步长, 小数位)`，L/R 调值，`valueChanged(float)` |
 
-说明行（subtitle）是所有形态共用的接口：`setSubtitle("小字", true)` / `showSubtitle(false)`，
-打开时在主文字下面加一行 `Theme::kFontSmall` 的浅色小字。**开关都不会让文字块上下跳**——
-文字块整体垂直居中，`text_align` 决定水平位置（`TextButton` 默认 `Center`，其余默认 `Left`）。
+说明行（subtitle）除 `TextButton` 外都支持：`setSubtitle("小字", true)` / `showSubtitle(false)`。
+有主文字时主文字在上、说明行在下，两块整体垂直居中，`text_align` 决定水平位置；**纯图标**时
+说明行落到图标下方居中（图标格自动给说明行让位）。开关说明行都不会让文字上下跳。
+
+`IconButton` 只有**圆角正方形**和**圆形**两种形态（圆形时圆角 = 边长的一半），宽度等于边长，
+不再是通栏按钮。
+
+`OptionButton` / `ValueButton` 的右侧是 `[L] <固定间隔> [R]`：间隔宽度固定（默认 120px），
+文字/数字在间隔里居中；**放不下就在间隔里横向循环滚动**（跑马灯，超出部分按间隔裁掉）。
+
+`ValueButton` 支持**长按加速**：按住 0.35s 后开始重复，重复间隔从 120ms 收紧到 30ms（有下限），
+每次跳跃的步长倍率从 1 涨到 8 倍（有上限，且取整保证值仍落在 `step` 网格上）。
+`valueChanged` **只在松开时发一次**（短按、长按都一样），按住过程中只改显示值。
+参数：`repeat_delay / repeat_interval / repeat_min_interval / repeat_accel_time / repeat_max_multiplier`。
 
 按键对应关系（`framework/platform/backends/sdl2/Sdl2Backend.cpp` 的映射表）：
 手柄 `L/R`（PageLeft/PageRight）＝ 键盘 `Q/E`；`+`（Menu）＝ 键盘 `Tab` / `=`，
@@ -205,9 +221,11 @@ demo 里用 `+` 一键开关所有按钮的说明行。
 
 ```bash
 GUI_DEV_TRACE_SIGNAL=1 GUI_DEV_EXIT_AFTER=120 \
-GUI_DEV_CAPTURE_SCRIPT="D:5,Q:1,E:1,D:1,E:2" ./build/mac/gui_dev_demo
-# [signal] option index = 2 / 0   value = 70 / 75
+GUI_DEV_CAPTURE_SCRIPT="D:4,Q:1,E:1,D:2,E:2" ./build/mac/gui_dev_demo
+# [signal] option index = 2        ← L 切到超长选项（间隔里滚动）
+# [signal] value = 70 / 75         ← 短按 R 两次，每次松开各发一次
 ```
+长按用 `!E:90` 这种写法（按住 90 帧再松开）：`[signal] value = 90`，整个长按只发一次信号。
 
 ### 颜色一律写成 rgb() / rgba()（分量 0..255）
 
@@ -759,6 +777,18 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   打信号）：A 键开关 `开→关`、Q/E（手柄 L/R）选项 `2→0`（wrap）、数值 `70→75`（步长 5）、
   `+`(Tab) 一键开关说明行且文字块仍垂直居中；抓帧见 `docs/buttons-demo.png`（说明行开）与
   `docs/buttons-demo-compact.png`（说明行关）。
+- 已确认（Button 第二轮调整）：① 左侧图标改成"固定正方形格 + 格内水平/垂直居中"，纯图标按钮的说明行
+  落到图标下方居中；② `TextButton` 不带说明行（弹窗提示文字用途）；③ LR 选择器中间改成**固定间隔**
+  （默认 120px），内容居中、超长在间隔里跑马灯滚动且按间隔裁剪；④ `IconButton` 只保留圆角正方形 / 圆形
+  两种形态（`setShape` + `setSide`）；⑤ `ValueButton` 长按加速（0.35s 后开始重复、间隔 120→30ms、
+  步长倍率 1→8 取整封顶），`valueChanged` 只在松开时发一次。
+  脚本化验收：短按 R 三次 → `70/75/80` 三次信号（每次松开一次）；长按 90 帧 → `90` **一次**信号；
+  长按 L 90 帧 → `40`；Q 切到超长选项后抓两帧对比，间隔内文字整体左移（3428/14520 像素变化），
+  间隔外无污染（裁剪正确）；图标/说明行的墨迹中心 477.2 vs 按钮中心 478（居中）。
+- 顺带修掉一个框架输入 bug（长按功能的前提）：`PadState::held` 原来是"每帧清零"，SDL 只在按下那一刻
+  发一次 KEYDOWN，所以按住不放时 `held` 只有第一帧为真、`Held()` 根本没法用（`Input.h` 注释里
+  写的是电平语义）。现在后端把上一帧的按住状态继承下来再叠加本帧事件，`held` 变回真正的电平；
+  `pressed` 也就真的等于"本帧刚按下"（原来系统按键重复会被当成连续按下，长按会疯狂触发）。
 - 顺带修掉两个真 bug：
   1) **整页被自己的阴影压暗**：`Box` 构造里会 `applyComponentStyle()` 打开阴影，而软阴影的每一层
      都是**实心矩形**（靠多层低 alpha 叠出模糊），页面根 Box 是透明的 → 白底实测只有 `(186,186,186)`；

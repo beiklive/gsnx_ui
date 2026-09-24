@@ -48,6 +48,10 @@ struct ComponentStyle {
     float focus_brightness = 1.0f;
     // 内容
     float content_padding = 8.0f; // 内容到边框的留白（图标四周等距就是靠它）
+    // LR 选择器（OptionButton / ValueButton）：[L] 固定间隔 [R] 里那一格的宽度
+    float lr_slot_width = 120.0f;
+    // 上面那一格放不下时，文字横向滚动显示
+    float marquee_speed = 26.0f; // px/s
 };
 inline ComponentStyle component_style;
 

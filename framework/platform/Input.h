@@ -27,8 +27,8 @@ enum class InputAction : std::uint8_t {
 
 inline constexpr std::size_t kInputActionCount = static_cast<std::size_t>(InputAction::Count);
 
-// 单帧按键状态。pressed = 本帧新按下，held = 持续按住；两者都是电平语义，
-// 由后端在每帧开始前整体重置。
+// 按键状态。pressed = 本帧刚按下（边沿，每帧重置），held = 当前是否按住（电平，
+// 由后端在帧之间维护，长按/连发类功能用它）。
 struct PadState {
     bool pressed[kInputActionCount] = {};
     bool held[kInputActionCount] = {};

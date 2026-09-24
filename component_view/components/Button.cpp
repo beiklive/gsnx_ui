@@ -13,6 +13,9 @@ namespace {
 const char* kLeftKeyGlyph = Icons::Glyph(Icons::Button::L);
 const char* kRightKeyGlyph = Icons::Glyph(Icons::Button::R);
 
+// [L] <间隔> [R] 里，图标和间隔之间的固定间距
+constexpr float kLrGap = 10.0f;
+
 } // namespace
 
 // ---------------------------------------------------------------- 基类 ----
@@ -76,6 +79,16 @@ Button& Button::setIconGap(float value) {
     return *this;
 }
 
+Button& Button::setIconCellSize(float value) {
+    icon_cell = value;
+    return *this;
+}
+
+Button& Button::setSlotWidth(float value) {
+    lr_slot_width = value;
+    return *this;
+}
+
 Button& Button::setFontSize(float main_size, float subtitle_size) {
     font_size = main_size;
     subtitle_size = subtitle_size;
@@ -135,52 +148,90 @@ float Button::ResolvedFocusWidth() const {
     return focus_width > 0.0f ? focus_width : Global::component_style.focus_width;
 }
 
+float Button::ResolvedSlotWidth() const {
+    return lr_slot_width > 0.0f ? lr_slot_width : Global::component_style.lr_slot_width;
+}
+
+bool Button::SubtitleAllowed() const {
+    return true;
+}
+
 Button::LeftBlock Button::computeLeftBlock(const Rect& content) const {
     LeftBlock block;
+    const bool show_sub = SubtitleVisible();
     const float main_size = mainFontSize();
     const float sub_size = subFontSize();
     const ImVec2 main_extent = Draw::MeasureText(nullptr, main_size, text.c_str(), 0.0f);
     const ImVec2 sub_extent =
-        show_subtitle ? Draw::MeasureText(nullptr, sub_size, subtitle.c_str(), 0.0f) : ImVec2(0.0f, 0.0f);
-    const float text_w = Maxf(main_extent.x, sub_extent.x);
-    const float text_h = main_extent.y + (show_subtitle ? sub_extent.y + 2.0f : 0.0f);
+        show_sub ? Draw::MeasureText(nullptr, sub_size, subtitle.c_str(), 0.0f) : ImVec2(0.0f, 0.0f);
 
-    // 图标是正方形，边长 = 内容区高度 → 到边框的上下左右留白完全相同
-    const float icon_side = icon.empty() ? 0.0f : content.Height();
-    const float gap = icon.empty() ? 0.0f : icon_gap;
-    block.width = icon_side + gap + text_w;
-    const float block_h = Maxf(icon_side, text_h);
+    // 图标占左侧一个正方形格：边长默认 = 内容区高度 → 到边框的上下左右留白完全相同
+    const float cell = icon.empty() ? 0.0f : (icon_cell > 0.0f ? icon_cell : content.Height());
+    const float gap = (icon.empty() || text.empty()) ? 0.0f : icon_gap;
+
+    if (text.empty() && !icon.empty()) {
+        // 纯图标：图标在上、说明行在下方居中（竖排）。给说明行留出位置，图标格相应缩小
+        const float text_w = show_sub ? sub_extent.x : 0.0f;
+        const float text_h = show_sub ? sub_extent.y : 0.0f;
+        const float cell_v = Maxf(4.0f, content.Height() - (show_sub ? text_h + 2.0f : 0.0f));
+        block.vertical = true;
+        block.width = Maxf(cell_v, text_w);
+        const float total_h = cell_v + (show_sub ? text_h + 2.0f : 0.0f);
+        const float block_x = (text_align == TextAlign::Center) ? content.Center().x - block.width * 0.5f
+                                                               : content.min.x;
+        const float block_y = content.Center().y - total_h * 0.5f;
+        block.icon = Rect::FromPosSize(ImVec2(block_x + (block.width - cell_v) * 0.5f, block_y),
+                                      ImVec2(cell_v, cell_v));
+        block.text = Rect::FromPosSize(ImVec2(block_x + (block.width - text_w) * 0.5f, block_y + cell_v + 2.0f),
+                                      ImVec2(text_w, text_h));
+        return block;
+    }
+
+    const float text_w = Maxf(main_extent.x, sub_extent.x);
+    const float text_h = main_extent.y + (show_sub ? sub_extent.y + 2.0f : 0.0f);
+    block.width = cell + gap + text_w;
+    const float block_h = Maxf(cell, text_h);
 
     // 文字块整体垂直居中（有没有说明行都居中）
     const float block_x = (text_align == TextAlign::Center) ? content.Center().x - block.width * 0.5f
                                                             : content.min.x;
     const float block_y = content.Center().y - block_h * 0.5f;
-    block.icon = Rect::FromPosSize(ImVec2(block_x, content.Center().y - icon_side * 0.5f),
-                                  ImVec2(icon_side, icon_side));
-    block.text = Rect::FromPosSize(ImVec2(block_x + icon_side + gap, block_y), ImVec2(text_w, text_h));
+    block.icon = Rect::FromPosSize(ImVec2(block_x, content.Center().y - cell * 0.5f), ImVec2(cell, cell));
+    block.text = Rect::FromPosSize(ImVec2(block_x + cell + gap, block_y), ImVec2(text_w, text_h));
     return block;
 }
 
 void Button::drawLeftBlock(ImDrawList* dl, const LeftBlock& block) const {
     const float main_size = mainFontSize();
     const float sub_size = subFontSize();
+    const bool show_sub = SubtitleVisible();
 
     if (!icon.empty() && block.icon.Width() > 0.0f) {
         const float glyph_size = block.icon.Height() * 0.86f;
         const ImVec2 extent = Draw::MeasureText(nullptr, glyph_size, icon.c_str(), 0.0f);
+        // 格内水平 + 垂直居中
         Draw::Text(dl, nullptr, glyph_size,
                    ImVec2(block.icon.Center().x - extent.x * 0.5f, block.icon.Center().y - extent.y * 0.5f),
                    Theme::U32(text_color), icon.c_str());
     }
-    if (text.empty() && !show_subtitle) {
+    if (text.empty() && !show_sub) {
         return;
     }
     const ImVec2 main_extent = Draw::MeasureText(nullptr, main_size, text.c_str(), 0.0f);
 
+    if (block.vertical) {
+        // 纯图标形态：说明行在图标下方居中
+        if (show_sub) {
+            Draw::Text(dl, nullptr, sub_size, ImVec2(block.text.min.x, block.text.min.y),
+                       Theme::U32(subtitle_color), subtitle.c_str());
+        }
+        return;
+    }
+
     // 主文字在上、说明行在下，两块作为整体已经垂直居中
-    const float main_y = show_subtitle ? block.text.min.y : block.text.Center().y - main_extent.y * 0.5f;
+    const float main_y = show_sub ? block.text.min.y : block.text.Center().y - main_extent.y * 0.5f;
     Draw::Text(dl, nullptr, main_size, ImVec2(block.text.min.x, main_y), Theme::U32(text_color), text.c_str());
-    if (show_subtitle) {
+    if (show_sub) {
         Draw::Text(dl, nullptr, sub_size, ImVec2(block.text.min.x, main_y + main_extent.y + 2.0f),
                    Theme::U32(subtitle_color), subtitle.c_str());
     }
@@ -193,6 +244,33 @@ float Button::rightSideWidth() const {
 void Button::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
     (void)dl;
     (void)right_rect;
+}
+
+// [L] 间隔 [R]：L / R 图标贴在右侧两端，中间是**固定宽度**的间隔（默认
+// Global::component_style.lr_slot_width），文字/数字在间隔里居中；放不下就在间隔里滚动。
+float Button::lrKeysWidth() const {
+    const float size = mainFontSize();
+    const float left = Draw::MeasureText(nullptr, size, kLeftKeyGlyph, 0.0f).x;
+    const float right = Draw::MeasureText(nullptr, size, kRightKeyGlyph, 0.0f).x;
+    return left + kLrGap + ResolvedSlotWidth() + kLrGap + right;
+}
+
+void Button::drawLrRow(ImDrawList* dl, const Rect& right_rect, const char* content, ImU32 content_color) const {
+    const float size = mainFontSize();
+    const ImVec2 left_extent = Draw::MeasureText(nullptr, size, kLeftKeyGlyph, 0.0f);
+    const ImVec2 right_extent = Draw::MeasureText(nullptr, size, kRightKeyGlyph, 0.0f);
+    const float total = left_extent.x + kLrGap + ResolvedSlotWidth() + kLrGap + right_extent.x;
+    const float x = right_rect.max.x - total; // 整行靠右对齐
+    const float center_y = right_rect.Center().y;
+    Draw::Text(dl, nullptr, size, ImVec2(x, center_y - left_extent.y * 0.5f), Theme::U32(Theme::kTextMuted),
+               kLeftKeyGlyph);
+    const Rect slot = Rect::FromPosSize(ImVec2(x + left_extent.x + kLrGap, right_rect.min.y),
+                                       ImVec2(ResolvedSlotWidth(), right_rect.Height()));
+    Draw::MarqueeText(dl, nullptr, size, slot, content_color, content, Global::time,
+                      Global::component_style.marquee_speed);
+    const float right_x = x + left_extent.x + kLrGap + ResolvedSlotWidth() + kLrGap;
+    Draw::Text(dl, nullptr, size, ImVec2(right_x, center_y - right_extent.y * 0.5f), Theme::U32(Theme::kTextMuted),
+               kRightKeyGlyph);
 }
 
 ImVec2 Button::MeasureContent(const ImVec2& available) {
@@ -239,14 +317,23 @@ bool Button::OnPadAction(InputAction action) {
 }
 
 // ---------------------------------------------------------- 1 纯文字按钮 ----
+// 弹窗的「确认 / 取消」这类提示文字：文字居中，不带说明行。
+// 说明行接口在这里无效（SubtitleAllowed() = false），避免有人在提示按钮上误加小字。
 
 TextButton::TextButton() {
     name = "text_button";
     text_align = TextAlign::Center;
+    show_subtitle = false;
 }
 
 TextButton::TextButton(std::string value) : Button(std::move(value)) {
+    name = "text_button";
     text_align = TextAlign::Center;
+    show_subtitle = false;
+}
+
+bool TextButton::SubtitleAllowed() const {
+    return false;
 }
 
 // --------------------------------------------------------- 2 图标+文字按钮 ---
@@ -262,6 +349,7 @@ IconTextButton::IconTextButton(std::string glyph, std::string value) : IconTextB
 }
 
 // ------------------------------------------------------------- 3 图标按钮 ---
+// 只有圆角正方形 / 圆形两种形态；边长 setSide()，圆形时圆角 = 边长的一半。
 
 IconButton::IconButton() {
     name = "icon_button";
@@ -270,6 +358,27 @@ IconButton::IconButton() {
 
 IconButton::IconButton(std::string glyph) : IconButton() {
     icon = std::move(glyph);
+}
+
+IconButton& IconButton::setShape(IconButtonShape value) {
+    shape = value;
+    setSide(side); // 重新算圆角
+    return *this;
+}
+
+IconButton& IconButton::setSide(float value) {
+    side = Maxf(value, 8.0f);
+    size = ImVec2(side, side);
+    // 圆形：圆角 = 边长的一半；圆角正方形：用全局约定圆角
+    corner_radius = (shape == IconButtonShape::Circle) ? side * 0.5f : Global::component_style.corner_radius;
+    corner_tl = corner_tr = corner_bl = corner_br = -1.0f;
+    return *this;
+}
+
+ImVec2 IconButton::MeasureContent(const ImVec2& available) {
+    (void)available;
+    const float inner = Maxf(side - padding.left - padding.right, 8.0f);
+    return ImVec2(inner, inner);
 }
 
 // --------------------------------------------------------------- 4 开关 ----
@@ -396,27 +505,11 @@ const char* OptionButton::currentOption() const {
 }
 
 float OptionButton::rightSideWidth() const {
-    const float key = Draw::MeasureText(nullptr, mainFontSize(), kLeftKeyGlyph, 0.0f).x;
-    const float option = Draw::MeasureText(nullptr, mainFontSize(), currentOption(), 0.0f).x;
-    return key * 2.0f + option + 20.0f; // 两个按键图标 + 选项文字 + 间距
+    return lrKeysWidth();
 }
 
 void OptionButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
-    const float size = mainFontSize();
-    const ImVec2 left_extent = Draw::MeasureText(nullptr, size, kLeftKeyGlyph, 0.0f);
-    const ImVec2 right_extent = Draw::MeasureText(nullptr, size, kRightKeyGlyph, 0.0f);
-    const ImVec2 option_extent = Draw::MeasureText(nullptr, size, currentOption(), 0.0f);
-    const float total = left_extent.x + 10.0f + option_extent.x + 10.0f + right_extent.x;
-    // 右侧整体靠右对齐
-    float x = right_rect.max.x - total;
-    Draw::Text(dl, nullptr, size, ImVec2(x, right_rect.Center().y - left_extent.y * 0.5f), Theme::U32(Theme::kTextMuted),
-               kLeftKeyGlyph);
-    x += left_extent.x + 10.0f;
-    Draw::Text(dl, nullptr, size, ImVec2(x, right_rect.Center().y - option_extent.y * 0.5f),
-               Theme::U32(option_color), currentOption());
-    x += option_extent.x + 10.0f;
-    Draw::Text(dl, nullptr, size, ImVec2(x, right_rect.Center().y - right_extent.y * 0.5f),
-               Theme::U32(Theme::kTextMuted), kRightKeyGlyph);
+    drawLrRow(dl, right_rect, currentOption(), Theme::U32(option_color));
 }
 
 bool OptionButton::OnPadAction(InputAction action) {
@@ -471,39 +564,77 @@ std::string ValueButton::valueText() const {
 }
 
 float ValueButton::rightSideWidth() const {
-    const float key = Draw::MeasureText(nullptr, mainFontSize(), kLeftKeyGlyph, 0.0f).x;
-    const float value_w = Draw::MeasureText(nullptr, mainFontSize(), valueText().c_str(), 0.0f).x;
-    return key * 2.0f + value_w + 20.0f;
+    return lrKeysWidth();
 }
 
 void ValueButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
-    const float size = mainFontSize();
     const std::string shown = valueText();
-    const ImVec2 left_extent = Draw::MeasureText(nullptr, size, kLeftKeyGlyph, 0.0f);
-    const ImVec2 right_extent = Draw::MeasureText(nullptr, size, kRightKeyGlyph, 0.0f);
-    const ImVec2 value_extent = Draw::MeasureText(nullptr, size, shown.c_str(), 0.0f);
-    const float total = left_extent.x + 10.0f + value_extent.x + 10.0f + right_extent.x;
-    float x = right_rect.max.x - total;
-    Draw::Text(dl, nullptr, size, ImVec2(x, right_rect.Center().y - left_extent.y * 0.5f), Theme::U32(Theme::kTextMuted),
-               kLeftKeyGlyph);
-    x += left_extent.x + 10.0f;
-    Draw::Text(dl, nullptr, size, ImVec2(x, right_rect.Center().y - value_extent.y * 0.5f),
-               Theme::U32(value_color), shown.c_str());
-    x += value_extent.x + 10.0f;
-    Draw::Text(dl, nullptr, size, ImVec2(x, right_rect.Center().y - right_extent.y * 0.5f),
-               Theme::U32(Theme::kTextMuted), kRightKeyGlyph);
+    drawLrRow(dl, right_rect, shown.c_str(), Theme::U32(value_color));
+}
+
+void ValueButton::stepBy(int direction, float multiplier) {
+    setValue(value + step * multiplier * static_cast<float>(direction), false);
 }
 
 bool ValueButton::OnPadAction(InputAction action) {
-    if (action == InputAction::PageLeft) {
-        setValue(value - step);
-        return true;
+    const int direction = (action == InputAction::PageLeft) ? -1 : (action == InputAction::PageRight) ? 1 : 0;
+    if (direction == 0) {
+        return false;
     }
-    if (action == InputAction::PageRight) {
-        setValue(value + step);
-        return true;
+    // 短按：先改一步（只改显示值，不发信号）；按住时间交给 OnUpdate 做加速重复
+    const float before = value;
+    stepBy(direction, 1.0f);
+    hold_dir_ = direction;
+    hold_time_ = 0.0f;
+    repeat_timer_ = 0.0f;
+    pending_change_ = (value != before); // 已经顶到边界就不算变化，松开时也不发信号
+    return true;
+}
+
+void ValueButton::flushPending() {
+    if (pending_change_) {
+        pending_change_ = false;
+        emit valueChanged(value);
     }
-    return false;
+}
+
+void ValueButton::OnUpdate(float dt) {
+    if (hold_dir_ == 0) {
+        return;
+    }
+    const InputAction held_action = hold_dir_ < 0 ? InputAction::PageLeft : InputAction::PageRight;
+    if (!Global::pad.Held(held_action)) {
+        // 松开：短按 / 长按都在这里发一次 valueChanged
+        hold_dir_ = 0;
+        hold_time_ = 0.0f;
+        repeat_timer_ = 0.0f;
+        flushPending();
+        return;
+    }
+    hold_time_ += dt;
+    if (hold_time_ < repeat_delay) {
+        return;
+    }
+    // 长按加速：间隔从 repeat_interval 线性收紧到 repeat_min_interval（有下限），
+    // 步长倍率从 1 涨到 repeat_max_multiplier（有上限）。
+    const float progress = Clampf((hold_time_ - repeat_delay) / Maxf(repeat_accel_time, 0.01f), 0.0f, 1.0f);
+    const float interval = Maxf(repeat_interval + (repeat_min_interval - repeat_interval) * progress,
+                                repeat_min_interval);
+    const float multiplier = Clampf(1.0f + (repeat_max_multiplier - 1.0f) * progress, 1.0f, repeat_max_multiplier);
+    // 倍率取整：跳跃始终是 step 的整数倍，长按调出来的值仍在网格上（不会出现 77.54）
+    const float jump = static_cast<float>(static_cast<int>(multiplier));
+    repeat_timer_ += dt;
+    while (repeat_timer_ >= interval) {
+        repeat_timer_ -= interval;
+        const float before = value;
+        stepBy(hold_dir_, jump);
+        if (value == before) {
+            hold_dir_ = 0; // 已经顶到边界：结束这次长按，把已有的变化发出去
+            flushPending();
+            break;
+        }
+        pending_change_ = true;
+    }
 }
 
 } // namespace gui_dev::cv
