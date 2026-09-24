@@ -35,9 +35,11 @@ class DemoApp final : public App {
 public:
     void Configure(BackendConfig& cfg, PlatformKind kind) const override;
     void OnStart(UiContext& ui) override;
+    void OnFrame(UiContext& ui, float dt) override;
 
 private:
     std::string version_ = GUI_DEV_VERSION;
+    int frame_ = 0;
 };
 
 } // namespace gui_dev::demo

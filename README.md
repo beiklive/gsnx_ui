@@ -87,6 +87,31 @@ main/demo  ->  gui_dev  ->  gui_dev_backend  ->  imgui
 **新增界面**：继承 `Scene`，重写 `OnRender`，用 `Components::*` 拼装；
 页面跳转用 `SceneStack::Push/Pop`。
 
+### 生命周期约定（曾因此崩溃）
+
+场景常持有 `TextureRef` / 字体等后端资源，而 `Backend` 由 `AppRunner` 持有。
+**持有后端资源的对象必须先于 `Backend` 析构**，否则退出时会对已释放的 Backend
+调 `ReleaseTexture()` → `SIGSEGV`（`AppRunner::Run()` 内部因此显式
+`app_.Scenes().Clear()`，就在 `ui_.reset()` / `backend_->Shutdown()` 之前）。
+
+双保险：`BackendLiveness`（`Backend.h`）是挂在 Backend 上的存活标记，
+`TextureRef` 一并保存它；Backend 一析构标记即置 false，之后释放纹理只会打警告、
+不会崩：
+
+```text
+[gui_dev] 纹理在后端销毁之后才释放，已跳过（GPU 资源泄漏）。请确保持有纹理的对象先于 Backend 析构。
+```
+
+### 退出路径冒烟测试
+
+`timeout` 杀进程走不到析构，因此专门留了正常退出入口：
+
+```bash
+GUI_DEV_EXIT_AFTER=60 ./build/mac/gui_dev_demo   # 跑满 60 帧后正常退出，退出码应为 0
+```
+
+配合 `Backend::RequestQuit()`（UI 里的「退出」入口也用它）。
+
 ## 页面画布：直接画在屏幕上
 
 `Components::BeginPanel` / `EndPanel` 是**铺满整屏的根画布**，不是浮动窗口：
@@ -272,12 +297,12 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
 
 ## 状态
 
-- 已确认：mac（Debug/Release）与 Switch（NRO）均可编译通过；mac 端连续运行无崩溃、无
-  imgui 断言；抓帧核对过：画布铺满 1280×720、8 个 Box 栅格排布、焦点 Box 的流光边框
-  完整闭合、注入一次方向键右后焦点正确右移、主字体为 HOS `switch_font.ttf`、
-  16 个按键图标与 35 个 Material 图标逐个渲染正确；Switch NRO 内已确认含
-  `font/MaterialIcons-Regular.ttf` 与 `img/border_gradient.png` 的 romfs。
-  界面快照见 `docs/ui-preview.png`。
+- 已确认：mac（Debug/Release）与 Switch（NRO）均可编译通过；mac 端**正常退出**（`GUI_DEV_EXIT_AFTER`
+  走 RequestQuit 与合成 SDL_QUIT 两条路径）退出码 0、无泄漏告警；抓帧核对过：画布铺满
+  1280×720、8 个 Box 栅格排布、焦点 Box 的流光边框完整闭合、注入一次方向键右后焦点
+  正确右移、主字体为 HOS `switch_font.ttf`、16 个按键图标与 35 个 Material 图标逐个
+  渲染正确；Switch NRO 内已确认含 `font/MaterialIcons-Regular.ttf` 与
+  `img/border_gradient.png` 的 romfs。界面快照见 `docs/ui-preview.png`。
 - 未验证：NRO 在实机/模拟器上的运行表现（含 HOS 共享字体与 NintendoExt 的实际字形、
   romfsInit 是否成功、Material 图标在实机上的渲染）。
 - 已知取舍：`assets/font/switch_font.ttf` 10.9MB 进了 git。仓库体积敏感的话建议转

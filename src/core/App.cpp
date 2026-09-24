@@ -75,6 +75,12 @@ int AppRunner::Run() {
     }
 
     app_.OnShutdown(*ui_);
+
+    // 顺序很重要：场景可能持有纹理等后端资源，必须在
+    // ui 与 backend 销毁**之前**析构，否则场景析构会去回调已释放的 Backend
+    // （表现为进程正常退出时 SIGSEGV）。App/场景栈随后析构时已是空的。
+    app_.Scenes().Clear();
+
     ui_.reset();
     backend_->ShutdownImGuiBackend();
     ImGui::DestroyContext();

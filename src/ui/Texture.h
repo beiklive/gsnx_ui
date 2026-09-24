@@ -34,6 +34,9 @@ public:
 
 private:
     Backend* backend_ = nullptr;
+    // Backend 可能先于本对象析构（例如场景比后端活得久）：
+    // 靠存活标记判空，否则退出时会对已释放的 Backend 调 ReleaseTexture 而崩溃。
+    BackendLiveness liveness_;
     Texture texture_{};
 };
 

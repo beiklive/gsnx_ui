@@ -43,6 +43,11 @@ public:
     Scene* Top();
     const Scene* Top() const;
 
+    // 立即析构所有场景。
+    // 场景可能持有纹理/字体等后端资源，**必须在后端销毁前**调用，
+    // 否则场景析构会回调已释放的 Backend（退出时必崩）。
+    void Clear() { scenes_.clear(); }
+
     // 依次调用所有场景的 OnRender（下层场景只读展示，输入只给栈顶）。
     void RenderAll(UiContext& ui);
     void UpdateAll(UiContext& ui, float dt);

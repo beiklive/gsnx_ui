@@ -78,9 +78,26 @@ struct Texture {
     bool Valid() const { return id != 0; }
 };
 
+// 与 Backend 生命周期绑定的存活标记。
+//
+// 长期持有 Backend 引用/指针的对象（典型是 TextureRef）必须一并保存它：
+// Backend 一析构标记就置 false，于是对象即使活得更久也不会去回调已释放的
+// Backend，而是安全跳过并打警告。这是为了避免「退出时崩溃」这类悬垂调用。
+class BackendLiveness {
+public:
+    bool Alive() const { return *alive_; }
+
+private:
+    friend class Backend;
+    void MarkDead() { *alive_ = false; }
+
+    std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
+};
+
 class Backend {
 public:
-    virtual ~Backend() = default;
+    // 析构时置存活标记：让仍持有旧 Backend 引用的对象不会再回调进来。
+    virtual ~Backend() { liveness_.MarkDead(); }
 
     Backend(const Backend&) = delete;
     Backend& operator=(const Backend&) = delete;
@@ -90,6 +107,10 @@ public:
 
     // true = 上层应退出主循环（窗口关闭 / HOME 键等）。
     virtual bool ShouldQuit() const = 0;
+
+    // 请求退出主循环（UI 里的「退出」入口、自动化冒烟测试等）。
+    // 主循环会在下一轮检查 ShouldQuit() 后走正常退出流程。
+    virtual void RequestQuit() = 0;
 
     // 事件泵 + 输入采样。每帧在 UiContext::BeginFrame() 之前调用一次。
     virtual void PollEvents(InputFrame& in) = 0;
@@ -122,8 +143,14 @@ public:
     virtual Texture LoadTexture(const char* relative_asset_path) = 0;
     virtual void ReleaseTexture(Texture& texture) = 0;
 
+    // 存活标记。任何生命周期可能长于 Backend 的对象都该存一份。
+    const BackendLiveness& Liveness() const { return liveness_; }
+
 protected:
     Backend() = default;
+
+private:
+    BackendLiveness liveness_;
 };
 
 // 编译期选择的后端实现（见 CMakeLists.txt 的 GUI_DEV_BACKEND）。

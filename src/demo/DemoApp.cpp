@@ -1,6 +1,7 @@
 #include "demo/DemoApp.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <utility>
 
 #include "ui/Icons.h"
@@ -144,6 +145,19 @@ void DemoApp::Configure(BackendConfig& cfg, PlatformKind kind) const {
 #if defined(GUI_DEV_PLATFORM_switch)
     cfg.vsync = false; // Switch 由 libnx 垂直同步，SDL 再同步会拖帧
 #endif
+}
+
+void DemoApp::OnFrame(UiContext& ui, float dt) {
+    (void)dt;
+    // GUI_DEV_EXIT_AFTER=<帧数>：跑满帧数后走正常退出流程。
+    // 用来在 CI/脚本里验证「退出路径」不崩（timeout 杀进程是走不到析构的）。
+    static const int exit_after = [] {
+        const char* value = std::getenv("GUI_DEV_EXIT_AFTER");
+        return value != nullptr ? std::atoi(value) : 0;
+    }();
+    if (exit_after > 0 && ++frame_ >= exit_after) {
+        ui.GetBackend().RequestQuit();
+    }
 }
 
 void DemoApp::OnStart(UiContext& ui) {

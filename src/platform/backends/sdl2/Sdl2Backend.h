@@ -23,6 +23,7 @@ public:
     void Shutdown() override;
 
     bool ShouldQuit() const override { return quit_; }
+    void RequestQuit() override { quit_ = true; }
     void PollEvents(InputFrame& in) override;
 
     void BeginRenderFrame() override;
