@@ -182,6 +182,43 @@ inline constexpr ImVec4 kScrim  = rgba(8, 8, 10, 200);   // #08080AC8（带 alph
 `Theme.h` 末尾有一组 `static_assert`，保证每个 `rgb()/rgba()` 都能精确还原成注释里的十六进制
 （换写法不改颜色，写错分量编译期就报错）。
 
+### 焦点与导航（Box 既能当容器，也能当控件）
+
+一个 Box 有两种身份，按需要开关：
+
+```cpp
+// 容器：什么都不用调。它只负责位置/背景/子节点排版，焦点落在子节点上
+Box* panel = parent->Emplace<Box>("panel");
+
+// 可聚焦控件：方向键能选中它，A/回车/鼠标左键触发 clicked 信号
+Box* card = parent->Emplace<Box>("card");
+card->makeFocusable();          // = focusable + 焦点框 + 聚焦缩放
+connect(card, &Box::clicked, this, [card] { /* ... */ });
+connect(card, &Box::focusIn, this, [card] { /* ... */ });
+```
+
+可聚焦的 Box 同时还能当容器：子节点照样能被聚焦，因为 `focus_only_self` 默认 false
+（`true` = 复合控件语义，只把自己当焦点停靠点，列表/滑条那种内部自己导航的才需要）。
+
+导航相关的开关（都在 `Widget` 上）：
+
+| 属性 | 作用 |
+|---|---|
+| `focusable` | 是否进入焦点列表（`Page::Update` 每帧收集） |
+| `focus_only_self` | true = 只把自己当停靠点；false = 自己和子节点都能被聚焦 |
+| `focus_zone` | 焦点分区：跨分区只允许左右方向（左列 Tab / 右内容区就是两个分区） |
+| `capture_horizontal` / `capture_vertical` | 自己消费这两个方向，全局导航让位（滑条/L 列表内部导航） |
+| `focus_on_hover` | 桌面端：鼠标悬停即接管焦点（鼠标和手柄共用一个焦点） |
+| `focus_frame` / `focus_scale` / `focus_translate` / `focus_frame_color` / `focus_animation_speed` | 焦点视觉（框 + 缩放 + 位移，都是指数平滑，吃 dt） |
+| `hasFocus()` / `focusIn` / `focusOut` | 读状态 / 收信号 |
+
+鼠标、键盘方向键、手柄方向键走的是同一条路：`Page::Update()` 里
+`Global::CollectFocusables → Global::NavigateFocus(焦点列表)`，算法是**最近邻**
+（主方向投影距离 + 2 倍垂直偏移），优先级：同分区且无祖先/后代关系 → 同分区 → 跨分区（仅左右）。
+程序化切焦点用 `widget->RequestFocus()`（要求 focusable）或 `Global::SetFocus(widget)`；
+初始焦点不设置的话会自动落在焦点列表的第一个。
+
+### 坐标系（先记住这三条）
 ### 坐标系（先记住这三条）
 
 1. 设计空间固定 **1280x720**（后端按 `min(高/720, 宽/1280)` 缩放），所有尺寸都按 720p 写。

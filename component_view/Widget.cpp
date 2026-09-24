@@ -574,7 +574,10 @@ void Widget::CollectFocusables(std::vector<Widget*>& out) {
     }
     if (focusable) {
         out.push_back(this);
-        // 复合控件只有自己一个焦点停靠点，内部导航由它自己处理
+    }
+    // 复合控件只把自己当焦点停靠点（内部导航由它自己处理）；
+    // 容器语义下继续往下收集子节点。
+    if (focus_only_self) {
         return;
     }
     for (auto& child : children) {

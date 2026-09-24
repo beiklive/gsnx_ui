@@ -121,12 +121,29 @@ void NavigateFocus(const std::vector<Widget*>& focusables) {
     }
 
     // 最近邻选择：主方向投影距离 + 2 倍垂直偏移。
-    // 先在同一个焦点分区里找；找不到且是左右方向时，才允许跨分区
-    //（这正是「内容区按 ← 回到左侧标签列、标签列按 → 进入内容」的实现）。
+    // 优先级：
+    //   1) 同一焦点分区、且不是祖先/后代关系的组件（正常情况）
+    //   2) 同一分区（只有嵌套关系可选时，例如容器和它的子节点）
+    //   3) 跨分区（仅左右方向：这就是「内容区按 ← 回左列、左列按 → 进内容」）
     const ImVec2 center = current->rect.Center();
     const int zone = current->focus_zone;
 
-    auto pick = [&](bool same_zone_only) {
+    // 祖先/后代：包含关系下按方向键容易原地打转，最后再考虑
+    auto related = [](const Widget* a, const Widget* b) {
+        for (const Widget* node = a; node != nullptr; node = node->parent) {
+            if (node == b) {
+                return true;
+            }
+        }
+        for (const Widget* node = b; node != nullptr; node = node->parent) {
+            if (node == a) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto pick = [&](bool same_zone_only, bool skip_related) {
         Widget* best = nullptr;
         float best_score = FLT_MAX;
         for (Widget* item : focusables) {
@@ -135,6 +152,9 @@ void NavigateFocus(const std::vector<Widget*>& focusables) {
             }
             const bool same_zone = (item->focus_zone == zone);
             if (same_zone_only != same_zone) {
+                continue;
+            }
+            if (skip_related && related(current, item)) {
                 continue;
             }
             const ImVec2 item_center = item->rect.Center();
@@ -153,9 +173,15 @@ void NavigateFocus(const std::vector<Widget*>& focusables) {
         return best;
     };
 
-    Widget* best = pick(true);
+    Widget* best = pick(true, true);
+    if (best == nullptr) {
+        best = pick(true, false);
+    }
     if (best == nullptr && dir.x != 0.0f) {
-        best = pick(false);
+        best = pick(false, true);
+        if (best == nullptr) {
+            best = pick(false, false);
+        }
     }
     if (best != nullptr) {
         SetFocus(best);

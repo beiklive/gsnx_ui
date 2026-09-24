@@ -32,14 +32,37 @@ public:
         // 页面左上角放一个 128x128 的盒子。
         // moveTo(0, 0) 就是页面的左上角（根节点没有 padding），想挪位置改这两个数即可。
         box_ = Root().Emplace<Box>("box");
-        box_->moveTo(0.0f, 0.0f);
+        box_->moveTo(10.0f, 10.0f);
         box_->resize(128.0f, 128.0f);
         box_->fillWith(gui_dev::cv::Theme::kBgWidget); // rgba()/rgb() 的结果可以直接用
         box_->roundCorners(gui_dev::cv::Theme::kRadius);
+
+        // 同一个 Box 两种用法，按需要开关：
+        //   只当容器 -> 什么都不用调（焦点落在子节点上）
+        //   当可聚焦控件 -> makeFocusable()，方向键能选中，A/回车触发 clicked 信号
+        box_->makeFocusable();
+
+        // 第二个盒子：只为验证 ← → 焦点导航（不需要就删掉这两行）
+        second_ = Root().Emplace<Box>("box2");
+        second_->moveTo(148.0f, 10.0f);
+        second_->resize(128.0f, 128.0f);
+        second_->fillWith(gui_dev::cv::Theme::kBgWidgetHi);
+        second_->roundCorners(gui_dev::cv::Theme::kRadius);
+        second_->makeFocusable();
+
+        // Qt 风格连接信号：A/回车（或鼠标点击）触发 clicked，把底色在「普通色/强调色」之间切换
+        const auto bind_click = [this](Box* box, ImVec4 normal) {
+            connect(box, &Box::clicked, this, [box, normal] {
+                box->fillWith(box->hasFocus() ? gui_dev::cv::Theme::kAccent : normal);
+            });
+        };
+        bind_click(box_, gui_dev::cv::Theme::kBgWidget);
+        bind_click(second_, gui_dev::cv::Theme::kBgWidgetHi);
     }
 
 private:
     Box* box_ = nullptr;
+    Box* second_ = nullptr;
 };
 
 // ------------------------------------------------------------------ App ----

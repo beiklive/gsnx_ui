@@ -53,4 +53,27 @@ Box& Box::dropShadow(float blur, ImU32 color) {
     return *this;
 }
 
+Box& Box::makeFocusable(bool value) {
+    focusable = value;
+    // 可聚焦的 Box 默认就有可见反馈，不然按方向键看不出选中的是哪个
+    if (value) {
+        focusVisual();
+    }
+    return *this;
+}
+
+Box& Box::focusVisual(float scale, const ImVec2& translate, float frame_offset, ImU32 frame_color) {
+    focus_frame = true;
+    focus_frame_offset = frame_offset;
+    focus_frame_color = frame_color;
+    focus_scale = scale;
+    focus_translate = translate;
+    return *this;
+}
+
+Box& Box::focusOnlySelf(bool value) {
+    focus_only_self = value;
+    return *this;
+}
+
 } // namespace gui_dev::cv

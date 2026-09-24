@@ -108,6 +108,11 @@ public:
     // 离开这类控件用另一半方向键或 B 键。
     bool capture_horizontal = false;
     bool capture_vertical = false;
+    // 焦点遍历时是否连子节点一起算：
+    //   false（默认）= 容器语义 —— 自己可聚焦，子节点也各自是焦点停靠点
+    //   true          = 复合控件语义 —— 只把自己当停靠点（列表/滑条那种内部自己导航）
+    // 两者都要求 focusable = true 才生效。
+    bool focus_only_self = false;
     bool focus_frame = false;           // 是否在自身外侧画焦点框
     float focus_scale = 1.0f;           // focused 时的缩放（1 = 不缩放）
     ImVec2 focus_translate{0.0f, 0.0f}; // focused 时的位移
@@ -312,6 +317,23 @@ signals:
     }
     Widget& SetFocusable(bool value) {
         focusable = value;
+        return *this;
+    }
+    Widget& SetFocusOnlySelf(bool value) {
+        focus_only_self = value;
+        return *this;
+    }
+    Widget& SetFocusOnHover(bool value) {
+        focus_on_hover = value;
+        return *this;
+    }
+    Widget& SetFocusFrame(bool value, float frame_offset = 3.0f) {
+        focus_frame = value;
+        focus_frame_offset = frame_offset;
+        return *this;
+    }
+    Widget& SetFocusScale(float value) {
+        focus_scale = value;
         return *this;
     }
     Widget& SetFocusVisual(float scale, const ImVec2& translate, bool frame) {

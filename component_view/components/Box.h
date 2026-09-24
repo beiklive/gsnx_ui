@@ -27,6 +27,19 @@ public:
     Box& roundCorners(float value);          // 圆角
     Box& outline(float width, ImU32 color);  // 边框
     Box& dropShadow(float blur, ImU32 color); // 阴影
+
+    // ---- 焦点 --------------------------------------------------------------
+    // Box 有两种身份，按需要选：
+    //   容器：不调 makeFocusable()，它只负责排版/背景，焦点落在子节点上
+    //   可聚焦控件：调 makeFocusable()，手柄/键盘能选中它，A 触发 clicked 信号
+    //               （焦点时还可以叠加缩放/位移，见 focusVisual）
+    // 函数名不能叫 focusable —— 那是 Widget 的成员变量，同名会遮蔽。
+    Box& makeFocusable(bool value = true);
+    // 焦点视觉：scale = 聚焦时的缩放，translate = 聚焦时的位移，frame_offset = 焦点框外扩
+    Box& focusVisual(float scale = 1.04f, const ImVec2& translate = ImVec2(0.0f, 0.0f),
+                     float frame_offset = 3.0f, ImU32 frame_color = Theme::U32(Theme::kAccent));
+    // 复合控件语义：自己可聚焦，但不把子节点算进焦点导航（容器保持默认即可）
+    Box& focusOnlySelf(bool value = true);
 };
 
 } // namespace gui_dev::cv

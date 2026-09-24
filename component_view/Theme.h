@@ -44,7 +44,7 @@ ImU32 Mix(ImU32 a, ImU32 b, float t);
 
 // ---- VSCode Dark+ 调色板 ---------------------------------------------------
 // 编辑器底色 rgb(30, 30, 30) 而不是纯黑：纯黑在大屏上对比过强、边缘有光晕感。
-inline constexpr ImVec4 kBgEditor = rgb(189, 186, 186); // #BDBABA（原 VSCode 底色是 rgb(30,30,30) #1E1E1E）
+inline constexpr ImVec4 kBgEditor = rgb(255, 255, 255); // #FFFFFF（VSCode 默认底色是 rgb(30,30,30) #1E1E1E）
 inline constexpr ImVec4 kBgSideBar = rgb(37, 37, 38); // #252526
 inline constexpr ImVec4 kBgPanel = rgb(37, 37, 38); // #252526
 inline constexpr ImVec4 kBgActivity = rgb(51, 51, 51); // #333333
