@@ -126,7 +126,17 @@ add_library(gui_dev STATIC
     src/ui/Icons.cpp
     src/ui/Texture.cpp
     src/ui/Scene.cpp
-    src/ui/Components.cpp)
+    src/ui/Components.cpp
+    # 暂停菜单 UI 层（与渲染后端、模拟核心解耦）
+    src/gamemenu/MenuAnimation.cpp
+    src/gamemenu/GameMenuTheme.cpp
+    src/gamemenu/GameMenuDraw.cpp
+    src/gamemenu/GameMenuElement.cpp
+    src/gamemenu/GameMenuView.cpp
+    src/gamemenu/views/MainMenuView.cpp
+    src/gamemenu/views/StateSlotView.cpp
+    src/gamemenu/views/SettingsView.cpp
+    src/gamemenu/views/DialogView.cpp)
 target_include_directories(gui_dev PUBLIC src)
 target_link_libraries(gui_dev PUBLIC gui_dev_backend)
 
@@ -134,6 +144,12 @@ add_executable(gui_dev_demo
     src/main.cpp
     src/demo/DemoApp.cpp)
 target_link_libraries(gui_dev_demo PRIVATE gui_dev)
+
+# 暂停菜单 Demo：假游戏画面 + Persona 风格动态菜单（纯 UI 展示）
+add_executable(gui_dev_pause_demo
+    src/demo/pause/main.cpp
+    src/demo/pause/PauseDemo.cpp)
+target_link_libraries(gui_dev_pause_demo PRIVATE gui_dev)
 
 if(GUI_DEV_PLATFORM STREQUAL "switch")
     # NRO 打包：nx_create_nro 会生成 NACP 并调用 elf2nro。
@@ -152,12 +168,14 @@ if(GUI_DEV_PLATFORM STREQUAL "switch")
     file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets/font/MaterialIcons-Regular.ttf"
          DESTINATION "${GUI_DEV_ROMFS_DIR}/font")
 
-    set(GUI_DEV_NRO_ARGS OUTPUT "${CMAKE_BINARY_DIR}/dist/gui_dev_demo.nro"
-        ROMFS "${GUI_DEV_ROMFS_DIR}")
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
-        list(APPEND GUI_DEV_NRO_ARGS ICON "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
-    endif()
-    nx_create_nro(gui_dev_demo ${GUI_DEV_NRO_ARGS})
+    foreach(gui_dev_nro_target gui_dev_demo gui_dev_pause_demo)
+        set(GUI_DEV_NRO_ARGS OUTPUT "${CMAKE_BINARY_DIR}/dist/${gui_dev_nro_target}.nro"
+            ROMFS "${GUI_DEV_ROMFS_DIR}")
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
+            list(APPEND GUI_DEV_NRO_ARGS ICON "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
+        endif()
+        nx_create_nro(${gui_dev_nro_target} ${GUI_DEV_NRO_ARGS})
+    endforeach()
 
     # 图片额外拷一份到 NRO 旁边，方便用 sdmc:/switch/GUI_DEV/assets/ 覆盖 romfs 里的版本。
     add_custom_command(TARGET gui_dev_demo POST_BUILD

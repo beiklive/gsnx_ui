@@ -33,10 +33,19 @@ GUI_DEV/
 │   │   ├── AssetPaths.h        # assets/ 相对路径解析
 │   │   ├── Input.h             # 抽象输入动作（Up/Confirm/...）
 │   │   └── backends/sdl2/      # SDL2 后端 + 工厂 + 平台实现 + PNG 解码
-│   ├── demo/                   # 示例 App
+│   ├── gamemenu/               # ★ 暂停菜单 UI 层（DrawList 自绘，Persona 式视觉语言）
+│   │   ├── MenuAnimation.{h,cpp}   # 帧率无关插值 / 缓动 / MenuAnimationState
+│   │   ├── GameMenuTheme.{h,cpp}   # 黑/白/红三色 + 全部几何与时长参数
+│   │   ├── GameMenuDraw.{h,cpp}    # 斜切几何、锯齿边、扫描、文字排版原语
+│   │   ├── GameMenuElement.{h,cpp} # 按钮/面板/分类签/选择器/选项行/存档槽/焦点框
+│   │   ├── GameMenuView.{h,cpp}    # 视图基类 + 上下文 + Host（状态机/视图栈/输入分发）
+│   │   └── views/                  # MainMenu / StateSlot / Settings / Dialog
+│   ├── demo/                   # 示例 App（组件预览 + 暂停菜单）
 │   └── main.cpp
 ├── third_party/imgui/          # submodule
-├── docs/ui-preview.png         # 界面快照（人工核对用，非构建产物）
+├── docs/                       # 界面快照（人工核对用，非构建产物）
+│   ├── ui-preview.png
+│   └── pause-{menu,slots,settings,dialog}.png
 ├── assets/
 │   ├── font/                   # switch_font.ttf / switch_icons.ttf / MaterialIcons-Regular.ttf
 │   └── img/                    # UI 图片（border_gradient.png）
@@ -50,7 +59,8 @@ GUI_DEV/
 ```bash
 cmake --preset mac
 cmake --build --preset mac
-./build/mac/gui_dev_demo
+./build/mac/gui_dev_demo          # 组件预览（可聚焦 Box / 流光边框 / 字体与图标）
+./build/mac/gui_dev_pause_demo    # 暂停菜单 Demo（Persona 式动态菜单）
 ```
 
 依赖：`brew install sdl2 libpng`（`sdl2-compat` 也可）。预设里显式指定了
@@ -111,6 +121,81 @@ GUI_DEV_EXIT_AFTER=60 ./build/mac/gui_dev_demo   # 跑满 60 帧后正常退出�
 ```
 
 配合 `Backend::RequestQuit()`（UI 里的「退出」入口也用它）。
+
+## 暂停菜单（gamemenu）
+
+`gui_dev_pause_demo`：假游戏画面 + 游戏运行时暂停菜单，**全部用 DrawList 自绘**，
+一个 ImGui 控件（Button/Selectable/TabItem）都不用，因此没有 ImGui 默认视觉与 Nav 焦点环。
+
+### 分层
+
+```text
+GameMenuHost        外壳：ZL+ZR 开关、入场/退场状态机、视图栈、输入分发
+└── GameMenuView    一层页面：自己有哪些项、焦点在哪、怎么画
+    ├── MainMenuView    一级菜单（高频 / 配置 / 危险 三组）
+    ├── StateSlotView   存档 / 读档（同一个 UI，确认行为不同）
+    ├── SettingsView    独立设置 / 全局设置（左侧分类 + 右侧选项）
+    └── DialogView      确认对话框（重置 / 退出 / 未保存提示，覆盖层）
+        └── Element     单项：动画状态 + 绘制（GameMenuButton / Panel / Tab /
+                        Selector / MenuOptionRow / SaveSlot / FocusFrame）
+```
+
+动作出口是接口而非直接调用：`MainMenuDelegate` / `StateSlotDelegate` /
+`SettingsDelegate` / `DialogDelegate`。demo 里全部是 Mock，
+所以 UI 与渲染后端、模拟核心都是解耦的。
+
+### 动画系统（`MenuAnimation.h`）
+
+- `SmoothTo(cur, target, speed, dt) = cur + (target-cur) * (1 - exp(-speed*dt))`：跟随类；
+- `MoveTowards(cur, target, duration, dt)`：**必须有明确时长的进度**（焦点 160ms、
+  按压 100ms、扫描 220ms、入场 280ms、退场 160ms），也天然与帧率无关；
+- `EaseOutCubic / EaseOutQuad / EaseInOutCubic / EaseOutBack`（后者做焦点获得的轻微弹性）；
+- `MenuAnimationState{focus, press, enter, exit, sweep, flash}` 挂在每个元素上，只在
+  `Update(dt)` 里推进、只在 `Draw` 里读；`OnEnter` 里统一 `Reset()`，避免再次打开时残留；
+- 逐项出现用 `StaggerProgress(open_progress, index, cfg)`，25ms 步进。
+
+所有几何与时长都在 `GameMenuTheme`，绘制代码里没有魔法数字。
+**全链路只用 `ctx.time` / `dt`，没有 `ImGui::GetTime()`、没有 sleep、没有固定帧计数。**
+
+### 焦点动画（最重要的部分）
+
+未聚焦：黑色斜切按钮 + 白字 + 白色细边框。
+获得焦点后同时发生：右移 13px、加宽 26px、微增高、右下出现红色错位背板、左侧红色竖条、
+白色边框 1.5 → 2.5px、文字右移、左侧红色箭头滑入并 `sin(t*8)*3` 轻微摆动、
+`EaseOutBack` 回弹、以及**一次** 220ms 的扫描高光（只触发一次，不循环）。
+焦点从旧项移到新项时，两个元素的 `focus` 各自 0→1 / 1→0 同时进行，
+焦点框（`GameMenuFocusFrame`）再以指数平滑追过去。
+
+### 开关与布局
+
+- ZL + ZR（键盘 `Z`+`C`）：同时按住为一次开关，边沿触发；关闭时整个面板向右滑出；
+- `+`（Tab）：无论在第几层都直接回游戏；`B`（Esc）才逐层返回；
+- 菜单靠右占约 35%，左侧保留游戏画面；遮罩 `dim_alpha = 0.46`（不全黑、不用模糊）；
+- 面板入场用 `EaseOutBack` 从屏幕右侧滑入，标题比内容稍晚到位，菜单项 25ms 依次出现。
+
+### 操作（demo）
+
+| 按键 | 手柄 | 作用 |
+|---|---|---|
+| `Z` + `C` | ZL + ZR | 打开 / 关闭菜单 |
+| `↑ ↓ ← →` | 十字键 | 移动焦点 / 修改选项 |
+| `Enter` | A | 确认（带按压反馈） |
+| `Esc` | B | 返回上一层 |
+| `Q` / `E` | L / R | 翻页 / 切换分类 |
+| `Tab` | + | 直接返回游戏 |
+
+### 性能约束
+
+每帧只改位置/尺寸/颜色/透明度与少量顶点，不建纹理、不建字体、不做离屏与模糊。
+已核对 `src/gamemenu` 无 `std::string` / 无每帧 `std::vector` 增长 / 无 `new`；
+文本格式化全部写进固定成员缓冲。
+
+### Mock 与真实实现的边界
+
+demo 里的存档读写、重置、退出、设置项变更**全部是 Mock**（只更新画面与提示），
+不接任何模拟核心。接真实实现时只需替换四个 Delegate：
+`SaveState/LoadState/FillSlot`、`OnResume/OnRequestReset/OnRequestExit`、
+`OnSettingChanged/OnSettingCommand`、`OnDialogResult`。
 
 ## 页面画布：直接画在屏幕上
 
@@ -303,7 +388,12 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   正确右移、主字体为 HOS `switch_font.ttf`、16 个按键图标与 35 个 Material 图标逐个
   渲染正确；Switch NRO 内已确认含 `font/MaterialIcons-Regular.ttf` 与
   `img/border_gradient.png` 的 romfs。界面快照见 `docs/ui-preview.png`。
+- 已确认（暂停菜单）：mac 端脚本化注入按键走通
+  `ZL+ZR 打开 → 焦点移动 → A 进存档页 → B 返回 → A 进设置页 → 改选项 → 重置确认框`，
+  抓帧逐个核对（见 `docs/pause-*.png`）；两个 demo 正常退出码 0；
+  mac 与 Switch 均编译通过（Switch 产出两个 NRO）。
 - 未验证：NRO 在实机/模拟器上的运行表现（含 HOS 共享字体与 NintendoExt 的实际字形、
-  romfsInit 是否成功、Material 图标在实机上的渲染）。
+  romfsInit 是否成功、Material 图标在实机上的渲染）；暂停菜单在实机上的手感与耗时
+  （30/60/120FPS 的时间一致性由公式保证，但没有实机测帧）。
 - 已知取舍：`assets/font/switch_font.ttf` 10.9MB 进了 git。仓库体积敏感的话建议转
   Git LFS 或按需本地放置（mac 端缺它会退回系统 CJK 字体，不影响 Switch）。

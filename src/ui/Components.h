@@ -15,6 +15,11 @@ class UiContext;
 
 namespace Components {
 
+// 全屏无装饰根画布：所有页面与叠加层都画在它里面（不是浮动窗口）。
+// BeginPanel 内部就是用它开的画布。
+bool BeginCanvas(UiContext& ui, const char* id);
+void EndCanvas();
+
 // 页面骨架：铺满屏幕的根画布 + 页头 + 可滚动内容区 + 底部按键提示。
 //
 // 用法（页脚必须在 EndPanel 里提交，因为它要画在画布内）：

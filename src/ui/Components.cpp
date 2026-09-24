@@ -52,7 +52,7 @@ void DebugLogRootCanvas() {
 
 } // namespace
 
-bool BeginPanel(UiContext& ui, const char* title, const char* subtitle) {
+bool BeginCanvas(UiContext& ui, const char* id) {
     (void)ui;
     // 尺寸必须每帧显式指定：不指定的话 ImGui 会按内容自动撑成一个浮窗。
     ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
@@ -62,10 +62,17 @@ bool BeginPanel(UiContext& ui, const char* title, const char* subtitle) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 
-    const std::string root_id = std::string("##panel_") + (title ? title : "root");
+    const std::string root_id = std::string("##canvas_") + (id ? id : "root");
     const bool open = ImGui::Begin(root_id.c_str(), nullptr, kRootWindowFlags);
     ImGui::PopStyleVar(3);
     DebugLogRootCanvas();
+    return open;
+}
+
+void EndCanvas() { ImGui::End(); }
+
+bool BeginPanel(UiContext& ui, const char* title, const char* subtitle) {
+    const bool open = BeginCanvas(ui, title);
 
     // ---- 页头（顶到画布最上方，因此用 Group 压掉窗口 padding）----------------
     ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));

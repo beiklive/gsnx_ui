@@ -14,9 +14,10 @@
 namespace gui_dev {
 namespace {
 
-constexpr int kActionCount = 10;
-
 inline std::size_t Idx(InputAction a) { return static_cast<std::size_t>(a); }
+
+// 扳机轴转按键的阈值（ZL/ZR 在 SDL 里是模拟轴，不是按钮）
+constexpr Sint16 kTriggerThreshold = 16384;
 
 // SDL 的 keycode/button 到抽象动作的映射集中在这里，
 // 上层（src/ui）永远只看到 InputAction。
@@ -41,6 +42,8 @@ constexpr KeyBinding kKeyBindings[] = {
     {SDLK_TAB, InputAction::Menu},
     {SDLK_q, InputAction::PageLeft},
     {SDLK_e, InputAction::PageRight},
+    {SDLK_z, InputAction::TriggerLeft},
+    {SDLK_c, InputAction::TriggerRight},
 };
 
 struct ButtonBinding {
@@ -163,7 +166,7 @@ void Sdl2Backend::Shutdown() {
 void Sdl2Backend::ApplyAction(InputFrame& in, SDL_Keycode key, InputAction action, bool down) {
     (void)key;
     const std::size_t i = Idx(action);
-    if (i >= kActionCount) {
+    if (i >= kInputActionCount) {
         return;
     }
     if (down) {
@@ -252,6 +255,16 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
         default:
             break;
         }
+    }
+
+    // ZL/ZR 是模拟轴，每帧按阈值采样成按键（带按住语义，松开即释放）。
+    if (controller_ != nullptr) {
+        const bool zl = SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_TRIGGERLEFT) >
+                        kTriggerThreshold;
+        const bool zr = SDL_GameControllerGetAxis(controller_, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) >
+                        kTriggerThreshold;
+        ApplyAction(in, 0, InputAction::TriggerLeft, zl);
+        ApplyAction(in, 0, InputAction::TriggerRight, zr);
     }
 
     // 分辨率变化检测：Switch 手持<->底座、桌面窗口缩放、Retina 迁移都会走到这里。
