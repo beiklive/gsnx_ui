@@ -113,16 +113,20 @@ void EndPanel(UiContext& ui, const std::vector<std::pair<const char*, const char
     ImGui::BeginChild("##panel_footer", ImVec2(0.0f, Theme::kFooterHeight), ImGuiChildFlags_None,
                       ImGuiWindowFlags_NoScrollbar);
     // key 通常是 Icons::Glyph(...) 字形，也可以是 "F11" 这类文本按键。
-    ImGui::SetCursorPos(ImVec2(Theme::kGapLarge,
-                               (Theme::kFooterHeight - ImGui::GetTextLineHeight()) * 0.5f));
-    for (std::size_t i = 0; i < footer_hints.size(); ++i) {
-        if (i > 0) {
-            ImGui::SameLine(0.0f, Theme::kGapLarge);
+    // 注意：hints 为空时**不能**动光标 —— 1.92 起 SetCursorPos 之后必须紧跟一个
+    // item，否则触发 ErrorCheckUsingSetCursorPosToExtendParentBoundaries 断言。
+    if (!footer_hints.empty()) {
+        ImGui::SetCursorPos(ImVec2(Theme::kGapLarge,
+                                   (Theme::kFooterHeight - ImGui::GetTextLineHeight()) * 0.5f));
+        for (std::size_t i = 0; i < footer_hints.size(); ++i) {
+            if (i > 0) {
+                ImGui::SameLine(0.0f, Theme::kGapLarge);
+            }
+            ImGui::TextColored(Theme::ToVec4(Theme::kAccent), "%s",
+                               footer_hints[i].first ? footer_hints[i].first : "");
+            ImGui::SameLine(0.0f, Theme::kGapSmall);
+            ImGui::TextDisabled("%s", footer_hints[i].second ? footer_hints[i].second : "");
         }
-        ImGui::TextColored(Theme::ToVec4(Theme::kAccent), "%s",
-                           footer_hints[i].first ? footer_hints[i].first : "");
-        ImGui::SameLine(0.0f, Theme::kGapSmall);
-        ImGui::TextDisabled("%s", footer_hints[i].second ? footer_hints[i].second : "");
     }
     ImGui::EndChild();
 

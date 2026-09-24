@@ -151,6 +151,12 @@ add_executable(gui_dev_pause_demo
     src/demo/pause/PauseDemo.cpp)
 target_link_libraries(gui_dev_pause_demo PRIVATE gui_dev)
 
+# 自定义控件教学 Demo：8 个循序渐进的例子
+add_executable(gui_dev_widget_demo
+    src/demo/widgets/main.cpp
+    src/demo/widgets/WidgetDemo.cpp)
+target_link_libraries(gui_dev_widget_demo PRIVATE gui_dev)
+
 if(GUI_DEV_PLATFORM STREQUAL "switch")
     # NRO 打包：nx_create_nro 会生成 NACP 并调用 elf2nro。
     # 图标可选：把 256x256 png 放到 assets/icon.png 即自动打包。
@@ -168,7 +174,7 @@ if(GUI_DEV_PLATFORM STREQUAL "switch")
     file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets/font/MaterialIcons-Regular.ttf"
          DESTINATION "${GUI_DEV_ROMFS_DIR}/font")
 
-    foreach(gui_dev_nro_target gui_dev_demo gui_dev_pause_demo)
+    foreach(gui_dev_nro_target gui_dev_demo gui_dev_pause_demo gui_dev_widget_demo)
         set(GUI_DEV_NRO_ARGS OUTPUT "${CMAKE_BINARY_DIR}/dist/${gui_dev_nro_target}.nro"
             ROMFS "${GUI_DEV_ROMFS_DIR}")
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")

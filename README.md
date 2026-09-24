@@ -122,6 +122,80 @@ GUI_DEV_EXIT_AFTER=60 ./build/mac/gui_dev_demo   # 跑满 60 帧后正常退出�
 
 配合 `Backend::RequestQuit()`（UI 里的「退出」入口也用它）。
 
+## 自定义控件 101
+
+教学 demo：`gui_dev_widget_demo`（源码 `src/demo/widgets/WidgetDemo.cpp`，
+8 个循序渐进的最小例子，每段注释写了「用了哪些 API / 为什么 / 坑在哪」）。
+
+### 心智模型
+
+ImGui 是**立即模式 + 布局游标**。它不认识你的控件，所以自定义控件固定两步：
+
+1. **占位** —— 让 ImGui 管布局、命中测试、ID、裁剪、遮挡；
+2. **自绘** —— 在占位矩形里用 `GetWindowDrawList()` 画任何东西。
+
+```cpp
+bool MyWidget(const char* id, const char* label) {
+    // 1) 量尺寸 + 取原点（必须在占位之前取）
+    const ImVec2 text = ImGui::CalcTextSize(label);
+    const ImVec2 size(text.x + 28.0f, text.y + 14.0f);
+    const ImVec2 mn = ImGui::GetCursorScreenPos();
+
+    // 2) 占位：InvisibleButton 会推进布局游标，并登记一个可交互 item
+    const bool clicked = ImGui::InvisibleButton(id, size);
+    const bool hovered = ImGui::IsItemHovered();
+    const ImVec2 mx(mn.x + size.x, mn.y + size.y);
+
+    // 3) 自绘：绘制顺序 = 代码顺序
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(mn, mx, hovered ? IM_COL32(0x2E, 0x6F, 0xB8, 0xFF)
+                                      : IM_COL32(0x44, 0x4A, 0x54, 0xFF), 5.0f);
+    dl->AddRect(mn, mx, IM_COL32_WHITE, 5.0f, 0, 1.5f);
+    dl->AddText(ImVec2(mn.x + 14.0f, mn.y + 7.0f), IM_COL32_WHITE, label);
+    return clicked;
+}
+```
+
+### API 速查
+
+| 用途 | API |
+|---|---|
+| 占位（可交互） | `InvisibleButton(id, size, flags)` |
+| 占位（不可交互） | `Dummy(size)` / `ItemSize` + `ItemAdd`（internal） |
+| 命中与状态 | `IsItemHovered` / `IsItemActive`（按住期恒真）/ `IsItemClicked` / `IsItemFocused` / `IsItemDeactivatedAfterEdit` |
+| 几何 | `GetItemRectMin/Max/Size`（已提交 item）、`GetCursorScreenPos`、`CalcTextSize`、`GetTextLineHeight` |
+| 时间 | `GetIO().DeltaTime`（控件内动画用它，不必外部传 dt） |
+| 绘制 | `GetWindowDrawList()` → `AddRectFilled/AddRect/AddLine/AddCircle(Filled)/AddTriangleFilled/AddConvexPolyFilled/AddText/AddImage(Quad)`、`PathArcTo`+`PathStroke`、`PushClipRect` |
+| ID | `PushID/PopID`（循环里必须）、`GetID`、`GetStateStorage()` 存控件本地状态 |
+| 特殊交互 | `IsMouseDragging`、`GetMouseDragDelta`、`IsKeyPressed`、`BeginDragDropSource/Target`、`BeginPopupContextItem` |
+| 完整按钮语义 | `imgui_internal.h` 的 `ButtonBehavior(bb, id, &hovered, &held)`（键盘激活/重复/拖出取消/Tooltip 都由它管） |
+
+### 三条铁律
+
+1. **动画必须吃 dt**：`v += (target - v) * (1 - exp(-speed * dt))`，不要 `v += 0.1f`（帧率一变速度就变）。
+2. **状态存在帧外**：控件函数体内的 `static`、结构体成员，或 `ImGui::GetStateStorage()`（按 ID）。
+   本项目要求同时可被多处实例化，所以正式控件都用成员/结构体，见 `GameMenuButton`。
+3. **ID 必须唯一**：ImGui 靠 ID 认控件（状态/动画/焦点都挂 ID）。循环里用 `PushID(i)`，
+   否则会出现「改一个动全部」或直接断言。
+
+### 本项目里踩过的坑（都是真事）
+
+| 坑 | 现象 | 正解 |
+|---|---|---|
+| `SetCursorPos` 后没有 item | 1.92 断言 `ErrorCheckUsingSetCursorPosToExtendParentBoundaries` | 复位光标后补 `Dummy(0,0)`，或干脆别动光标 |
+| 忘记推进布局 | 后面的控件叠在同一位置 | 必须 `InvisibleButton`/`Dummy`，不要只 `SetCursorScreenPos` 画完就走 |
+| 每帧堆分配 | 卡顿、内存抖动 | 文字用 `snprintf` 写固定缓冲，别每帧构造 `std::string` |
+| 动画状态残留 | 再次打开菜单时动画从上次的值接着跑 | 每个元素提供 `Reset()`，在 `OnEnter` 里统一调用 |
+| 交互状态和视觉不同步 | 悬停变了但按钮没动 | 把 hover/active 存进自己的动画状态，`Update(dt)` 里推进 |
+
+### 三个真实例子（可直接对照读）
+
+| 控件 | 文件 | 看点 |
+|---|---|---|
+| 可聚焦 Box（流光边框） | `src/ui/Components.cpp` `FocusableBox` | 等弧长重采样 + 贴图沿边框滚动 + 羽化抗锯齿 |
+| 斜切菜单按钮 | `src/gamemenu/GameMenuElement.cpp` `GameMenuButton` | 焦点弹性位移、扫描高光、随机错位色块、按压反馈 |
+| 存档槽卡片 | 同上 `GameMenuSaveSlot` | 多实例独立动画、缩略图占位、每实例随机状态 |
+
 ## 暂停菜单（gamemenu）
 
 `gui_dev_pause_demo`：假游戏画面 + 游戏运行时暂停菜单，**全部用 DrawList 自绘**，
