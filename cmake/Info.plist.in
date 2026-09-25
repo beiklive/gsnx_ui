@@ -25,14 +25,10 @@
     <true/>
     <key>MinimumOSVersion</key>
     <string>$(IPHONEOS_DEPLOYMENT_TARGET)</string>
-    <key>CFBundleSupportedPlatforms</key>
-    <array>
-        <string>${GUI_DEV_IOS_SUPPORTED_PLATFORM}</string>
-    </array>
-    <key>DTPlatformName</key>
-    <string>${GUI_DEV_IOS_PLATFORM_NAME}</string>
-    <key>DTSDKName</key>
-    <string>$(SDK_NAME)</string>
+    <!-- CFBundleSupportedPlatforms / DTPlatformName / DT* 这些由 Xcode 的
+         builtin-infoPlistUtility -expandbuildsettings 自动注入。
+         自己写反而会把它覆盖成空串（空 CFBundleSupportedPlatforms 会让 iOS
+         把 app 当成"平台不支持"，装上去就是图标在、点不开的占位状态）。 -->
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
     <!-- 图标：没有 asset catalog，按传统 CFBundleIconFiles 声明（iOS 13+ 仍支持） -->

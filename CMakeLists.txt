@@ -169,13 +169,6 @@ function(gui_dev_add_demo target)
     add_executable(${target} ${ARGN})
     target_link_libraries(${target} PRIVATE gui_dev_components)
     if(GUI_DEV_PLATFORM STREQUAL "ios")
-        if(GUI_DEV_IOS_SIMULATOR)
-            set(GUI_DEV_IOS_SUPPORTED_PLATFORM "iPhoneSimulator")
-            set(GUI_DEV_IOS_PLATFORM_NAME "iphonesimulator")
-        else()
-            set(GUI_DEV_IOS_SUPPORTED_PLATFORM "iPhoneOS")
-            set(GUI_DEV_IOS_PLATFORM_NAME "iphoneos")
-        endif()
         if(GUI_DEV_SDL2_MAIN)
             target_link_libraries(${target} PRIVATE ${GUI_DEV_SDL2_MAIN})
         endif()
@@ -195,8 +188,11 @@ function(gui_dev_add_demo target)
         # TARGET_BUNDLE_CONTENT_DIR 在 iOS 上就是 .app 根目录。
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_CURRENT_SOURCE_DIR}/assets"
-                "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/assets")
+                "${CMAKE_CURRENT_SOURCE_DIR}/assets/font"
+                "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/assets/font"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/assets/img"
+                "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/assets/img")
         # 图标（传统 CFBundleIconFiles 方式，直接放 bundle 根）
         foreach(gui_dev_icon IN ITEMS "AppIcon60x60@2x.png" "AppIcon60x60@3x.png"
                                      "AppIcon76x76@2x~ipad.png" "AppIcon83.5x83.5@2x~ipad.png")
