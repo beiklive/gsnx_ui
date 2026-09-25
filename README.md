@@ -168,6 +168,11 @@ xcrun simctl launch booted com.beiklive.gui_dev.gui_dev_demo
 TrollStore / zsign 重签。`--package-only <app>` 可以跳过 Xcode 只做打包（CI 用）；
 没装 Xcode 时脚本会直接告诉你缺什么，而不是丢一堆 CMake 报错。
 
+**本机没装 Xcode 也能出包**：[.github/workflows/ios-ipa.yml](.github/workflows/ios-ipa.yml) 在 GitHub 的
+macOS runner（自带 Xcode 16.4 + iPhoneOS 18.5 SDK）上跑同一条脚本，手动 *Run workflow* 或推 iOS 相关
+文件到 main 即触发，产物在 run 页面的 Artifacts（`ios-ipa-*`）。细节与额度说明见
+[docs/platform-builds.md](docs/platform-builds.md)。
+
 要点：`GUI_DEV_PLATFORM=ios` 时每个示例都编成 `.app`，`assets/` 被拷进
 `Contents/Resources/assets`（运行时靠 `SDL_GetBasePath()` 找到）；入口是 `SDL_main`
 （demo 的 `main` 经 `<SDL_main.h>` 重定向，iOS 侧由 `SDL2main` 提供 `UIApplicationMain`）。

@@ -135,6 +135,35 @@ scripts/build_ios_ipa.sh --package-only path/to/Some.app --out dist/ios   # 只�
 | `--adhoc` | 只要 Xcode | 同上，已 ad-hoc 签名 | 越狱 / TrollStore 设备 |
 | `--team <ID>` | 开发者账号 + 描述文件 | `dist/ios/export/*.ipa` | `development` = 注册设备，`ad-hoc` = 指定设备，`app-store` = 上传 |
 
+#### 没有 Mac / 没装 Xcode：用 GitHub Actions 打 IPA
+
+[`.github/workflows/ios-ipa.yml`](../.github/workflows/ios-ipa.yml) 会在 **GitHub 自己的 macOS runner**
+上打 IPA —— runner 自带 Xcode（实测 Xcode 16.4 + iPhoneOS 18.5 SDK），所以本机没装 Xcode 也能出包。
+
+触发方式：
+
+- **手动**：仓库 → Actions → 左侧 “iOS IPA” → *Run workflow*，可填目标名 / Release|Debug / 是否 ad-hoc 签名；
+- **自动**：往 `main` 推这几个文件时会自动跑 —— 本 workflow、`scripts/build_ios_ipa.sh`、
+  `cmake/toolchains/iOS.cmake`、`cmake/Info.plist.in`（只对 iOS 相关改动触发，避免白烧 macOS 额度）。
+
+流程：`actions/checkout`（含 imgui 子模块）→ 打印 Xcode/SDK 版本 → `scripts/build_ios_ipa.sh`
+（`GUI_DEV_DEPS_MODE=fetch`，SDL2/libpng 从源码编）→ 上传 `dist/ios/*.ipa` 作为 artifact。
+
+- 产物下载：该次 run 页面底部 **Artifacts → ios-ipa-gui_dev_demo**（未签名；安装前需重签，
+  选 adhoc 则可用于越狱 / TrollStore 设备）。
+- 日志：失败时会把日志推到 **`ci-logs` 分支**（`ci-log/build-runN.log` + `README.md`），
+  成功时写 `ci-log/last-success.md`（含 run 号、commit、IPA 大小）—— 这样本机没有 GitHub token、
+  拉不到 Actions 日志也能排查。这个分支只是个日志出口，随时可删。
+- 额度：macOS runner 按 10 倍计费（一次约 12 分钟 ≈ 120 分钟额度）；免费额度 2000 分钟/月。
+  所以自动触发只挂在 iOS 相关路径上，其它改动不会跑。
+- 要出**已签名**的 IPA（可真机分发）需要走 `--team` + 证书/描述文件：在 workflow 里把 base64 的
+  `.p12` 和 `.mobileprovision` 从 Secrets 里解出来导入临时钥匙串，再调
+  `scripts/build_ios_ipa.sh --team $TEAM --method development`。当前 workflow 只做未签名/ad-hoc。
+
+> 实测记录：run #2 已确认 **iOS 编译链路通过**（`** BUILD SUCCEEDED **`、链上了
+> `libSDL2.a` / `libSDL2main.a` / `libpng16.a` / `libz.tbd`，产出 `gui_dev_demo.app`）；
+> 当时只因打包脚本里 `--out` 传相对路径导致 `zip` 找不到输出位置而失败，已修。
+
 #### 直接用 CMake / xcodebuild（不走脚本）
 
 ```bash
@@ -179,7 +208,8 @@ xcrun simctl launch booted com.beiklive.gui_dev.gui_dev_demo
 | 依赖 `fetch` 模式 | ✅ 本机实测：从 GitHub 拉 SDL2 2.32.10 + libpng 1.6.58（zlib 用系统自带）编出 `gui_dev_demo` 并运行正常 |
 | Windows | ⚠️ **未在真机验证**（本机没有 MSVC）。构建文件按标准做法写好：preset / 依赖两种模式 / 资源查找 |
 | Android | ⚠️ **未验证**（本机没有 NDK/CDK）：`cmake --preset android` 会停在「找不到 Android NDK」并给出安装提示；native/gradle 侧没有实际跑过 |
-| iOS（IPA 链路） | ⚠️ **部分验证**：本机只有 Command Line Tools，没有 iOS SDK（`xcrun --sdk iphoneos` 直接报错），所以**编译与签名这两步没跑过**。已验证的是：没 Xcode 时脚本/工具链给出明确提示（不是一堆 CMake 报错）、`--package-only` 能把任意 `.app` 打成结构正确的 `.ipa`（`unzip -l` 核对 `Payload/<app>.app/…`）；Xcode 装好后再跑 `scripts/build_ios_ipa.sh` 即可出 IPA |
+| iOS（GitHub Actions） | ✅ **实际编译通过**：在本机没有 Xcode 的情况下，用 GitHub 的 macOS runner（Xcode 16.4 / iPhoneOS 18.5 SDK）跑通了 iOS 编译并产出 `.app` → IPA artifact。这条路线不需要本机装 Xcode |
+| iOS（本机链路） | ⚠️ **部分验证**：本机只有 Command Line Tools，没有 iOS SDK（`xcrun --sdk iphoneos` 直接报错），所以**编译与签名这两步没跑过**。已验证的是：没 Xcode 时脚本/工具链给出明确提示（不是一堆 CMake 报错）、`--package-only` 能把任意 `.app` 打成结构正确的 `.ipa`（`unzip -l` 核对 `Payload/<app>.app/…`）；Xcode 装好后再跑 `scripts/build_ios_ipa.sh` 即可出 IPA |
 
 **已知限制（Android）**
 
