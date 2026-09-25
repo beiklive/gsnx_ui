@@ -43,6 +43,12 @@ add_compile_definitions(
     GUI_DEV_PLATFORM_${GUI_DEV_PLATFORM}
     GUI_DEV_VERSION="${PROJECT_VERSION}")
 
+# iOS 用 Xcode 生成器：生成 shared scheme，scripts/build_ios_ipa.sh 的
+# xcodebuild -scheme / archive 才能按目标名工作。
+if(GUI_DEV_PLATFORM STREQUAL "ios")
+    set(CMAKE_XCODE_GENERATE_SCHEME ON)
+endif()
+
 message(STATUS "gui_dev: platform=${GUI_DEV_PLATFORM} backend=${GUI_DEV_BACKEND}")
 
 # ------------------------------------------------------------------- imgui ----
@@ -163,6 +169,9 @@ function(gui_dev_add_demo target)
     add_executable(${target} ${ARGN})
     target_link_libraries(${target} PRIVATE gui_dev_components)
     if(GUI_DEV_PLATFORM STREQUAL "ios")
+        if(GUI_DEV_SDL2_MAIN)
+            target_link_libraries(${target} PRIVATE ${GUI_DEV_SDL2_MAIN})
+        endif()
         set_target_properties(${target} PROPERTIES
             MACOSX_BUNDLE TRUE
             MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in"

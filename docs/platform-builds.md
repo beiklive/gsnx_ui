@@ -99,24 +99,57 @@ echo "sdl2SourceDir=$PWD/../build/android/_deps/sdl2-src" >> gradle.properties  
   用 `SDL_RWFile` 读进内存给 ImGui 当字体（`FontSource.data`）。
 - 需要 `sdl2SourceDir`（gradle.properties）：SDL 的 Java 层不在本仓库，指向 SDL 源码即可。
 
-### 3.5 iOS
+### 3.5 iOS（构建 + 打 IPA）
+
+**前提：完整 Xcode**（`xcode-select -p` 必须是 `…/Xcode.app/Contents/Developer`）。
+Command Line Tools **不带 iOS SDK**，`xcrun --sdk iphoneos --show-sdk-path` 会报
+`SDK "iphoneos" cannot be located`。装好 Xcode 后二选一：
 
 ```bash
-cmake --preset ios-sim        # 模拟器（不签名，最好上手）
-cmake --build --preset ios-sim
-
-cmake --preset ios            # 真机：需要在 preset 里补签名团队
-cmake --build --preset ios
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer   # 全局切换（需要 sudo）
+# 或者不动 xcode-select，每次用环境变量指过去：
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 ```
 
-- `cmake/toolchains/iOS.cmake` 设 `CMAKE_SYSTEM_NAME=iOS` + `iphoneos/iphonesimulator` + 部署目标（默认 13.0）。
-- 每个演示都会生成 `.app`，`assets/` 被拷进 `Contents/Resources/assets`；
-  运行时靠 `SDL_GetBasePath()` 找到（见 `AssetPaths.cpp`）。
-- 入口：`SDL_main`（demo 的 `main` 通过 `#include <SDL_main.h>` 重定向，iOS 侧由 `SDL2main` 提供 `UIApplicationMain`）。
-- 真机安装需要签名：把 preset 里的 `CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED` 去掉并补
-  `DEVELOPMENT_TEAM`。
+装 Xcode 的三条路：App Store；`brew install --cask xcodes && xcodes install --latest`（要 Apple ID）；
+developer.apple.com 下载 .xip（要登录）。装完跑一次 `xcodebuild -runFirstLaunch`。
 
----
+#### 一条命令打 IPA
+
+```bash
+scripts/build_ios_ipa.sh                 # 未签名 IPA（不需要开发者账号）
+scripts/build_ios_ipa.sh --adhoc         # ad-hoc 签名（codesign -s -）
+scripts/build_ios_ipa.sh --team ABCDE12345 --method development   # 团队签名，可真机安装
+scripts/build_ios_ipa.sh --sim           # 只构建模拟器版（不出 IPA）
+scripts/build_ios_ipa.sh --package-only path/to/Some.app --out dist/ios   # 只打包（CI 用，不需要 Xcode）
+```
+
+产物：`dist/ios/<target>.ipa`，结构就是 `Payload/<target>.app/…`（`.ipa` 本身只是个 zip）。
+脚本做的事：查 Xcode 与 SDK → `cmake -G Xcode` + 构建 → 找 `.app` → （可选签名）→ 打 IPA。
+常用参数：`--target`（默认 `gui_dev_demo`）、`--config`、`--out`、`--method`（`development` / `ad-hoc` /
+`app-store` / `enterprise`）、`--help`。
+
+| 路线 | 需要 | 产物 | 谁能装 |
+|---|---|---|---|
+| 未签名（默认） | 只要 Xcode | `dist/ios/<target>.ipa` | 先重签（AltStore / Sideloadly / TrollStore / zsign） |
+| `--adhoc` | 只要 Xcode | 同上，已 ad-hoc 签名 | 越狱 / TrollStore 设备 |
+| `--team <ID>` | 开发者账号 + 描述文件 | `dist/ios/export/*.ipa` | `development` = 注册设备，`ad-hoc` = 指定设备，`app-store` = 上传 |
+
+#### 直接用 CMake / xcodebuild（不走脚本）
+
+```bash
+cmake --preset ios-sim && cmake --build --preset ios-sim    # 模拟器（默认不签名）
+cmake --preset ios && cmake --build --preset ios            # 真机（要自己补签名团队）
+# 产物：build/ios-sim/Release-iphonesimulator/*.app（Xcode 的产物目录）
+xcrun simctl install booted build/ios-sim/Release-iphonesimulator/gui_dev_demo.app
+xcrun simctl launch booted com.beiklive.gui_dev.gui_dev_demo
+```
+
+要点：`GUI_DEV_PLATFORM=ios` 时每个示例都编成 `.app`，`assets/` 被拷进
+`Contents/Resources/assets`（运行时靠 `SDL_GetBasePath()` 找到）；入口是 `SDL_main`
+（demo 的 `main` 经 `<SDL_main.h>` 重定向，iOS 侧由 `SDL2main` 提供 `UIApplicationMain`）。
+真机安装要去掉 preset 里的 `CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO` 并补 `DEVELOPMENT_TEAM`
+（用 `scripts/build_ios_ipa.sh --team` 就不用改 preset）。
 
 ## 4. 本仓库做了哪些改动（本轮新增）
 
@@ -131,6 +164,7 @@ cmake --build --preset ios
 | `framework/platform/backends/sdl2/AssetPaths.cpp` | 增加 `SDL_GetBasePath()` 查找（Windows exe 旁、iOS bundle 内）；Android 明确走 APK 路径 |
 | `framework/platform/Backend.h` | `PlatformKind` 增加 Android / iOS；`kIsHandheld` 覆盖移动端 |
 | `android/` | gradle 打包骨架（app 模块、Manifest、MainActivity、资源、`sdl2SourceDir` 说明） |
+| `scripts/build_ios_ipa.sh` | iOS 一键打 IPA（未签名 / ad-hoc / 团队签名三条路 + `--package-only` 纯打包） |
 | 各 `main.cpp` | 移动端加 `#include <SDL_main.h>`（Android / iOS 需要 `SDL_main` 入口） |
 | `CMakeLists.txt` | `gui_dev_add_demo()`（桌面 exe / iOS bundle / Android 跳过）、Android 的 `libmain.so` target、按平台选平台服务实现 |
 
@@ -145,7 +179,7 @@ cmake --build --preset ios
 | 依赖 `fetch` 模式 | ✅ 本机实测：从 GitHub 拉 SDL2 2.32.10 + libpng 1.6.58（zlib 用系统自带）编出 `gui_dev_demo` 并运行正常 |
 | Windows | ⚠️ **未在真机验证**（本机没有 MSVC）。构建文件按标准做法写好：preset / 依赖两种模式 / 资源查找 |
 | Android | ⚠️ **未验证**（本机没有 NDK/CDK）：`cmake --preset android` 会停在「找不到 Android NDK」并给出安装提示；native/gradle 侧没有实际跑过 |
-| iOS | ⚠️ **未验证**（本机只有 Command Line Tools，没有完整 Xcode，也没有 iOS SDK）：`cmake --preset ios` 因缺少 Xcode 生成器而失败；xcframework/SDK 相关未实测 |
+| iOS（IPA 链路） | ⚠️ **部分验证**：本机只有 Command Line Tools，没有 iOS SDK（`xcrun --sdk iphoneos` 直接报错），所以**编译与签名这两步没跑过**。已验证的是：没 Xcode 时脚本/工具链给出明确提示（不是一堆 CMake 报错）、`--package-only` 能把任意 `.app` 打成结构正确的 `.ipa`（`unzip -l` 核对 `Payload/<app>.app/…`）；Xcode 装好后再跑 `scripts/build_ios_ipa.sh` 即可出 IPA |
 
 **已知限制（Android）**
 
