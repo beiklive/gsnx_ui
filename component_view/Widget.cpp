@@ -347,21 +347,21 @@ void Widget::EnsureRectVisible(const Rect& target_rect) {
     if (overflow != Overflow::Scroll || !scroll_enabled) {
         return;
     }
-    const float margin = 10.0f;
+    const float reveal_margin = 10.0f; // 局部量，别和 Widget::margin（内边距）混
     ImVec2 next = scroll_target;
     const ImVec2 view_min = content_rect.min;
     const ImVec2 view_max = content_rect.max;
 
-    if (target_rect.max.y > view_max.y - margin) {
-        next.y = scroll.y + (target_rect.max.y - (view_max.y - margin));
-    } else if (target_rect.min.y < view_min.y + margin) {
-        next.y = scroll.y - ((view_min.y + margin) - target_rect.min.y);
+    if (target_rect.max.y > view_max.y - reveal_margin) {
+        next.y = scroll.y + (target_rect.max.y - (view_max.y - reveal_margin));
+    } else if (target_rect.min.y < view_min.y + reveal_margin) {
+        next.y = scroll.y - ((view_min.y + reveal_margin) - target_rect.min.y);
     }
 
-    if (target_rect.max.x > view_max.x - margin) {
-        next.x = scroll.x + (target_rect.max.x - (view_max.x - margin));
-    } else if (target_rect.min.x < view_min.x + margin) {
-        next.x = scroll.x - ((view_min.x + margin) - target_rect.min.x);
+    if (target_rect.max.x > view_max.x - reveal_margin) {
+        next.x = scroll.x + (target_rect.max.x - (view_max.x - reveal_margin));
+    } else if (target_rect.min.x < view_min.x + reveal_margin) {
+        next.x = scroll.x - ((view_min.x + reveal_margin) - target_rect.min.x);
     }
 
     scroll_target = ImVec2(Clampf(next.x, 0.0f, scroll_max.x), Clampf(next.y, 0.0f, scroll_max.y));
@@ -622,9 +622,9 @@ void Widget::DrawFocusFrame(ImDrawList* dl) {
         return;
     }
     const float scale = draw_transform_.AverageScale();
-    const float offset = focus_frame_offset * scale * (0.6f + 0.4f * focus_mix);
-    const Rect ring = draw_rect_.Expanded(offset);
-    const float radius = (Maxf(Maxf(CornerTL(), CornerTR()), Maxf(CornerBL(), CornerBR())) * scale) + offset;
+    const float ring_offset = focus_frame_offset * scale * (0.6f + 0.4f * focus_mix);
+    const Rect ring = draw_rect_.Expanded(ring_offset);
+    const float radius = (Maxf(Maxf(CornerTL(), CornerTR()), Maxf(CornerBL(), CornerBR())) * scale) + ring_offset;
     Draw::RoundedRectOutline(dl, ring, Theme::Alpha(focus_frame_color, focus_mix), focus_frame_width * scale, radius,
                              radius, radius, radius);
 }

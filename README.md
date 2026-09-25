@@ -26,9 +26,9 @@ GUI_DEV/
 │   ├── Global.{h,cpp}          # 全局变量：画布 / 鼠标 / 手柄 / 焦点 / 分区 / 输入消费
 │   ├── Theme.{h,cpp}           # VSCode Dark+ 调色板与 720p 尺寸规范
 │   ├── Types.h                 # Rect / EdgeInsets / BorderStyle / ShadowStyle / Transform2D / 枚举
-│   ├── Draw.{h,cpp}            # 绘制原语：圆角矩形 / 软阴影 / 描边文字 / 省略号 / 对勾
+│   ├── Draw.{h,cpp}            # 绘制原语：圆角矩形 / 软阴影 / 描边文字 / 省略号 / 流光框 / 跑马灯
 │   ├── Widget.{h,cpp}          # ★ 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 溢出滚动 / 焦点动画 / 事件
-│   ├── components/             # 组件（当前只有一个：Box）
+│   ├── components/             # 组件：Box（容器/可聚焦控件）、Button（7 种形态）
 │   └── pages/                  # Page 基类（Demo 宿主）
 ├── examples/                   # 框架示例（与组件库互不依赖）
 │   ├── imgui_tour/             # ★ ImGui 自身能力导览（8 个 Tab，页面不滚动）
@@ -292,7 +292,6 @@ connect(card, &Box::focusIn, this, [card] { /* ... */ });
 程序化切焦点用 `widget->RequestFocus()`（要求 focusable）或 `Global::SetFocus(widget)`；
 初始焦点不设置的话会自动落在焦点列表的第一个。
 
-### 坐标系（先记住这三条）
 ### 坐标系（先记住这三条）
 
 1. 设计空间固定 **1280x720**（后端按 `min(高/720, 宽/1280)` 缩放），所有尺寸都按 720p 写。

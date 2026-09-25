@@ -10,8 +10,6 @@
 namespace gui_dev::tour {
 namespace {
 
-constexpr float kHint = 0.62f; // 次要说明文字的不透明度
-
 void Hint(const char* text) {
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
     ImGui::TextWrapped("%s", text);

@@ -89,9 +89,9 @@ Button& Button::setSlotWidth(float value) {
     return *this;
 }
 
-Button& Button::setFontSize(float main_size, float subtitle_size) {
+Button& Button::setFontSize(float main_size, float sub_size) {
     font_size = main_size;
-    subtitle_size = subtitle_size;
+    this->subtitle_size = sub_size; // 注意别写成 subtitle_size = subtitle_size（参数遮蔽成员）
     return *this;
 }
 

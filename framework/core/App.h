@@ -55,7 +55,6 @@ private:
     App& app_;
     std::unique_ptr<Backend> backend_;
     std::unique_ptr<UiContext> ui_;
-    bool initialized_ = false;
 };
 
 } // namespace gui_dev

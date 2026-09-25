@@ -343,6 +343,7 @@ void GameMenuSelector::Update(float dt, const GameMenuTheme& theme) {
 
 void GameMenuSelector::Draw(ImDrawList* draw_list, const GameMenuTheme& theme, const Rect& rect,
                             const char* value, bool focused, float time) const {
+    (void)time; // 和其它元素保持同一套签名，这个选择器暂时不做时间动画
     const float f = focused ? 1.0f : 0.0f;
     const float gap = 8.0f + 3.0f * f + 5.0f * slide_;
     const float arrow = 5.0f + 1.5f * f;

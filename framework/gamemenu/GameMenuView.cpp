@@ -7,8 +7,6 @@
 namespace gui_dev::gamemenu {
 namespace {
 
-constexpr float kPi = 3.14159265358979323846f;
-
 inline ImU32 WithAlpha(ImU32 col, float alpha) {
     const float a = Clamp01(alpha) * static_cast<float>((col >> IM_COL32_A_SHIFT) & 0xFF);
     return (col & ~IM_COL32_A_MASK) | (static_cast<ImU32>(a) << IM_COL32_A_SHIFT);

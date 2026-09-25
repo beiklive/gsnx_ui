@@ -214,6 +214,7 @@ void SettingsView::Update(GameMenuContext& ctx) {
 }
 
 bool SettingsView::OnAction(GameMenuContext& ctx, InputAction action) {
+    (void)ctx; // 接口约定参数，这一页暂时用不到
     const char* category = per_game_ ? kPerGameCategories[category_].label
                                      : kGlobalCategories[category_].label;
     switch (action) {

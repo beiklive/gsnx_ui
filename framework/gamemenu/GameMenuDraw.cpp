@@ -15,10 +15,6 @@ inline float SafeSkew(const Rect& rect, float skew) {
     return skew < 0.0f ? 0.0f : skew;
 }
 
-inline ImVec2 Lerp2(const ImVec2& a, const ImVec2& b, float t) {
-    return ImVec2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
-}
-
 } // namespace
 
 ImU32 ColorWithAlpha(ImU32 col, float alpha) {

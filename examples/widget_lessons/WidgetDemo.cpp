@@ -378,7 +378,6 @@ bool InternalButtonBehaviorDemo(int* click_count) {
     if (window->SkipItems) {
         return false;
     }
-    ImGuiContext& g = *GImGui;
     const ImGuiID id = window->GetID("##internal_button");
     const ImVec2 size(180.0f, 40.0f);
     const ImVec2 pos = window->DC.CursorPos;

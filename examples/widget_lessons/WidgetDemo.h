@@ -27,7 +27,6 @@ private:
 
     // Lesson 4/5 的值
     float volume_ = 0.62f;
-    float speed_ = 1.0f;
     float knob_ = 0.35f;
 
     // Lesson 6 用的每项独立状态
