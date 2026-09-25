@@ -87,56 +87,53 @@ jobs:
           path: dist/ios/*.ipa
           if-no-files-found: warn
 
-      - name: 成功时在 ci-logs 分支留标记（无需 API 权限即可确认成功）
-        if: success()
+      - name: 归档到 ci-logs 分支（产物诊断 + 日志尾部，无需 API 权限即可查看）
+        if: always()
         run: |
-          set -euo pipefail
+          set -uo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           mkdir -p ci-log
+          APP="$(find build/ios -maxdepth 4 -name "${{ inputs.target || 'gui_dev_demo' }}.app" -type d 2>/dev/null | head -1)"
+          EXE=""
+          if [ -n "${APP}" ]; then
+            EXE="$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "${APP}/Info.plist" 2>/dev/null || true)"
+          fi
           {
-            echo "# iOS 打包成功"
+            echo "# iOS 产物诊断（run ${GITHUB_RUN_NUMBER}，${{ job.status }}）"
             echo
-            echo "- run: #${GITHUB_RUN_NUMBER}"
             echo "- commit: ${GITHUB_SHA}"
-            echo "- 目标: ${{ inputs.target || 'gui_dev_demo' }}"
-            echo "- 产物:"
-            ls -lh dist/ios/*.ipa 2>/dev/null | sed 's/^/  /' || echo "  （没找到 ipa，检查上传步骤）"
+            echo "- app: ${APP:-<没找到>}"
             echo
-            echo "下载：本次 run 页面底部 Artifacts → ios-ipa-*"
-          } > ci-log/last-success.md
+            echo "## .app 目录（bundle 根）"
+            ls -la "${APP}" 2>/dev/null || echo "（无）"
+            echo
+            echo "## Info.plist"
+            plutil -p "${APP}/Info.plist" 2>/dev/null || echo "（读不到）"
+            echo
+            echo "## 可执行文件"
+            echo "CFBundleExecutable=${EXE}"
+            ls -l "${APP}/${EXE}" 2>/dev/null || echo "（找不到可执行文件！）"
+            file "${APP}/${EXE}" 2>/dev/null || true
+            vtool -show-build "${APP}/${EXE}" 2>/dev/null | head -15 || true
+            echo
+            echo "## 签名"
+            codesign -dv --verbose=4 "${APP}" 2>&1 | head -20 || true
+            echo
+            echo "## IPA 结构（前 25 项）"
+            unzip -l dist/ios/*.ipa 2>/dev/null | head -25 || echo "（没有 ipa）"
+          } > "ci-log/build-run${GITHUB_RUN_NUMBER}-diag.md"
+          if [ -f /tmp/build.log ]; then
+            tail -c 200000 /tmp/build.log > "ci-log/build-run${GITHUB_RUN_NUMBER}.log"
+          fi
+          if [ -s dist/ios/*.ipa ] 2>/dev/null; then
+            echo "# iOS 打包成功" > ci-log/last-success.md
+            echo >> ci-log/last-success.md
+            echo "- run: #${GITHUB_RUN_NUMBER}" >> ci-log/last-success.md
+            echo "- commit: ${GITHUB_SHA}" >> ci-log/last-success.md
+            echo "- 产物:" >> ci-log/last-success.md
+            ls -lh dist/ios/*.ipa 2>/dev/null | sed 's/^/  /' >> ci-log/last-success.md
+          fi
           git add -f ci-log
-          git commit -m "CI: iOS 打包成功 run #${GITHUB_RUN_NUMBER}" || true
-          git push -f origin HEAD:ci-logs
-
-      - name: 失败时上传构建目录里的日志
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-build-logs
-          path: |
-            build/ios/**/*.log
-            build/ios/CMakeCache.txt
-          if-no-files-found: ignore
-
-      - name: 失败时把日志推到 ci-logs 分支（无权限也能读）
-        if: failure()
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          mkdir -p ci-log
-          # 只保留尾部，别把分支撑爆
-          tail -c 300000 /tmp/build.log > "ci-log/build-run${GITHUB_RUN_NUMBER}.log" || true
-          {
-            echo "# iOS 构建日志（run ${GITHUB_RUN_NUMBER}，${GITHUB_SHA}）"
-            echo
-            echo "结论：失败。完整日志见 build-run${GITHUB_RUN_NUMBER}.log"
-            echo
-            echo '```'
-            tail -60 /tmp/build.log || true
-            echo '```'
-          } > ci-log/README.md
-          git add -f ci-log
-          git commit -m "CI: iOS 构建日志 run #${GITHUB_RUN_NUMBER}（失败）" || true
+          git commit -m "CI: iOS 产物归档 run #${GITHUB_RUN_NUMBER}（${{ job.status }}）" || true
           git push -f origin HEAD:ci-logs

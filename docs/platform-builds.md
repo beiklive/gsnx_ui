@@ -131,7 +131,7 @@ scripts/build_ios_ipa.sh --package-only path/to/Some.app --out dist/ios   # 只�
 
 | 路线 | 需要 | 产物 | 谁能装 |
 |---|---|---|---|
-| 未签名（默认） | 只要 Xcode | `dist/ios/<target>.ipa` | 先重签（AltStore / Sideloadly / TrollStore / zsign） |
+| 未签名（默认） | 只要 Xcode | `dist/ios/<target>.ipa` | **必须用你自己的 Apple ID 重签**（Sideloadly / AltStore / Xcode 的 Devices 窗口），装完还要在「设置 → 通用 → VPN与设备管理」里信任证书 |
 | `--adhoc` | 只要 Xcode | 同上，已 ad-hoc 签名 | 越狱 / TrollStore 设备 |
 | `--team <ID>` | 开发者账号 + 描述文件 | `dist/ios/export/*.ipa` | `development` = 注册设备，`ad-hoc` = 指定设备，`app-store` = 上传 |
 
@@ -159,6 +159,23 @@ scripts/build_ios_ipa.sh --package-only path/to/Some.app --out dist/ios   # 只�
 - 要出**已签名**的 IPA（可真机分发）需要走 `--team` + 证书/描述文件：在 workflow 里把 base64 的
   `.p12` 和 `.mobileprovision` 从 Secrets 里解出来导入临时钥匙串，再调
   `scripts/build_ios_ipa.sh --team $TEAM --method development`。当前 workflow 只做未签名/ad-hoc。
+
+#### 装上打不开 / 图标旁有下载角标？
+
+那是**未签名 IPA 直接安装**的典型状态：iOS 装上了外壳（图标来自 IPA），但校验不过、可执行文件没落地，
+所以点了没反应（有时还显示「正在下载/等待中」的角标）。按顺序排查：
+
+1. **必须重签**：未签名 IPA 不能直接装。用 Sideloadly / AltStore / Xcode（Window → Devices and Simulators →
+   拖入 .app）之类工具，以**你自己的 Apple ID** 重签；装完首次运行前先去
+   「设置 → 通用 → VPN与设备管理」信任对应开发者证书，否则点了就是没反应。
+2. **免费账号的 7 天限制**：免费 Apple ID 签的应用 7 天后失效，需要重新签。
+3. **Info.plist 缺键也会导致装不上 / 起不来**（本项目已补齐）：`LSRequiresIPhoneOS`、
+   `MinimumOSVersion`、`CFBundleSupportedPlatforms`、`DTPlatformName`、`DTSDKName`、`CFBundleIcons`；
+   用 Xcode 自建 iOS 工程时这些是模板自带的，CMake 手写 plist 很容易漏。
+4. **导入 CI 出的未签名 IPA 时不要用「只覆盖图标缓存」的工具**，那类工具装出来的就是上面那种占位状态。
+
+诊断产物结构（Info.plist 全量键、可执行文件类型、`vtool -show-build`、签名、IPA 里前 25 项）会自动写到
+`ci-logs` 分支的 `ci-log/build-runN-diag.md`，可以直接对照检查。
 
 > 实测记录：run #2 已确认 **iOS 编译链路通过**（`** BUILD SUCCEEDED **`、链上了
 > `libSDL2.a` / `libSDL2main.a` / `libpng16.a` / `libz.tbd`，产出 `gui_dev_demo.app`）；

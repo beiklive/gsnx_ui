@@ -164,8 +164,9 @@ xcrun simctl install booted build/ios-sim/Release-iphonesimulator/gui_dev_demo.a
 xcrun simctl launch booted com.beiklive.gui_dev.gui_dev_demo
 ```
 
-未签名 IPA 的结构就是 `Payload/gui_dev_demo.app/…`，安装前要用 AltStore / Sideloadly /
-TrollStore / zsign 重签。`--package-only <app>` 可以跳过 Xcode 只做打包（CI 用）；
+未签名 IPA 的结构就是 `Payload/gui_dev_demo.app/…`；**未签名包不能直接装** —— 必须用你自己的
+Apple ID 重签（Sideloadly / AltStore / Xcode 的 Devices 窗口），装完还要在「设置 → 通用 → VPN与设备管理」
+信任证书，否则会出现"图标在、点了打不开、名字旁边有下载角标"这种占位状态。`--package-only <app>` 可以跳过 Xcode 只做打包（CI 用）；
 没装 Xcode 时脚本会直接告诉你缺什么，而不是丢一堆 CMake 报错。
 
 **本机没装 Xcode 也能出包**：[.github/workflows/ios-ipa.yml](.github/workflows/ios-ipa.yml) 在 GitHub 的
