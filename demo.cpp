@@ -17,6 +17,7 @@
 #include "component_view/components/Button.h"
 #include "component_view/Anim.h"
 #include "component_view/components/CapsuleTabs.h"
+#include "component_view/components/GlassBox.h"
 #include "component_view/components/Header.h"
 #include "component_view/components/TabColumn.h"
 #include "component_view/pages/Page.h"
@@ -39,6 +40,7 @@ using gui_dev::cv::CapsuleTabs;
 using gui_dev::cv::EdgeInsets;
 using gui_dev::cv::CustomButton;
 using gui_dev::cv::IconButton;
+using gui_dev::cv::GlassBox;
 using gui_dev::cv::Header;
 using gui_dev::cv::Overflow;
 using gui_dev::cv::IconButtonShape;
@@ -87,6 +89,14 @@ public:
         BuildBadgePage();  // tab 1 徽标
         BuildToastPage();  // tab 2 提示
         BuildNavPage();    // tab 3 导航
+
+        // 液态玻璃浮层：挂在最上层（z_order 拉高），可用鼠标 / 触摸拖动观察材质
+        glass_ = Root().Emplace<GlassBox>("液态玻璃");
+        glass_->setLabel("Liquid Glass（近似）");
+        glass_->setHint("按住拖动我");
+        glass_->resize(kGlassWidth, kGlassHeight);
+        glass_->SetZOrder(100); // 盖在所有页面内容之上
+        glass_->position = ImVec2(440.0f, 170.0f);
 
         // 主题开关是「应用级」的：钉在内容面板右下角，任何 tab 下都能切，不放进 tab 页面
         theme_button_ = tab_panel_->Emplace<IconButton>(Icons::Glyph(ThemeIcon()));
@@ -566,6 +576,8 @@ private:
     static constexpr float kToggleWidth = 340.0f;
     static constexpr float kControlSize = Theme::kControlHeight; // 统一控件尺寸（56）
     static constexpr float kCapsuleWidth = 440.0f;
+    static constexpr float kGlassWidth = 420.0f; // 液态玻璃浮层（中等大小）
+    static constexpr float kGlassHeight = 250.0f;
     static constexpr float kHeaderHeight = 58.0f;
     static constexpr float kHeaderGap = 8.0f;   // 标题到本区块内容
     static constexpr float kRowGap = 8.0f;      // 行间距
@@ -626,6 +638,7 @@ private:
     IconButton* icon_square_ = nullptr;
     IconButton* icon_circle_ = nullptr;
     CapsuleTabs* capsule_ = nullptr;
+    GlassBox* glass_ = nullptr;
     IconButton* theme_button_ = nullptr;
     bool subtitle_on_ = true;
 };

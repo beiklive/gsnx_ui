@@ -35,7 +35,7 @@ GUI_DEV/
 │   ├── Widget.{h,cpp}          # ★ 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 溢出滚动 / 焦点动画 / 事件
 │   ├── FocusRing.{h,cpp}       # ★ 焦点框图层：控件只描述，页面每帧统一画一个
 │   ├── Toast.{h,cpp}           # ★ 通用通知：生命周期 / 队列 / 滑入滑出 / 多 Toast 自动补位
-│   ├── components/             # Box / Button(7 形态) / Badge / Header / TabColumn / CapsuleTabs
+│   ├── components/             # Box / Button(7 形态) / Badge / Header / TabColumn / CapsuleTabs / GlassBox
 │   └── pages/                  # Page 基类（Demo 宿主）
 ├── examples/                   # 示例（与组件库互不依赖）
 │   ├── min_demo/               # ★ 最小接入示例：另一个项目要写的全部代码
@@ -156,6 +156,7 @@ cmake --preset mac && cmake --build --preset mac
 | `component_view/components/TabColumn.{h,cpp}` | 左侧纵向 Tab 列（焦点即切页、A 进内容、焦点框分层） |
 | `component_view/components/CapsuleTabs.{h,cpp}` | 横向胶囊标签条（中心高亮 + 距离衰减） |
 | `component_view/FocusRing.{h,cpp}` | 焦点框图层：`Widget::BuildFocusVisual()` 描述，页面统一绘制 |
+| `component_view/components/GlassBox.{h,cpp}` | 液态玻璃浮层（近似）：多层半透明 + 高光/边缘透镜带 + 拖动液面晃动 |
 | `component_view/pages/Page.{h,cpp}` | 页面基类：root Box 铺满画布 + 布局/命中/更新/绘制 |
 | `demo.cpp` | 演示入口：登记页面、每帧驱动、三个调试开关 |
 
