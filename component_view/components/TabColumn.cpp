@@ -27,6 +27,9 @@ TabColumn::TabColumn() : Widget("tab_column") {
     scroll_bar_auto_hide = true;
     focusable = false; // 焦点停在 item 上，容器自己不占停靠点
     background = 0;    // 列本身不画底/边框（要底色的话由页面套 Box）
+    // 留出一点内边距：溢出裁剪是按本节点 rect 裁的，item 的流光焦点框会往外扩 2~3px，
+    // 不留边距的话焦点框会被切掉（只剩一条底边）。
+    padding = EdgeInsets::All(6.0f);
 }
 
 TabColumn& TabColumn::setItems(std::vector<Item> items) {
@@ -110,6 +113,9 @@ void TabColumn::ApplyItemLook(int index) {
     item->shadow.enabled = false;
     item->padding = EdgeInsets{style.content_padding, style.padding_y, 12.0f, style.padding_y};
     item->size.y = style.item_height;
+    // 圆角跟选中底一致（默认胶囊 = 高的一半）：按钮的流光焦点框是按 corner_radius + margin 画的，
+    // 不跟着改的话焦点框会是块小圆角矩形，跟胶囊之间露出一块背景。
+    item->corner_radius = style.item_radius > 0.0f ? style.item_radius : style.item_height * 0.5f;
     // 文字色每帧写死（选中 = 亮、未选中 = 常规），切主题也会被下一帧覆盖
     item->text_color = selected ? Theme::kTextBright : Theme::kTextPrimary;
     item->text_color_follows_theme = false;
