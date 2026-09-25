@@ -8,6 +8,9 @@
 #include "component_view/Theme.h"
 
 namespace gui_dev::cv::Draw {
+
+// SoftShadow 最多分几层（和 Clampf(blur*0.75,6,24) 的上限一致）
+constexpr int kMaxShadowSteps = 24;
 namespace {
 
 // 四角圆角差距较大时 imgui 只能取一个统一半径，这里取最大值并只开需要圆角的角。
@@ -122,14 +125,35 @@ void SoftShadow(ImDrawList* dl, const Rect& r, const ShadowStyle& style, float t
     }
 
     // 层数随模糊半径增长，最多 24 层：越靠外的层 alpha 越低、扩张越大。
+    // 每层只画「一环」而不是整块：颜色/alpha 和以前完全一样（同一组同心圆环叠加），
+    // 但填充面积从 O(面积) 降到 O(周长 × 环宽)。面板这种大矩形因此能省掉一个数量级的填充，
+    // 阴影的视觉效果不变（圆环画在两层扩张量的中线上，用描边宽度覆盖整环）。
     const int steps = static_cast<int>(Clampf(blur * 0.75f, 6.0f, 24.0f));
+    const float step_grow = blur * 0.5f / static_cast<float>(steps);
+
+    // 逐层 alpha（和以前一样）：i 越大越靠外、越淡
+    float layer_alpha[kMaxShadowSteps + 1] = {};
+    float product = 1.0f;
+    float band_alpha[kMaxShadowSteps + 1] = {};
     for (int i = steps; i >= 1; --i) {
-        const float t = static_cast<float>(i) / static_cast<float>(steps); // 1 = 最外层
-        const float grow = t * blur * 0.5f + spread;
-        const float layer_alpha = alpha * (1.0f - t) * (1.0f - t) * 2.0f / static_cast<float>(steps);
-        const Rect layer = r.Translate(offset).Expanded(grow);
-        RoundedRectFilled(dl, layer, Theme::Alpha(style.color, layer_alpha), tl + grow, tr + grow, bl + grow,
-                          br + grow);
+        const float t = static_cast<float>(i) / static_cast<float>(steps);
+        layer_alpha[i] = alpha * (1.0f - t) * (1.0f - t) * 2.0f / static_cast<float>(steps);
+        // 以前是每层画整块、一层层叠上去，所以半径 ρ 处的实际浓度 = 覆盖它的所有外层的合成值。
+        // 现在每层只画一环（不相交），要把这个累积值预先算到每环上，视觉才和以前一致。
+        product *= (1.0f - layer_alpha[i]);
+        band_alpha[i] = 1.0f - product;
+    }
+    for (int i = steps; i >= 1; --i) {
+        const float t = static_cast<float>(i) / static_cast<float>(steps);
+        const float grow_outer = t * blur * 0.5f + spread;
+        const float grow_inner = grow_outer - step_grow;
+        const float middle = (grow_outer + grow_inner) * 0.5f;
+        if (band_alpha[i] <= 0.002f) {
+            continue;
+        }
+        const Rect ring = r.Translate(offset).Expanded(middle);
+        Draw::RoundedRectOutline(dl, ring, Theme::Alpha(style.color, band_alpha[i]), step_grow, tl + middle,
+                                 tr + middle, bl + middle, br + middle);
     }
     // 主体：保证阴影在本体正下方仍然是实心的
     RoundedRectFilled(dl, r.Translate(offset).Expanded(spread), Theme::Alpha(style.color, alpha * 0.85f), tl, tr, bl,

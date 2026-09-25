@@ -1,5 +1,8 @@
 #include "core/App.h"
 
+#include <chrono>
+#include <thread>
+
 #include <cstdio>
 
 #include <imgui.h>
@@ -60,6 +63,9 @@ int AppRunner::Run() {
 
     int exit_code = 0;
     while (!backend_->ShouldQuit()) {
+        // 帧率上限：画完就补一觉，别把 GPU 白烧在无上限的呈现上。
+        // 0 = 不限（只靠 vsync / 平台同步），见 BackendConfig::max_fps。
+        const auto frame_start = std::chrono::steady_clock::now();
         ui_->BeginFrame();
         ui_->RefreshIfDisplayChanged();
         app_.Scenes().DispatchInput(*ui_);
@@ -69,6 +75,14 @@ int AppRunner::Run() {
         app_.Scenes().UpdateAll(*ui_, dt);
         app_.Scenes().RenderAll(*ui_);
         ui_->EndFrame();
+
+        if (cfg.max_fps > 0) {
+            const auto budget = std::chrono::duration<float>(1.0f / static_cast<float>(cfg.max_fps));
+            const auto spent = std::chrono::steady_clock::now() - frame_start;
+            if (spent < budget) {
+                std::this_thread::sleep_for(budget - spent);
+            }
+        }
 
         if (app_.Scenes().ApplyClosures()) {
             break; // 栈空 = 应用结束

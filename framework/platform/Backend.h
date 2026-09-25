@@ -57,6 +57,10 @@ struct BackendConfig {
     int width = 1280;
     int height = 720;
     bool vsync = true;
+    // 帧率上限（0 = 不限，只靠 vsync / 平台同步）。
+    // Switch 上 vsync 是关的（由 libnx 同步），不限帧时 UI 会跑满几百帧、GPU 白烧，
+    // 所以那里建议给 30~60。见 AppRunner 的补眠逻辑。
+    int max_fps = 0;
     bool resizable = true;
     // Switch 端：手持/底座模式由 libnx 决定分辨率，这里只在桌面端生效。
     bool high_dpi = true;

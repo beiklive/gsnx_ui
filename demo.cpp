@@ -664,8 +664,15 @@ public:
         if (std::getenv("GUI_DEV_NO_VSYNC") != nullptr) {
             cfg.vsync = false;
         }
+        // 帧率上限：GUI_DEV_MAX_FPS=30 / 60；0 = 不限
+        if (const char* value = std::getenv("GUI_DEV_MAX_FPS")) {
+            cfg.max_fps = std::atoi(value);
+        }
 #if defined(GUI_DEV_PLATFORM_switch)
         cfg.vsync = false; // Switch 由 libnx 垂直同步，SDL 再同步会拖帧
+        if (cfg.max_fps <= 0) {
+            cfg.max_fps = 60; // 不限帧的话 UI 会把 GPU 跑满，掌机上没必要
+        }
 #endif
     }
 
@@ -681,6 +688,9 @@ public:
         page_ = std::make_unique<DemoPage>();
         page_->Bind(ui);
 
+        if (const char* value = std::getenv("GUI_DEV_PERF")) {
+            perf_ = value != nullptr && value[0] != '0';
+        }
         if (const char* value = std::getenv("GUI_DEV_EXIT_AFTER")) {
             exit_after_ = std::atoi(value);
         }
@@ -701,6 +711,21 @@ public:
         }
         gui_dev::cv::Global::EndFrame();
 
+        // GUI_DEV_PERF=1：每秒打一行统计（帧时间 / FPS / draw call / 顶点数），排查性能用
+        if (perf_) {
+            perf_accum_ += dt;
+            ++perf_frames_;
+            if (perf_accum_ >= 1.0f) {
+                std::printf("[perf] %.1f fps  frame=%.2f ms  drawcalls=%d  verts=%d  inds=%d\n",
+                            static_cast<double>(perf_frames_ / perf_accum_),
+                            static_cast<double>(perf_accum_ * 1000.0f / perf_frames_),
+                            ui.LastDrawCalls(), ui.LastVertices(), ui.LastIndices());
+                std::fflush(stdout);
+                perf_accum_ = 0.0f;
+                perf_frames_ = 0;
+            }
+        }
+
         if (exit_after_ > 0 && ++frame_ >= exit_after_) {
             ui.GetBackend().RequestQuit();
         }
@@ -716,6 +741,9 @@ private:
     std::unique_ptr<DemoPage> page_;
     int frame_ = 0;
     int exit_after_ = 0;
+    bool perf_ = false;
+    float perf_accum_ = 0.0f;
+    int perf_frames_ = 0;
 };
 
 } // namespace
