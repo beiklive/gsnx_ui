@@ -6,6 +6,27 @@
 #include "component_view/components/Button.h"
 
 namespace gui_dev::cv {
+namespace {
+
+// 列里的一项：按 A（确认）不当作「点自己」，而是把焦点送进子页面。
+// 所以这里把 Confirm 提前吃掉，不再走 Button 的 clicked/activated。
+class TabItem : public TextButton {
+public:
+    explicit TabItem(TabColumn* owner) : owner_(owner) {}
+
+protected:
+    bool OnPadAction(InputAction action) override {
+        if (action == InputAction::Confirm && owner_ != nullptr && owner_->EnterContent()) {
+            return true;
+        }
+        return TextButton::OnPadAction(action);
+    }
+
+private:
+    TabColumn* owner_ = nullptr;
+};
+
+} // namespace
 
 TabColumn::TabColumn() : Widget("tab_column") {
     layout = LayoutMode::Vertical;
@@ -26,7 +47,7 @@ TabColumn& TabColumn::setItems(std::vector<Item> items) {
     item_buttons_.reserve(items_.size());
 
     for (std::size_t i = 0; i < items_.size(); ++i) {
-        Button* item = Emplace<TextButton>();
+        Button* item = Emplace<TabItem>(this);
         item->SetName("tab_item");
         item->setText(items_[i].text);
         item->setIcon(items_[i].icon);
@@ -79,6 +100,20 @@ Button* TabColumn::itemAt(int index) const {
 TabColumn& TabColumn::setFocusTarget(Widget* target) {
     focus_target_ = target;
     return *this;
+}
+
+bool TabColumn::EnterContent() {
+    if (focus_target_ == nullptr || !focus_target_->visible || !focus_target_->enabled) {
+        return false;
+    }
+    focus_target_->RequestFocus();
+    return true;
+}
+
+void TabColumn::FocusCurrentItem() {
+    if (Button* item = itemAt(index_)) {
+        item->RequestFocus();
+    }
 }
 
 int TabColumn::ClampIndex(int value) const {

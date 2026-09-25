@@ -47,6 +47,10 @@ public:
 
 private:
     void ApplyAction(InputFrame& in, SDL_Keycode key, InputAction action, bool down);
+    // 手柄面键 -> 动作。SDL 的手柄 API 是按「位置」报的（A=下、B=右、X=左、Y=上，即 Xbox 习惯），
+    // 而 Switch 手柄机身上印的是 A=右、B=下、X=上、Y=左，所以识别到任天堂手柄时把面键对掉。
+    InputAction ActionForButton(SDL_GameControllerButton button) const;
+    void UpdateFaceButtonSwap();
     // with_zoom=false 时只按分辨率算（字体密度用这个，不含用户缩放）
     float ComputeUiScale(bool with_zoom = true) const;
     // 当前逻辑画布尺寸 = drawable / 渲染缩放。用当前值算，不依赖上一帧的 io.DisplaySize
@@ -71,6 +75,8 @@ private:
     ImVec2 touch_pos_{0.0f, 0.0f};
     // 平台是否自己把触摸合成成鼠标事件（SDL_TOUCH_MOUSEID）
     bool touch_synthesizes_mouse_ = false;
+    // 面键是否按任天堂布局对掉（A/B、X/Y）。由手柄类型 / 平台 / GUI_DEV_FACE_SWAP 决定
+    bool swap_face_buttons_ = false;
     // 上一帧的按住状态：SDL 只在按下/松开时各发一次事件，held 要在帧之间继承（长按要用）
     bool pad_held_[static_cast<std::size_t>(InputAction::Count)] = {};
     std::uint64_t perf_counter_ = 0;

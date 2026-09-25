@@ -561,8 +561,20 @@ CustomButton::CustomButton(std::string glyph, std::string value) : CustomButton(
 
 CustomButton& CustomButton::setRightText(std::string value, ImVec4 color) {
     right_text = std::move(value);
+    return setRightColor(color);
+}
+
+CustomButton& CustomButton::setRightColor(ImVec4 color) {
     right_color = color;
+    right_color_follows_theme = false; // 显式设过色就不再跟主题
     return *this;
+}
+
+void CustomButton::OnThemeChanged() {
+    Button::OnThemeChanged();
+    if (right_color_follows_theme) {
+        right_color = Theme::kTextPrimary;
+    }
 }
 
 float CustomButton::rightSideWidth() const {
@@ -587,6 +599,19 @@ OptionButton::OptionButton() {
 OptionButton::OptionButton(std::string glyph, std::string value) : OptionButton() {
     icon = std::move(glyph);
     text = std::move(value);
+}
+
+OptionButton& OptionButton::setOptionColor(ImVec4 color) {
+    option_color = color;
+    option_color_follows_theme = false;
+    return *this;
+}
+
+void OptionButton::OnThemeChanged() {
+    Button::OnThemeChanged();
+    if (option_color_follows_theme) {
+        option_color = Theme::kTextBright; // 浅色主题 = 黑字，深色 = 白字
+    }
 }
 
 OptionButton& OptionButton::setOptions(std::vector<std::string> values, int start_index) {
@@ -671,6 +696,19 @@ ValueButton& ValueButton::setValue(float next, bool notify) {
         emit valueChanged(value);
     }
     return *this;
+}
+
+ValueButton& ValueButton::setValueColor(ImVec4 color) {
+    value_color = color;
+    value_color_follows_theme = false;
+    return *this;
+}
+
+void ValueButton::OnThemeChanged() {
+    Button::OnThemeChanged();
+    if (value_color_follows_theme) {
+        value_color = Theme::kTextBright;
+    }
 }
 
 std::string ValueButton::valueText() const {

@@ -66,6 +66,11 @@ public:
     TabColumn& setFocusTarget(Widget* target);
     Widget* focusTarget() const { return focus_target_; }
 
+    // 焦点进子页面第一个可聚焦元素（按 A / 点确认时用）；没有目标返回 false
+    bool EnterContent();
+    // 焦点回到本列当前选中项（子页面里按 B 时用）
+    void FocusCurrentItem();
+
     // 重播一次入场（页面出现 / 回到本页时调用）
     void PlayEnter();
 

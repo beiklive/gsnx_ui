@@ -215,12 +215,15 @@ public:
 
     std::string right_text;
     ImVec4 right_color = Theme::kTextPrimary;
+    bool right_color_follows_theme = true; // 显式 setRightText(…, color) 之后置 false
 
     CustomButton& setRightText(std::string value, ImVec4 color);
+    CustomButton& setRightColor(ImVec4 color); // 只改颜色、显式指定
 
 protected:
     float rightSideWidth() const override;
     void drawRightSide(ImDrawList* dl, const Rect& right_rect) override;
+    void OnThemeChanged() override;
 };
 
 // -------------------------------------------------------------- 6 LR 选项选择 --
@@ -233,15 +236,18 @@ public:
     int index = 0;
     bool wrap = true;
     ImVec4 option_color = Theme::kTextBright;
+    bool option_color_follows_theme = true; // 默认跟主题（浅色=黑字 / 深色=白字）
 
     OptionButton& setOptions(std::vector<std::string> values, int start_index = 0);
     OptionButton& setIndex(int value, bool notify = true);
+    OptionButton& setOptionColor(ImVec4 color);
     const char* currentOption() const;
 
 protected:
     float rightSideWidth() const override;
     void drawRightSide(ImDrawList* dl, const Rect& right_rect) override;
     bool OnPadAction(InputAction action) override;
+    void OnThemeChanged() override;
 };
 
 // -------------------------------------------------------------- 7 LR 数值选择 --
@@ -259,6 +265,7 @@ public:
     int precision = 0;          // 小数位
     bool wrap = false;
     ImVec4 value_color = Theme::kTextBright;
+    bool value_color_follows_theme = true; // 默认跟主题
 
     // 长按加速参数（都有上限）
     float repeat_delay = 0.35f;          // 按住多久后开始重复
@@ -269,6 +276,7 @@ public:
 
     ValueButton& setup(float initial, float min_v, float max_v, float step_v, int precision_digits);
     ValueButton& setValue(float next, bool notify = true);
+    ValueButton& setValueColor(ImVec4 color);
     std::string valueText() const;
     bool isRepeating() const { return hold_dir_ != 0 && hold_time_ >= repeat_delay; }
 
@@ -277,6 +285,7 @@ protected:
     void drawRightSide(ImDrawList* dl, const Rect& right_rect) override;
     bool OnPadAction(InputAction action) override;
     void OnUpdate(float dt) override;
+    void OnThemeChanged() override;
 
 private:
     void stepBy(int direction, float multiplier);

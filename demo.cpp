@@ -183,6 +183,9 @@ public:
         }
         active_tab_ = index;
         page_anim_[index].enter_time = 0.0f; // 新页从 0 开始入场
+        // 滚动状态跟着页面走：切走就当重置，否则新页面会停在上一页滚到的位置
+        content_panel_->scroll = ImVec2(0.0f, 0.0f);
+        content_panel_->scroll_target = ImVec2(0.0f, 0.0f);
         ApplyTabVisibility();
 
         // → / R 进内容区时落在当前页第一个可聚焦控件上
@@ -206,20 +209,10 @@ public:
         }
     }
 
-    // 项数多的时候把错开步长压小，保证整页入场总时长不超过 kPageMaxTotal
-    static float PageStagger(int count) {
-        const int last = count > 0 ? count - 1 : 0;
-        if (last == 0) {
-            return kPageStagger;
-        }
-        return gui_dev::cv::Minf(kPageStagger, (kPageMaxTotal - kPageEnterDuration) / static_cast<float>(last));
-    }
-
     void UpdatePageAnim(float dt) {
-        const int active_count = static_cast<int>(pages_[active_tab_].size());
-        const float total_enter = Anim::StaggerTotal(active_count, PageStagger(active_count), kPageEnterDuration);
-        page_anim_[active_tab_].enter_time =
-            gui_dev::cv::Minf(page_anim_[active_tab_].enter_time + gui_dev::cv::Maxf(dt, 0.0f), total_enter);
+        // 整页一个进度：子页面整体进场，内部元素不再各自错开
+        page_anim_[active_tab_].enter_time = gui_dev::cv::Minf(
+            page_anim_[active_tab_].enter_time + gui_dev::cv::Maxf(dt, 0.0f), kPageEnterDuration);
         if (exiting_tab_ >= 0) {
             page_anim_[exiting_tab_].exit =
                 Anim::AdvanceOnce(page_anim_[exiting_tab_].exit, kPageExitDuration, dt);
@@ -230,15 +223,13 @@ public:
         }
         for (int tab = 0; tab < kTabCount; ++tab) {
             if (tab == active_tab_) {
-                // 入场：从右边快速弹进来（位移套 EaseOutBack → 略微过冲一下再落位，透明度用 EaseOutCubic）
-                const std::vector<Widget*>& list = pages_[tab];
-                const float stagger_step = PageStagger(static_cast<int>(list.size()));
-                for (std::size_t i = 0; i < list.size(); ++i) {
-                    const float raw = Anim::StaggerElapsed(page_anim_[tab].enter_time, static_cast<int>(i),
-                                                           stagger_step, kPageEnterDuration);
-                    list[i]->visual_translate =
-                        ImVec2(kPageEnterOffset * (1.0f - Anim::EaseOutBack(raw)), 0.0f);
-                    list[i]->opacity = Anim::EaseOutCubic(raw);
+                // 入场：整页一起从右边快速弹进来（位移套 EaseOutBack → 略微过冲再落位，透明度 EaseOutCubic）
+                const float raw = gui_dev::cv::Clampf(page_anim_[tab].enter_time / kPageEnterDuration, 0.0f, 1.0f);
+                const ImVec2 offset(kPageEnterOffset * (1.0f - Anim::EaseOutBack(raw)), 0.0f);
+                const float alpha = Anim::EaseOutCubic(raw);
+                for (Widget* widget : pages_[tab]) {
+                    widget->visual_translate = offset;
+                    widget->opacity = alpha;
                 }
             } else if (tab == exiting_tab_) {
                 const float eased = Anim::EaseOutCubic(page_anim_[tab].exit);
@@ -539,8 +530,15 @@ public:
         theme_button_->setSubtitle(ThemeName());
     }
 
-    // + 键：一键开关所有按钮的说明行（验证「是否显示说明」接口，开关都保持文字块垂直居中）
+    // 子页面里按 B：焦点回到左边的 tab 列（A 进内容、B 回列，形成来回）
     void OnInput() override {
+        if (Global::pad.Pressed(InputAction::Cancel) && Global::Available(InputAction::Cancel)) {
+            Widget* focused = Global::focused;
+            if (focused != nullptr && content_panel_->ContainsDescendant(focused)) {
+                tab_column_->FocusCurrentItem();
+                Global::MarkConsumed(InputAction::Cancel);
+            }
+        }
         if (Global::pad.Pressed(InputAction::Menu) && Global::Available(InputAction::Menu)) {
             subtitle_on_ = !subtitle_on_;
             for (Button* button : buttons_) {
@@ -574,8 +572,6 @@ private:
     static constexpr float kSectionGap = 16.0f; // 上一块内容到下一个标题
     static constexpr float kPageEnterDuration = 0.22f; // 子页入场时长（快速弹入）
     static constexpr float kPageExitDuration = 0.12f;  // 子页退场时长
-    static constexpr float kPageStagger = 0.03f;       // 逐项错开（项数多时会自动压小）
-    static constexpr float kPageMaxTotal = 0.44f;      // 整页入场总时长上限
     static constexpr float kPageEnterOffset = 52.0f;   // 入场时从右边弹进来的距离
     static constexpr float kPageExitOffset = 18.0f;    // 退场时往左滑出
 
@@ -680,7 +676,13 @@ public:
         // 720p 手持基准下整体放大 1.25 倍（右侧控制列的放大/缩小还能再调）
         ui.SetUiZoom(kDefaultZoom);
         // 默认浅色主题（桌面端白底看着舒服），右侧控制列的按钮还能一键切成深色
-        gui_dev::cv::Theme::SetMode(gui_dev::cv::Theme::ThemeMode::Light);
+        // 初始主题：GUI_DEV_THEME=dark 可以深色启动（截图核对两套主题用）
+        const bool start_dark = [] {
+            const char* value = std::getenv("GUI_DEV_THEME");
+            return value != nullptr && (value[0] == 'd' || value[0] == 'D');
+        }();
+        gui_dev::cv::Theme::SetMode(start_dark ? gui_dev::cv::Theme::ThemeMode::Dark
+                                               : gui_dev::cv::Theme::ThemeMode::Light);
         gui_dev::cv::Theme::ApplyToImGui();
         gui_dev::cv::Global::ApplyTheme();
         Scenes().Reset(std::make_unique<HostScene>());

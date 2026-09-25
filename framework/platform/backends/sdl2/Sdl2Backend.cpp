@@ -74,6 +74,15 @@ constexpr ButtonBinding kButtonBindings[] = {
     {SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, InputAction::PageRight},
 };
 
+// 任天堂布局：机身上的 A 在右边、B 在下边、X 在上边、Y 在左边，
+// 和 SDL 按位置报出来的 A(下)/B(右)/X(左)/Y(上) 正好对掉。
+constexpr ButtonBinding kNintendoFaceBindings[] = {
+    {SDL_CONTROLLER_BUTTON_A, InputAction::Cancel},  // 位置在下 = 机身的 B
+    {SDL_CONTROLLER_BUTTON_B, InputAction::Confirm}, // 位置在右 = 机身的 A
+    {SDL_CONTROLLER_BUTTON_X, InputAction::ActionY}, // 位置在左 = 机身的 Y
+    {SDL_CONTROLLER_BUTTON_Y, InputAction::ActionX}, // 位置在上 = 机身的 X
+};
+
 } // namespace
 
 Sdl2Backend::~Sdl2Backend() { Shutdown(); }
@@ -131,6 +140,8 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
     if (SDL_NumJoysticks() > 0 && SDL_IsGameController(0)) {
         controller_ = SDL_GameControllerOpen(0);
     }
+    // 没有手柄也要跑一次：环境变量 / 平台默认值要生效，日志也才好排查
+    UpdateFaceButtonSwap();
 
     GetDrawableSize(last_drawable_w_, last_drawable_h_);
     auto_scale_ = ComputeUiScale(false); // 只按分辨率算；用户缩放另外乘
@@ -228,6 +239,42 @@ void Sdl2Backend::Shutdown() {
     SDL_Quit();
 }
 
+void Sdl2Backend::UpdateFaceButtonSwap() {
+    // 优先级：环境变量显式指定 > 手柄类型（任天堂手柄）> 编译平台（Switch）
+    bool swap = false;
+    if (const char* value = std::getenv("GUI_DEV_FACE_SWAP")) {
+        swap = value[0] != '0';
+    } else if (controller_ != nullptr &&
+               SDL_GameControllerGetType(controller_) == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO) {
+        swap = true; // Switch Pro / Joy-Con / 掌机自带手柄都是这个类型
+    }
+#if defined(GUI_DEV_PLATFORM_switch)
+    if (std::getenv("GUI_DEV_FACE_SWAP") == nullptr) {
+        swap = true; // 掌机自带手柄固定是任天堂布局，类型识别失败也不吃亏
+    }
+#endif
+    if (swap != swap_face_buttons_) {
+        swap_face_buttons_ = swap;
+        std::fprintf(stderr, "[gui_dev] 手柄面键：%s\n", swap ? "任天堂布局（A/B、X/Y 对掉）" : "Xbox 布局");
+    }
+}
+
+InputAction Sdl2Backend::ActionForButton(SDL_GameControllerButton button) const {
+    if (swap_face_buttons_) {
+        for (const ButtonBinding& b : kNintendoFaceBindings) {
+            if (b.button == button) {
+                return b.action;
+            }
+        }
+    }
+    for (const ButtonBinding& b : kButtonBindings) {
+        if (b.button == button) {
+            return b.action;
+        }
+    }
+    return InputAction::None;
+}
+
 void Sdl2Backend::ApplyAction(InputFrame& in, SDL_Keycode key, InputAction action, bool down) {
     (void)key;
     const std::size_t i = Idx(action);
@@ -289,6 +336,7 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
         case SDL_CONTROLLERDEVICEADDED:
             if (!controller_ && SDL_IsGameController(e.cdevice.which)) {
                 controller_ = SDL_GameControllerOpen(e.cdevice.which);
+                UpdateFaceButtonSwap();
             }
             break;
         case SDL_CONTROLLERDEVICEREMOVED:
@@ -298,19 +346,14 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
             }
             break;
         case SDL_CONTROLLERBUTTONDOWN:
-            for (const ButtonBinding& b : kButtonBindings) {
-                if (b.button == static_cast<SDL_GameControllerButton>(e.cbutton.button)) {
-                    ApplyAction(in, 0, b.action, true);
-                }
+        case SDL_CONTROLLERBUTTONUP: {
+            const auto button = static_cast<SDL_GameControllerButton>(e.cbutton.button);
+            const InputAction action = ActionForButton(button);
+            if (action != InputAction::None) {
+                ApplyAction(in, 0, action, e.type == SDL_CONTROLLERBUTTONDOWN);
             }
             break;
-        case SDL_CONTROLLERBUTTONUP:
-            for (const ButtonBinding& b : kButtonBindings) {
-                if (b.button == static_cast<SDL_GameControllerButton>(e.cbutton.button)) {
-                    ApplyAction(in, 0, b.action, false);
-                }
-            }
-            break;
+        }
         case SDL_FINGERDOWN:
         case SDL_FINGERMOTION:
         case SDL_FINGERUP: {
