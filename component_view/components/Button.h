@@ -165,23 +165,34 @@ protected:
 };
 
 // ------------------------------------------------------------------- 4 开关 ---
+// 右侧是一个滑块式开关（轨道 + 旋钮），切换时旋钮位置与轨道颜色都做平滑动画。
 class ToggleButton : public Button {
 public:
     ToggleButton();
     ToggleButton(std::string glyph, std::string value);
 
     bool checked = false;
-    std::string on_text = "开";
-    std::string off_text = "关";
-    ImVec4 on_color = Theme::kAccent;
-    ImVec4 off_color = Theme::kTextMuted;
+    // 开关外观
+    ImVec4 on_color = Theme::kAccent;      // 打开时的轨道色
+    ImVec4 off_color = Theme::rgb(88, 88, 92); // 关闭时的轨道色
+    ImVec4 knob_color = Theme::kTextBright;    // 旋钮色
+    float switch_width = 46.0f;
+    float switch_height = 26.0f;
+    float knob_speed = 14.0f; // 动画收敛速度（越大越快）
 
     ToggleButton& setChecked(bool value, bool notify = true);
+    ToggleButton& setSwitchSize(float width, float height);
+    ToggleButton& setSwitchColors(ImVec4 on, ImVec4 off, ImVec4 knob);
+    float knobMix() const { return knob_mix_; }
 
 protected:
     float rightSideWidth() const override;
     void drawRightSide(ImDrawList* dl, const Rect& right_rect) override;
     bool OnPadAction(InputAction action) override;
+    void OnUpdate(float dt) override;
+
+private:
+    float knob_mix_ = -1.0f; // <0 = 还没初始化，第一帧直接对齐到 checked（不播动画）
 };
 
 // ----------------------------------------------------------- 5 自定义右侧文字 --

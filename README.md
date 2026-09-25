@@ -183,7 +183,7 @@ void OnBuild() override {
 | 聚焦框 | 完整闭合的流光框，与按钮留 **2px** 边距，宽 **3px** | `setFlowingFocus(bool)` + `focus_margin / focus_width / focus_saturation / focus_brightness / focus_phase_offset` |
 | 内容留白 | 8px | `setContentPadding(px)` |
 | 图标格 | 正方形，边长 = 内容区高度（四周留白相同） | `setIconCellSize(px)` |
-| LR 间隔 | 120px 固定宽，内容居中、超长滚动 | `setSlotWidth(px)` |
+| LR 间隔 | 90px 固定宽，内容居中、超长滚动 | `setSlotWidth(px)` |
 
 流光框的相位跟 `Global::time` 走（`focus_flow_speed` 控制流速），颜色是沿圆角边框按弧长流动的 HSV，
 所以四边一直是闭合的，不会出现"只有上下两条线"的聚焦效果。
@@ -193,7 +193,7 @@ void OnBuild() override {
 | 1 | `TextButton` | `("文字")` | 文字水平居中，**不带说明行**（弹窗的确认/取消这类提示文字） | — |
 | 2 | `IconTextButton` | `(icon, "文字")` | 图标占左侧正方形格（格内水平+垂直居中）+ 文字紧跟其右 | — |
 | 3 | `IconButton` | `(icon)` | 只有图标，两种形态：`setShape(RoundedSquare/Circle)` + `setSide(px)`；说明行画在按钮外面 | — |
-| 4 | `ToggleButton` | `(icon, "文字")` | 图标 + 文字 | 开 / 关（开=蓝、关=灰），A/点击切换，`toggled(bool)` |
+| 4 | `ToggleButton` | `(icon, "文字")` | 图标 + 文字 | 右侧滑块开关（开=蓝、关=灰），切换有滑动动画，A/点击切换，`toggled(bool)` |
 | 5 | `CustomButton` | `(icon, "文字")` | 图标 + 文字 | 自定义文字：`setRightText(text, color)` |
 | 6 | `OptionButton` | `(icon, "文字")` | 图标 + 文字 | `[L] 选项 [R]`：固定间隔、居中、超长滚动；`setOptions({...})`，L/R 切换，`selectionChanged(int)` |
 | 7 | `ValueButton` | `(icon, "文字")` | 图标 + 文字 | `[L] 数值 [R]`：同上；`setup(初值, 最小, 最大, 步长, 小数位)`，L/R 调值，`valueChanged(float)` |
@@ -212,7 +212,7 @@ void OnBuild() override {
 默认在按钮下方，下方空间不足就等距放到上方，上下都不够就直接不显示。
 可用空间 = 画布 ∩ 父节点（`CaptionLimit()`），间距用 `caption_gap`（默认 4px）。
 
-`OptionButton` / `ValueButton` 的右侧是 `[L] <固定间隔> [R]`：间隔宽度固定（默认 120px），
+`OptionButton` / `ValueButton` 的右侧是 `[L] <固定间隔> [R]`：间隔宽度固定（默认 90px），
 文字/数字在间隔里居中；**放不下就在间隔里横向循环滚动**（跑马灯，超出部分按间隔裁掉）。
 
 `ValueButton` 支持**长按加速**：按住 0.35s 后开始重复，重复间隔从 120ms 收紧到 30ms（有下限），
@@ -803,6 +803,13 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   关掉说明行后主文字就停在偏上 8px 的位置；现在按文字块自己的高度居中。
   实测（说明行关）：无线网络主文字墨迹中心 169.5 / 存储路径 231.5 vs 按钮中心 170 / 232；
   普通按钮（无说明行）主文字墨迹中心 y=45.5、x=217 vs 按钮中心 (46, 218)。
+- 已确认（Button 第五轮调整）：① LR 选择器的固定间隔 120px → **90px**（原来的 3/4）——抓帧核对
+  `[L] 整数缩放 [R]`：L 字形 264 起、内容墨迹中心 333（间隔中心 336）、R 落在右端 390~407；
+  ② `ToggleButton` 右侧的「开/关」文字换成**滑块开关**（轨道 + 旋钮，开=#007ACC、关=rgb(88,88,92)、
+  旋钮白色带一点投影），切换时旋钮位置和轨道色一起做指数平滑动画：逐帧打点看到
+  `mix: 0 → 0.209 → 0.372 → 0.504 → 0.606 → 0.689 → … → 1`（约 0.45s 收敛），
+  抓帧核对关态旋钮在 x368~383、开态在 x388~398，轨道色 (88,88,92) → (3,121,201)；
+  接口：`setSwitchSize(w,h)` / `setSwitchColors(on,off,knob)` / `knob_speed` / `knobMix()`。
 - 顺带修掉一个框架输入 bug（长按功能的前提）：`PadState::held` 原来是"每帧清零"，SDL 只在按下那一刻
   发一次 KEYDOWN，所以按住不放时 `held` 只有第一帧为真、`Held()` 根本没法用（`Input.h` 注释里
   写的是电平语义）。现在后端把上一帧的按住状态继承下来再叠加本帧事件，`held` 变回真正的电平；

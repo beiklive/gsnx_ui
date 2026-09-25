@@ -1,5 +1,6 @@
 #include "component_view/components/Button.h"
 
+#include <cmath>
 #include <cstdio>
 
 #include "component_view/Draw.h"
@@ -455,18 +456,60 @@ ToggleButton& ToggleButton::setChecked(bool value, bool notify) {
     return *this;
 }
 
+ToggleButton& ToggleButton::setSwitchSize(float width, float height) {
+    switch_width = Maxf(width, 16.0f);
+    switch_height = Clampf(height, 10.0f, Maxf(switch_width, 10.0f));
+    return *this;
+}
+
+ToggleButton& ToggleButton::setSwitchColors(ImVec4 on, ImVec4 off, ImVec4 knob) {
+    on_color = on;
+    off_color = off;
+    knob_color = knob;
+    return *this;
+}
+
 float ToggleButton::rightSideWidth() const {
-    const char* label = checked ? on_text.c_str() : off_text.c_str();
-    return Draw::MeasureText(nullptr, mainFontSize(), label, 0.0f).x;
+    return switch_width;
+}
+
+void ToggleButton::OnUpdate(float dt) {
+    const float target = checked ? 1.0f : 0.0f;
+    if (knob_mix_ < 0.0f) {
+        knob_mix_ = target; // 第一帧直接对齐，避免刚打开就滑一下
+        return;
+    }
+    // 指数平滑，和 Widget 的焦点动画同一种手感
+    const float k = 1.0f - std::exp(-Maxf(knob_speed, 0.01f) * Maxf(dt, 0.0f));
+    knob_mix_ += (target - knob_mix_) * k;
+    if (std::fabs(knob_mix_ - target) < 0.001f) {
+        knob_mix_ = target;
+    }
 }
 
 void ToggleButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
-    const char* label = checked ? on_text.c_str() : off_text.c_str();
-    const float size = mainFontSize();
-    const ImVec2 extent = Draw::MeasureText(nullptr, size, label, 0.0f);
-    Draw::Text(dl, nullptr, size,
-               ImVec2(right_rect.max.x - extent.x, right_rect.Center().y - extent.y * 0.5f),
-               Theme::U32(checked ? on_color : off_color), label);
+    const float t = Clampf(knob_mix_ < 0.0f ? (checked ? 1.0f : 0.0f) : knob_mix_, 0.0f, 1.0f);
+    const float height = switch_height;
+    const Rect track = Rect::FromPosSize(ImVec2(right_rect.max.x - switch_width, right_rect.Center().y - height * 0.5f),
+                                         ImVec2(switch_width, height));
+    const float radius = height * 0.5f;
+    // 轨道：关闭灰 -> 打开蓝，颜色跟着动画一起过渡
+    Draw::RoundedRectFilled(dl, track, Theme::Mix(Theme::U32(off_color), Theme::U32(on_color), t), radius, radius,
+                            radius, radius);
+    // 旋钮：从左滑到右
+    const float inset = Maxf(2.0f, height * 0.12f);
+    const float knob_r = Maxf(radius - inset, 2.0f);
+    const float travel = Maxf(track.Width() - 2.0f * inset - 2.0f * knob_r, 0.0f);
+    const float knob_x = track.min.x + inset + knob_r + travel * t;
+    const Rect knob = Rect::FromPosSize(ImVec2(knob_x - knob_r, track.Center().y - knob_r),
+                                        ImVec2(knob_r * 2.0f, knob_r * 2.0f));
+    ShadowStyle knob_shadow;
+    knob_shadow.enabled = true;
+    knob_shadow.color = Theme::U32(Theme::rgba(0, 0, 0, 110));
+    knob_shadow.offset = ImVec2(0.0f, 1.0f);
+    knob_shadow.blur = 3.0f;
+    Draw::SoftShadow(dl, knob, knob_shadow, knob_r, knob_r, knob_r, knob_r);
+    Draw::RoundedRectFilled(dl, knob, Theme::U32(knob_color), knob_r, knob_r, knob_r, knob_r);
 }
 
 bool ToggleButton::OnPadAction(InputAction action) {
