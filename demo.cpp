@@ -750,11 +750,10 @@ private:
 
 } // namespace
 
-#if defined(GUI_DEV_PLATFORM_android) || defined(GUI_DEV_PLATFORM_ios)
-// 移动端 SDL 用 SDL_main 当入口：Android 是 SDL_android_main.c（JNI），
-// iOS 是 SDL_uikitappdelegate（UIApplicationMain）。这个头必须出现在 main 定义之前。
+// SDL2main 在 Windows / iOS / Android 上都需要看到 SDL_main；在 Linux、macOS
+// 等平台 SDL_main.h 不会改写普通 main。统一包含可避免不同依赖来源（pkg-config、
+// vcpkg、FetchContent）对入口符号的差异。
 #include <SDL_main.h>
-#endif
 
 int main(int, char**) {
     DemoApp app;

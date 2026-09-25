@@ -2,6 +2,9 @@
 
 同一份 `CMakeLists.txt` 出五个平台。差异集中在三处，业务与组件代码不用改：
 
+常规构建默认只生成主演示 `gui_dev_demo`（Android 对应 `main` shared library）；额外演示与信号测试
+默认不参与构建。需要它们时，在配置阶段加 `-DGUI_DEV_BUILD_EXTRAS=ON`。
+
 | 关注点 | 处理方式 |
 |---|---|
 | 依赖从哪来 | `cmake/Dependencies.cmake`：`GUI_DEV_DEPS_MODE=package`（系统包 / vcpkg）或 `fetch`（源码编译） |
@@ -45,9 +48,10 @@ cmake -S . -B build/xxx -G Ninja -DGUI_DEV_DEPS_MODE=fetch
 ```bash
 brew install sdl2
 cmake --preset mac && cmake --build --preset mac
-ctest --test-dir build/mac
 ./build/mac/gui_dev_demo
 ```
+
+额外示例/测试：配置时加 `-DGUI_DEV_BUILD_EXTRAS=ON`，再构建并运行 `ctest`。
 
 ### 3.2 Nintendo Switch
 
@@ -220,13 +224,17 @@ xcrun simctl launch booted com.beiklive.gui_dev.gui_dev_demo
 
 | 平台 | 状态 |
 |---|---|
-| macOS | ✅ 全量构建 + `ctest` 通过（本轮改动后回归验证过） |
+| macOS | ✅ 主 demo 构建通过（历史全量构建 + `ctest` 通过） |
 | Switch | ✅ 配置 + 构建通过（devkitA64） |
 | 依赖 `fetch` 模式 | ✅ 本机实测：从 GitHub 拉 SDL2 2.32.10 + libpng 1.6.58（zlib 用系统自带）编出 `gui_dev_demo` 并运行正常 |
 | Windows | ⚠️ **未在真机验证**（本机没有 MSVC）。构建文件按标准做法写好：preset / 依赖两种模式 / 资源查找 |
 | Android | ⚠️ **未验证**（本机没有 NDK/CDK）：`cmake --preset android` 会停在「找不到 Android NDK」并给出安装提示；native/gradle 侧没有实际跑过 |
 | iOS（GitHub Actions） | ✅ **实际编译通过**：在本机没有 Xcode 的情况下，用 GitHub 的 macOS runner（Xcode 16.4 / iPhoneOS 18.5 SDK）跑通了 iOS 编译并产出 `.app` → IPA artifact。这条路线不需要本机装 Xcode |
 | iOS（本机链路） | ⚠️ **部分验证**：本机只有 Command Line Tools，没有 iOS SDK（`xcrun --sdk iphoneos` 直接报错），所以**编译与签名这两步没跑过**。已验证的是：没 Xcode 时脚本/工具链给出明确提示（不是一堆 CMake 报错）、`--package-only` 能把任意 `.app` 打成结构正确的 `.ipa`（`unzip -l` 核对 `Payload/<app>.app/…`）；Xcode 装好后再跑 `scripts/build_ios_ipa.sh` 即可出 IPA |
+
+推送符合 `v*` 的 Git tag 会运行平台构建：Windows x64、Android arm64 APK、Linux x64、Switch NRO
+由 [platform-builds.yml](../.github/workflows/platform-builds.yml) 负责；iOS IPA 与安装性校验由
+[ios-ipa.yml](../.github/workflows/ios-ipa.yml) 负责。默认都只编译主 demo，产物作为 Actions artifact 上传。
 
 **已知限制（Android）**
 

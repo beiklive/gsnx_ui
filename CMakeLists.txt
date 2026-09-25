@@ -10,6 +10,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# 默认只构建主组件演示（以及它依赖的库）。接入示例和测试属于可选目标，
+# 避免常规打包/CI 构建时顺带编译一组不需要的可执行文件。
+option(GUI_DEV_BUILD_EXTRAS "Also build the extra demos and signal test" OFF)
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "" FORCE)
 endif()
@@ -152,11 +156,13 @@ target_sources(gui_dev_components PRIVATE ${GUI_DEV_COMPONENT_SOURCES})
 target_include_directories(gui_dev_components PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(gui_dev_components PUBLIC gui_dev)
 
-# 信号槽语义测试（纯头文件，不依赖 SDL / ImGui）
-add_executable(gui_dev_signal_test tests/qt_signal_test.cpp)
-target_include_directories(gui_dev_signal_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-enable_testing()
-add_test(NAME qt_signal_style COMMAND gui_dev_signal_test)
+if(GUI_DEV_BUILD_EXTRAS)
+    # 信号槽语义测试（纯头文件，不依赖 SDL / ImGui）
+    add_executable(gui_dev_signal_test tests/qt_signal_test.cpp)
+    target_include_directories(gui_dev_signal_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    enable_testing()
+    add_test(NAME qt_signal_style COMMAND gui_dev_signal_test)
+endif()
 
 # 每个演示一个 target。移动端不方便一个工程出多个可执行文件，所以这里按平台换形态：
 #   Android : 不建这些，只把 GUI_DEV_ANDROID_APP 编成 SHARED 库 "main"，交给 gradle 打包
@@ -204,11 +210,15 @@ function(gui_dev_add_demo target)
     endif()
 endfunction()
 
-# 组件演示：入口就是仓库根目录的 demo.cpp
+# 默认只编译主组件演示：入口就是仓库根目录的 demo.cpp。
+# 其它演示和测试必须显式传入 -DGUI_DEV_BUILD_EXTRAS=ON。
 gui_dev_add_demo(gui_dev_demo demo.cpp)
+set(GUI_DEV_DEMO_TARGETS gui_dev_demo)
 
-# 最小接入示例：证明 component_view 能整体搬进别的项目（不依赖 demo.cpp / 业务代码）
-gui_dev_add_demo(gui_dev_min_demo examples/min_demo/main.cpp)
+if(GUI_DEV_BUILD_EXTRAS)
+    # 最小接入示例：证明 component_view 能整体搬进别的项目（不依赖 demo.cpp / 业务代码）
+    gui_dev_add_demo(gui_dev_min_demo examples/min_demo/main.cpp)
+    list(APPEND GUI_DEV_DEMO_TARGETS gui_dev_min_demo)
 
 # 下面这些示例只对桌面/掌机有意义（Android 上只打包一个 app，iOS 上不必出 5 个 bundle）
 if(NOT GUI_DEV_PLATFORM STREQUAL "android")
@@ -217,6 +227,7 @@ if(NOT GUI_DEV_PLATFORM STREQUAL "android")
 gui_dev_add_demo(gui_dev_flow_demo
     examples/flow_box/main.cpp
     examples/flow_box/DemoApp.cpp)
+list(APPEND GUI_DEV_DEMO_TARGETS gui_dev_flow_demo)
 
 # ImGui 能力导览：Tab 分页展示 ImGui 原生控件与接口（页面不滚动）
 gui_dev_add_demo(gui_dev_imgui_tour
@@ -225,18 +236,22 @@ gui_dev_add_demo(gui_dev_imgui_tour
     examples/imgui_tour/TourTabsBasic.cpp
     examples/imgui_tour/TourTabsAdvanced.cpp
     examples/imgui_tour/TourTabsFontSystem.cpp)
+list(APPEND GUI_DEV_DEMO_TARGETS gui_dev_imgui_tour)
 
 # 暂停菜单 Demo：假游戏画面 + Persona 风格动态菜单（纯 UI 展示）
 gui_dev_add_demo(gui_dev_pause_demo
     examples/pause_menu/main.cpp
     examples/pause_menu/PauseDemo.cpp)
+list(APPEND GUI_DEV_DEMO_TARGETS gui_dev_pause_demo)
 
 # 自定义控件教学 Demo：8 个循序渐进的例子
 gui_dev_add_demo(gui_dev_widget_demo
     examples/widget_lessons/main.cpp
     examples/widget_lessons/WidgetDemo.cpp)
+list(APPEND GUI_DEV_DEMO_TARGETS gui_dev_widget_demo)
 
 endif() # 非 Android
+endif() # GUI_DEV_BUILD_EXTRAS
 
 # ------------------------------------------------------------ 移动端入口 ------
 if(GUI_DEV_PLATFORM STREQUAL "android")
@@ -278,7 +293,7 @@ if(GUI_DEV_PLATFORM STREQUAL "switch")
     file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets/font/MaterialIcons-Regular.ttf"
          DESTINATION "${GUI_DEV_ROMFS_DIR}/font")
 
-    foreach(gui_dev_nro_target gui_dev_demo gui_dev_imgui_tour gui_dev_flow_demo gui_dev_pause_demo gui_dev_widget_demo)
+    foreach(gui_dev_nro_target IN LISTS GUI_DEV_DEMO_TARGETS)
         set(GUI_DEV_NRO_ARGS OUTPUT "${CMAKE_BINARY_DIR}/dist/${gui_dev_nro_target}.nro"
             ROMFS "${GUI_DEV_ROMFS_DIR}")
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")

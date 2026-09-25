@@ -6,7 +6,7 @@ GBAStation 模拟器家族的**统一前端组件库**：各模拟器核心共�
 
 - UI：Dear ImGui（submodule，锁定 `v1.92.9b`）
 - 窗口/渲染：SDL2（一套后端覆盖 **macOS / Windows / Switch / Android / iOS**）
-- 构建：CMake + preset（`mac` / `mac-release` / `switch` / `windows` / `android` / `ios` / `ios-sim`）
+- 构建：CMake + preset（`mac` / `mac-release` / `switch` / `windows` / `android` / `ios` / `ios-sim`），默认只编主 demo
 - 设计基准：**1280×720 手持空间**，后端按 `drawable / (自动缩放 × UI 缩放)` 出逻辑画布
 
 | 层 | 目录 | 说明 |
@@ -75,15 +75,17 @@ Switch 走 `sdmc:/switch/GUI_DEV/assets/` 与 romfs；Android 走 APK 里的 `as
 ```bash
 brew install sdl2 libpng
 cmake --preset mac && cmake --build --preset mac          # Debug
-cmake --preset mac-release && cmake --build --preset mac-release
-ctest --test-dir build/mac
+./build/mac/gui_dev_demo                               # 组件库总览
+```
 
-./build/mac/gui_dev_demo          # 组件库总览
-./build/mac/gui_dev_min_demo      # 最小接入示例
-./build/mac/gui_dev_imgui_tour    # ImGui 能力导览
-./build/mac/gui_dev_pause_demo    # 暂停菜单
-./build/mac/gui_dev_flow_demo     # 流光焦点框预览
-./build/mac/gui_dev_widget_demo   # 自定义控件 8 例
+默认构建只生成 `gui_dev_demo`（及它依赖的库）。需要额外示例和信号测试时，显式打开选项：
+
+```bash
+cmake -S . -B build/mac-extras -G Ninja \
+  -DGUI_DEV_PLATFORM=mac -DGUI_DEV_BACKEND=sdl2 \
+  -DGUI_DEV_DEPS_MODE=package -DGUI_DEV_BUILD_EXTRAS=ON
+cmake --build build/mac-extras
+ctest --test-dir build/mac-extras
 ```
 
 打包：桌面直接分发可执行文件即可（无 bundle）；要给别人跑就把 `assets/` 放到可执行文件旁边。
@@ -170,8 +172,8 @@ Apple ID 重签（Sideloadly / AltStore / Xcode 的 Devices 窗口），装完�
 没装 Xcode 时脚本会直接告诉你缺什么，而不是丢一堆 CMake 报错。
 
 **本机没装 Xcode 也能出包**：[.github/workflows/ios-ipa.yml](.github/workflows/ios-ipa.yml) 在 GitHub 的
-macOS runner（自带 Xcode 16.4 + iPhoneOS 18.5 SDK）上跑同一条脚本，手动 *Run workflow* 或推 iOS 相关
-文件到 main 即触发，产物在 run 页面的 Artifacts（`ios-ipa-*`）。细节与额度说明见
+macOS runner 上跑同一条脚本，手动 *Run workflow*、推 iOS 相关文件到 main 或推送 `v*` tag 都会触发；
+版本 tag 同时触发 Windows、Android、Linux 和 Switch 编译，产物在各自 run 的 Artifacts。细节见
 [docs/platform-builds.md](docs/platform-builds.md)。
 
 要点：`GUI_DEV_PLATFORM=ios` 时每个示例都编成 `.app`，`assets/` 被拷进
