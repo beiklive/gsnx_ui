@@ -441,6 +441,12 @@ Widget* Widget::HitTest(const ImVec2& p) {
 }
 
 void Widget::UpdateInteraction(float dt) {
+    // enabled 跳变：发一次 enabledChanged（Qt 语义：状态变化时发，不是每帧发）
+    if (enabled != last_enabled_) {
+        last_enabled_ = enabled;
+        emit enabledChanged();
+    }
+
     const bool is_hovered = (Global::hovered == this);
     if (is_hovered != hovered) {
         hovered = is_hovered;

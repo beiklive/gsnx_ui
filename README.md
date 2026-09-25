@@ -7,11 +7,15 @@ GBAStation 模拟器家族的**统一前端组件库**。各模拟器核心共�
 - 窗口/渲染：SDL2（mac 与 Switch 共用同一份后端实现）
 - 工具链：mac 用系统 clang + homebrew `sdl2`；Switch 用 `/opt/devkitpro`（devkitA64 + libnx）
 
+📖 **组件库参考文档：[`docs/component-view.md`](docs/component-view.md)** —— 组件 API、主题/尺寸规范、
+动画时长、输入与焦点约定、调试开关、以及「搬进别的项目」的完整清单。
+最小接入样板：[`examples/min_demo/main.cpp`](examples/min_demo/main.cpp)。
+
 ## 目录结构
 
 ```text
 GUI_DEV/
-├── CMakeLists.txt              # imgui / gui_dev_backend / gui_dev / gui_dev_components + 4 个可执行目标
+├── CMakeLists.txt              # imgui / gui_dev_backend / gui_dev / gui_dev_components + 演示/示例/测试目标
 ├── CMakePresets.json           # mac / mac-release / switch 预设
 ├── demo.cpp                    # ★ 演示入口：在这里登记 component_view 的页面
 ├── cmake/toolchains/
@@ -21,17 +25,20 @@ GUI_DEV/
 │   ├── ui/                     # UiContext / Theme / Icons / Texture / Scene / Components
 │   ├── platform/               # Backend 接口 + 抽象输入 + SDL2 后端
 │   └── gamemenu/               # 暂停菜单 UI 层（Persona 式视觉语言）
-├── component_view/             # ★ 组件与页面（你的工作区）
+├── component_view/             # ★ 组件库（业务无关，可整体搬进别的项目）
 │   ├── Object.h                # ★ Qt 风格信号槽：Object / Signal / connect / emit
 │   ├── Global.{h,cpp}          # 全局变量：画布 / 鼠标 / 手柄 / 焦点 / 分区 / 输入消费
 │   ├── Theme.{h,cpp}           # 调色板（浅色/深色两套，运行时可切）与 720p 尺寸规范
-│   ├── Types.h                 # Rect / EdgeInsets / BorderStyle / ShadowStyle / Transform2D / 枚举
+│   ├── Types.h                 # Rect / EdgeInsets / BorderStyle / ShadowStyle / BoxVisual / Transform2D
+│   ├── Anim.h                  # 动画工具：SmoothTo / MoveTowards / EaseOutCubic / EaseOutBack / Stagger*
 │   ├── Draw.{h,cpp}            # 绘制原语：圆角矩形 / 软阴影 / 描边文字 / 省略号 / 流光框 / 跑马灯
 │   ├── Widget.{h,cpp}          # ★ 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 溢出滚动 / 焦点动画 / 事件
+│   ├── FocusRing.{h,cpp}       # ★ 焦点框图层：控件只描述，页面每帧统一画一个
 │   ├── Toast.{h,cpp}           # ★ 通用通知：生命周期 / 队列 / 滑入滑出 / 多 Toast 自动补位
-│   ├── components/             # 组件：Box（容器/可聚焦控件）、Button（7 种形态）、Badge（机种徽标）
+│   ├── components/             # Box / Button(7 形态) / Badge / Header / TabColumn / CapsuleTabs
 │   └── pages/                  # Page 基类（Demo 宿主）
-├── examples/                   # 框架示例（与组件库互不依赖）
+├── examples/                   # 示例（与组件库互不依赖）
+│   ├── min_demo/               # ★ 最小接入示例：另一个项目要写的全部代码
 │   ├── imgui_tour/             # ★ ImGui 自身能力导览（8 个 Tab，页面不滚动）
 │   ├── flow_box/               # framework/ui 组件预览（流光焦点框）
 │   ├── pause_menu/             # 暂停菜单 Demo（Persona 式动态菜单）
@@ -39,7 +46,7 @@ GUI_DEV/
 ├── tests/
 │   └── qt_signal_test.cpp      # 信号槽语义测试（ctest）
 ├── third_party/imgui/          # submodule
-├── docs/                       # 界面快照（人工核对用，非构建产物）
+├── docs/                       # 组件文档（component-view.md）+ 界面快照
 ├── assets/
 │   ├── font/                   # switch_font.ttf / switch_icons.ttf / MaterialIcons-Regular.ttf
 │   └── img/                    # UI 图片（border_gradient.png）
@@ -138,11 +145,17 @@ cmake --preset mac && cmake --build --preset mac
 | `component_view/Object.h` | Qt 风格信号槽（`Object` / `Signal<Args...>` / `connect` / `emit`） |
 | `component_view/Types.h` | `Rect` / `EdgeInsets` / `BorderStyle` / `ShadowStyle` / `Transform2D` / 布局枚举 |
 | `component_view/Theme.{h,cpp}` | VSCode Dark+ 调色板（**RGBA/ImVec4**）+ 720p 手持尺寸基准 + `Theme::ApplyToImGui()` |
-| `component_view/Draw.{h,cpp}` | 绘制原语：圆角矩形 / 软阴影 / 文本 / 描边 / 省略号 / 流光框 |
+| `component_view/Anim.h` | 动画工具：`SmoothTo` / `MoveTowards` / `EaseOutCubic` / `EaseOutBack` / 逐项错开 |
+| `component_view/Draw.{h,cpp}` | 绘制原语：圆角矩形 / 软阴影 / 文本 / 描边 / 省略号 / 流光框 / 跑马灯 |
 | `component_view/Widget.{h,cpp}` | 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 溢出滚动 / 焦点动画 / 命中测试 / 输入分发 |
 | `component_view/Global.{h,cpp}` | 全局变量：画布 / 鼠标 / 触摸 / 手柄 / 焦点 / 分区 / 输入消费 / 约定样式 |
 | `component_view/components/Box.{h,cpp}` | 矩形底 + 圆角 / 边框 / 阴影；可当容器，也可 `makeFocusable()` 当控件 |
 | `component_view/components/Button.{h,cpp}` | 按钮 7 种形态（见下节） |
+| `component_view/components/Badge.{h,cpp}` | 机种徽标（14 个机种 + 其它，4 种尺寸变体） |
+| `component_view/components/Header.{h,cpp}` | 区块标题：竖条 + 标题 + 右侧补充文字 + 分隔线 |
+| `component_view/components/TabColumn.{h,cpp}` | 左侧纵向 Tab 列（焦点即切页、A 进内容、焦点框分层） |
+| `component_view/components/CapsuleTabs.{h,cpp}` | 横向胶囊标签条（中心高亮 + 距离衰减） |
+| `component_view/FocusRing.{h,cpp}` | 焦点框图层：`Widget::BuildFocusVisual()` 描述，页面统一绘制 |
 | `component_view/pages/Page.{h,cpp}` | 页面基类：root Box 铺满画布 + 布局/命中/更新/绘制 |
 | `demo.cpp` | 演示入口：登记页面、每帧驱动、三个调试开关 |
 
@@ -966,9 +979,10 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
      (281,95) 正确命中逻辑坐标 (562,190) 的按钮）。
   验证方式：脚本化注入 `SDL_FINGERDOWN/MOTION/UP` 与 `SDL_MOUSEMOTION/BUTTON`，抓帧核对
   「触摸取消勾选复选框」「触摸点击按钮计数 +1」「导航高亮 + NavId≠0」。
-- 已知字体问题：`assets/font/MaterialIcons-Regular.ttf` 里 `sports_esports`(U+EAE2) 的
-  字形与预期不符（渲染成一个「A+」形状），已改用 `games`(U+E30F)；其余 34 个 Material
-  码位逐个核对正常。另外 `◀ ▶ ⌫`(U+25C0/U+25B6/U+232B) 这类符号在原字体里缺字形，
+- 已知字体问题：`assets/font/MaterialIcons-Regular.ttf` 的码位表已按官方
+  `MaterialIcons-Regular.codepoints` 全面核对并修好 6 个错项（`games` U+E021、
+  `sports_esports` U+EA28、`videogame_asset` U+E338、`cloud_upload` U+E2C3、
+  `cloud_download` U+E2C0、`install_app` 借用 `install_mobile` U+EB72）；其余码位正常。另外 `◀ ▶ ⌫`(U+25C0/U+25B6/U+232B) 这类符号在原字体里缺字形，
   已统一换成 ASCII 文案。
 - 未验证：NRO 在实机/模拟器上的运行表现（含 HOS 共享字体与 NintendoExt 的实际字形、
   romfsInit 是否成功、Material 图标在实机上的渲染）；暂停菜单在实机上的手感与耗时

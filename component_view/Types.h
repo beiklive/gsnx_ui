@@ -137,11 +137,4 @@ struct Transform2D {
     }
 };
 
-// ---- 属性展示行（页面右侧 Properties 面板用） ------------------------------
-struct PropRow {
-    std::string name;
-    std::string value;
-    bool highlight = false; // 当前状态行高亮
-};
-
 } // namespace gui_dev::cv

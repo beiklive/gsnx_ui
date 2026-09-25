@@ -421,6 +421,7 @@ private:
     void DrawScrollBar(ImDrawList* dl);
     void UpdateInteraction(float dt);
     void emitWidgetPressed();
+    bool last_enabled_ = true; // enabled 跳变检测（发 enabledChanged）
     void DrawChildren(ImDrawList* dl);
     void DrawTree(ImDrawList* dl, const Transform2D& parent_transform);
 

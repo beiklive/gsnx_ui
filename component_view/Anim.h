@@ -15,8 +15,6 @@ namespace gui_dev::cv::Anim {
 
 inline float Clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 
-inline float Lerp(float a, float b, float t) { return a + (b - a) * t; }
-
 // 指数趋近：1 - exp(-speed * dt)
 inline float SmoothTo(float current, float target, float speed, float dt) {
     if (speed <= 0.0f || dt <= 0.0f) {
@@ -40,11 +38,7 @@ inline float MoveTowards(float current, float target, float duration, float dt) 
     return current < target ? target : current;
 }
 
-// 一次性衰减到 0 / 推进到 1（走完停住）
-inline float DecayOnce(float current, float duration, float dt) {
-    return current <= 0.0f ? 0.0f : MoveTowards(current, 0.0f, duration, dt);
-}
-
+// 一次性推进到 1（走完停住）：入场进度用
 inline float AdvanceOnce(float current, float duration, float dt) {
     return current >= 1.0f ? 1.0f : MoveTowards(current, 1.0f, duration, dt);
 }
@@ -52,20 +46,6 @@ inline float AdvanceOnce(float current, float duration, float dt) {
 inline float EaseOutCubic(float t) {
     const float x = 1.0f - Clamp01(t);
     return 1.0f - x * x * x;
-}
-
-inline float EaseOutQuad(float t) {
-    const float x = 1.0f - Clamp01(t);
-    return 1.0f - x * x;
-}
-
-inline float EaseInOutCubic(float t) {
-    const float x = Clamp01(t);
-    if (x < 0.5f) {
-        return 4.0f * x * x * x;
-    }
-    const float y = -2.0f * x + 2.0f;
-    return 1.0f - y * y * y * 0.5f;
 }
 
 // 回弹（1 附近小幅过冲）：焦点获得的「轻微弹性」用这个

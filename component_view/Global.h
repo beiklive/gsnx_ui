@@ -79,7 +79,6 @@ inline Widget* hovered = nullptr; // 鼠标下的组件
 inline Widget* pressed = nullptr; // 鼠标按下时锁定的组件
 inline Widget* focused = nullptr; // 手柄/键盘焦点
 inline Widget* active = nullptr;  // 正在激活（拖拽/长按）的组件
-inline Widget* modal = nullptr;   // 当前模态（Dialog/虚拟键盘）：焦点只在这个子树里流动
 
 // ---- 输入消费 -------------------------------------------------------------
 // 一帧里同一个按键只能被消费一次：页面/控件处理后 MarkConsumed，

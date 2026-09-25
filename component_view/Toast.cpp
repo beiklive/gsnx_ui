@@ -6,13 +6,13 @@
 #include "component_view/Draw.h"
 #include "component_view/Global.h"
 #include "component_view/Theme.h"
-#include "gamemenu/MenuAnimation.h" // 复用现成的 easing / 指数趋近，不另起一套动画系统
+#include "component_view/Anim.h" // 组件库自己的 easing / 指数趋近
 #include "ui/Icons.h"
 
 namespace gui_dev::cv {
 namespace {
 
-namespace anim = gui_dev::gamemenu;
+namespace anim = gui_dev::cv::Anim;
 
 // 状态 → 图标：全部走项目现有的 Material Icons 字体，不引第二套图标库
 gui_dev::Icons::Material ToastIcon(ToastType type) {

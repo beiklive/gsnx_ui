@@ -161,6 +161,10 @@ add_test(NAME qt_signal_style COMMAND gui_dev_signal_test)
 add_executable(gui_dev_demo demo.cpp)
 target_link_libraries(gui_dev_demo PRIVATE gui_dev_components)
 
+# 最小接入示例：证明 component_view 能整体搬进别的项目（不依赖 demo.cpp / 业务代码）
+add_executable(gui_dev_min_demo examples/min_demo/main.cpp)
+target_link_libraries(gui_dev_min_demo PRIVATE gui_dev_components)
+
 # 框架示例：不做暂停菜单之外的业务，只用来对照 framework/ui 的用法
 add_executable(gui_dev_flow_demo
     examples/flow_box/main.cpp
