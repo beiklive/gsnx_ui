@@ -38,6 +38,9 @@ jobs:
     name: 构建 .ipa
     runs-on: macos-15
     timeout-minutes: 60
+    # 失败时把构建日志推到 ci-logs 分支（这样不用权限也能看到日志，方便无人值守排查）
+    permissions:
+      contents: write
     steps:
       - name: 取代码（含 imgui 子模块）
         uses: actions/checkout@v4
@@ -58,11 +61,21 @@ jobs:
           CONFIG_NAME: ${{ inputs.config || 'Release' }}
           SIGN_KIND: ${{ inputs.sign || 'none' }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           chmod +x scripts/build_ios_ipa.sh
           args=(--target "${TARGET}" --config "${CONFIG_NAME}" --out dist/ios)
           if [ "${SIGN_KIND}" = "adhoc" ]; then args+=(--adhoc); fi
-          scripts/build_ios_ipa.sh "${args[@]}"
+          scripts/build_ios_ipa.sh "${args[@]}" 2>&1 | tee /tmp/build.log
+          rc=${PIPESTATUS[0]}
+          if [ "${rc}" -ne 0 ]; then
+            # 把关键行发成 action 注解（注解匿名可读），并且日志会在最后一步推到 ci-logs 分支
+            echo "::error title=iOS 构建失败::脚本退出码 ${rc}"
+            grep -i -E "error|failed|失败|找不到|cannot|undefined reference|no such file" /tmp/build.log \
+              | tail -20 | while IFS= read -r line; do echo "::error title=ios-build::${line}"; done
+            echo "=== 日志尾部 ==="
+            tail -40 /tmp/build.log
+            exit "${rc}"
+          fi
           echo "--- dist/ios ---"
           ls -la dist/ios || true
 
@@ -83,3 +96,25 @@ jobs:
             build/ios/**/*.log
             build/ios/CMakeCache.txt
           if-no-files-found: ignore
+
+      - name: 失败时把日志推到 ci-logs 分支（无权限也能读）
+        if: failure()
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p ci-log
+          # 只保留尾部，别把分支撑爆
+          tail -c 300000 /tmp/build.log > "ci-log/build-run${GITHUB_RUN_NUMBER}.log" || true
+          {
+            echo "# iOS 构建日志（run ${GITHUB_RUN_NUMBER}，${GITHUB_SHA}）"
+            echo
+            echo "结论：失败。完整日志见 build-run${GITHUB_RUN_NUMBER}.log"
+            echo
+            echo '```'
+            tail -60 /tmp/build.log || true
+            echo '```'
+          } > ci-log/README.md
+          git add -f ci-log
+          git commit -m "CI: iOS 构建日志 run #${GITHUB_RUN_NUMBER}（失败）" || true
+          git push -f origin HEAD:ci-logs
