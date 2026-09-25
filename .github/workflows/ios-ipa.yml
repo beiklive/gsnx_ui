@@ -1,0 +1,85 @@
+# 用 GitHub 的 macOS runner 打 iOS 的 .ipa（runner 自带 Xcode，本机没装 Xcode 也能出包）。
+#
+# 触发方式：
+#   * 手动：Actions → 左侧 “iOS IPA” → Run workflow（可填目标名 / 配置 / 是否 ad-hoc 签名）
+#   * 自动：往 main 推 iOS 相关文件（本 workflow、scripts/build_ios_ipa.sh、iOS 工具链 / Info.plist）
+#
+# 产物：Actions 页面该次运行的 Artifacts → ios-ipa-<目标>/<目标>.ipa（未签名，安装前需重签：
+#       AltStore / Sideloadly / TrollStore / zsign；选 adhoc 的话可直接装到越狱/TrollStore 设备）。
+name: iOS IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "要打包的目标（gui_dev_demo / gui_dev_min_demo / ...）"
+        default: "gui_dev_demo"
+        required: true
+      config:
+        description: "构建配置"
+        type: choice
+        options: ["Release", "Debug"]
+        default: "Release"
+      sign:
+        description: "签名方式（adhoc = codesign -s -，越狱/TrollStore 可直接装）"
+        type: choice
+        options: ["none", "adhoc"]
+        default: "none"
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/ios-ipa.yml"
+      - "scripts/build_ios_ipa.sh"
+      - "cmake/toolchains/iOS.cmake"
+      - "cmake/Info.plist.in"
+
+jobs:
+  ipa:
+    name: 构建 .ipa
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: 取代码（含 imgui 子模块）
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 环境信息（Xcode / SDK / CMake）
+        run: |
+          set -x
+          xcode-select -p
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+          cmake --version | head -1
+
+      - name: 构建并打包 IPA
+        env:
+          TARGET: ${{ inputs.target || 'gui_dev_demo' }}
+          CONFIG_NAME: ${{ inputs.config || 'Release' }}
+          SIGN_KIND: ${{ inputs.sign || 'none' }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/build_ios_ipa.sh
+          args=(--target "${TARGET}" --config "${CONFIG_NAME}" --out dist/ios)
+          if [ "${SIGN_KIND}" = "adhoc" ]; then args+=(--adhoc); fi
+          scripts/build_ios_ipa.sh "${args[@]}"
+          echo "--- dist/ios ---"
+          ls -la dist/ios || true
+
+      - name: 上传 IPA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa-${{ inputs.target || 'gui_dev_demo' }}
+          path: dist/ios/*.ipa
+          if-no-files-found: warn
+
+      - name: 失败时上传构建目录里的日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-logs
+          path: |
+            build/ios/**/*.log
+            build/ios/CMakeCache.txt
+          if-no-files-found: ignore
