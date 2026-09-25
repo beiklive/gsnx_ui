@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "component_view/Global.h"
@@ -14,6 +15,7 @@
 #include "component_view/components/Badge.h"
 #include "component_view/components/Box.h"
 #include "component_view/components/Button.h"
+#include "component_view/components/CapsuleTabs.h"
 #include "component_view/pages/Page.h"
 #include "ui/Icons.h"
 #include "core/App.h"
@@ -29,6 +31,7 @@ using gui_dev::cv::BadgeStyle;
 using gui_dev::cv::Box;
 using gui_dev::cv::EmuPlatform;
 using gui_dev::cv::Button;
+using gui_dev::cv::CapsuleTabs;
 using gui_dev::cv::CustomButton;
 using gui_dev::cv::IconButton;
 using gui_dev::cv::IconButtonShape;
@@ -158,6 +161,25 @@ public:
             box_->fillWith(box_->hasFocus() ? Theme::kAccent : Theme::kBgWidget); // 显式设色后就不再跟随主题
         });
 
+        // 胶囊标签条（学 GBAStation 游戏库顶部的机种轮播）：放在徽标墙上方。
+        // 选中项停在条带中心，L/R 或点标签切换；胶囊是 104x42 圆角 21 的半透明高亮，
+        // 字号 17→22、透明度 0.42→1.0 按离中心的距离衰减。
+        capsule_ = Root().Emplace<CapsuleTabs>();
+        capsule_->SetName("capsule_tabs");
+        capsule_->setLabels({"所有", "GBA", "GBC", "FC", "SFC", "NDS", "3DS", "MD"}, 1);
+        capsule_->position = ImVec2(kTabsX, kTabsY);
+        capsule_->size.x = kTabsWidth; // 高度按内容自适应（胶囊 42 + 阴影余量）
+        connect(capsule_, &CapsuleTabs::selectionChanged, this, [this](int index) {
+            if (TraceSignal()) {
+                std::printf("[signal] capsule index = %d (%s)\n", index, capsule_->currentLabel());
+                std::fflush(stdout);
+            }
+        });
+        connect(capsule_, &CapsuleTabs::activated, this, [this](int index) {
+            // A 键 / 再点一次已选中项
+            Toasts().ShowInfo(std::string("进入 ") + capsule_->labels[static_cast<std::size_t>(index)]);
+        });
+
         // 机种徽标墙：14 个机种 + 一个「其它」兜底，放在网格视图那种容器里
         BuildBadgeWall();
 
@@ -277,6 +299,11 @@ private:
     }
     static const char* ThemeName() { return Theme::IsLight() ? "浅色" : "深色"; }
 
+    // 胶囊标签条：徽标墙上方那一条
+    static constexpr float kTabsX = 650.0f;
+    static constexpr float kTabsY = 244.0f;
+    static constexpr float kTabsWidth = 440.0f;
+
     // 徽标墙几何
     // 徽标墙：两列，统一尺寸
     static constexpr float kBadgeWidth = 92.0f;
@@ -290,6 +317,7 @@ private:
 
     std::vector<Button*> buttons_;
     std::vector<Badge*> badges_;
+    CapsuleTabs* capsule_ = nullptr;
     Box* box_ = nullptr;
     IconButton* theme_button_ = nullptr;
     IconButton* toast_ok_ = nullptr;

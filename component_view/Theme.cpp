@@ -43,6 +43,9 @@ void SetMode(ThemeMode mode) {
         kControlBorder = rgb(203, 203, 209);
         kSwitchOff = rgb(190, 190, 196);
         kSwitchKnob = rgb(255, 255, 255);
+        kCapsuleFill = rgb(0, 0, 0);   // 浅色底上改成黑色半透明
+        kCapsuleStroke = rgb(0, 0, 0);
+        kCapsuleShadow = rgba(0, 0, 0, 48);
     } else {
         // VSCode Dark+：深灰底 + 深色控件 + 浅色文字（组件约定的灰白边框也在这里）
         kBgEditor = rgb(30, 30, 30);
@@ -66,6 +69,9 @@ void SetMode(ThemeMode mode) {
         kControlBorder = rgb(190, 190, 195);
         kSwitchOff = rgb(88, 88, 92);
         kSwitchKnob = rgb(255, 255, 255);
+        kCapsuleFill = rgb(255, 255, 255); // 白色半透明（GBAStation 那套）
+        kCapsuleStroke = rgb(255, 255, 255);
+        kCapsuleShadow = rgba(0, 0, 0, 72);
     }
     kTrackFill = kAccent;
 }

@@ -71,6 +71,12 @@ inline ImVec4 kSelection = rgb(38, 79, 120); // #264F78
 inline ImVec4 kControlBorder = rgb(190, 190, 195); // #BEBEC3
 inline ImVec4 kSwitchOff = rgb(88, 88, 92); // #58585C（开关轨道，关）
 inline ImVec4 kSwitchKnob = rgb(255, 255, 255); // #FFFFFF（开关旋钮，两套主题都是白的）
+// 胶囊标签条（CapsuleTabs）选中项背后那个半透明胶囊的基色：
+// 具体 alpha（填充 / 描边随「离中心的距离」渐变）在组件里算，这里只管两套主题的基色 ——
+// 深色主题 = 白色半透明（GBAStation 平台轮播就是这套），浅色主题 = 黑色半透明才看得见。
+inline ImVec4 kCapsuleFill = rgb(255, 255, 255);
+inline ImVec4 kCapsuleStroke = rgb(255, 255, 255);
+inline ImVec4 kCapsuleShadow = rgba(0, 0, 0, 72);
 
 inline ThemeMode theme_mode = ThemeMode::Dark;
 
