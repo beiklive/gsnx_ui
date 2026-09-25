@@ -173,10 +173,14 @@ void ToastManager::Draw(ImDrawList* dl) {
         const float left = offscreen_x + (parked_x - offscreen_x) * toast.slide;
         const Rect box = Rect::FromPosSize(ImVec2(left, toast.current_y), ImVec2(toast.width, toast.height));
 
-        // 1) 和 Button 一模一样的框（同一套 Global::component_style + Draw::ComponentBox）
-        //    左侧两个角按需求做成直角，右侧保持 Button 的圆角
+        // 1) 和 Button 一模一样的框（同一套 Global::component_style + Draw::ComponentBox）：
+        //    左侧两个角按需求做成直角，右侧保持 Button 的圆角；
+        //    边框换成 borealis 通知那套（1.5px rgba(255,255,255,50) 内侧描边，inset 1）
         BoxVisual visual = Global::ComponentBoxVisual();
         visual.background = Theme::U32(Theme::kBgWidget);
+        visual.border.width = style_.border_width;
+        visual.border.inset = style_.border_inset;
+        visual.border.color = Theme::U32(style_.border_color);
         visual.tl = 0.0f;
         visual.bl = 0.0f;
         Draw::ComponentBox(dl, box, visual);

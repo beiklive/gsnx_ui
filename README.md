@@ -201,6 +201,55 @@ ui.UiZoom();                                  // 当前倍率
 > 不是组件库的代码。Switch 端的运行期缩放也可能踩到同类问题，所以统一改成启动时设定，
 > 界面上不再提供运行期缩放按钮。要在设备上运行期缩放的话，需要换真实 SDL2 或自己实现缩放几何的渲染路径。
 
+### Toast 通知
+
+业务代码只碰这几个函数，坐标 / 动画 / 生命周期 / 排列 / 图标 / 颜色都在 `ToastManager` 里：
+
+```cpp
+Toasts().ShowSuccess("保存状态成功");   // Page 里的入口
+Toasts().ShowError("读取状态失败");
+Toasts().ShowInfo("正在加载游戏...");
+Toasts().Show(ToastType::Info, "任意文案");
+```
+
+视觉上就是「一个从右边滑进来的 Button Box」：底色 / 圆角 / 阴影 / 字体 / 内边距**全部复用**
+`Global::component_style`（和 Button 走同一个画法函数 `Draw::ComponentBox()`），
+Toast 只额外画左侧状态色条 + Material 图标 + 文本。
+
+**边框照 GBAStation 用的 borealis 通知**（`borealis/.../notification_manager.cpp` 的 `Notification::draw`）：
+1.5px 的 `rgba(255,255,255,50)` **内侧描边**（画在 inset 1 的位置，`ToastStyle::border_width /
+border_inset / border_color` 可改），比原来的 1px 灰白边框更细、像一层高光；深色主题下最明显。
+
+| 项 | 值（`ToastStyle`，可改） |
+|---|---|
+| 边框 | 1.5px `rgba(255,255,255,50)`、inset 1（照 borealis） |
+| 底色 / 圆角 / 阴影 | 走 `Global::component_style`（和 Button 同一套） |
+| 左侧状态色条 | 直角长条，左/上/下离边框 2px；Success 绿 / Error 红 / Info 蓝（颜色只用于色条和图标） |
+| 图标 | Material `check_circle` / `error_outline` / `info`，22px |
+| 尺寸 | 宽 200~320 自适应、最小高 `kControlHeight`(56)，长文本自动换行并按行数增高 |
+| 位置 | 右上角：顶部 20、右边 5、多个 Toast 间距 10 |
+| 时长 | 入场 0.25s（EaseOutCubic）→ 停留 **3s**（从入场完成开始算）→ 出场 0.25s → 删除 |
+
+关键机制（也是没有「删除元素后坐标错乱」的原因）：
+
+```text
+X 轴：Entering 时 slide 0 → 1（EaseOutCubic）；Exiting 时 1 → 0（exponentialIn 风格）并 alpha = slide 淡出
+Y 轴：每帧 targetY = 上一条的 y + 上一条的 height + spacing；
+      currentY = SmoothTo(currentY, targetY, reflow_speed, dt)
+```
+
+两个轴完全独立，所以「A 正在向右退出 / B、C 正在向上补位 / D 正在从右边进入」可以同时发生；
+顶部 Toast 消失后，后面的自动向上补位 —— 不需要 Toast 之间互相知道坐标。
+
+- 去重：**默认关闭**（`dedup_window = 0`，每次 Show 都建一条）；设成 >0 时同类型 + 同文案在该窗口内
+  只刷新停留时间、不新建（正在退出的会被拉回来重新滑入）。
+- 不接管输入：Toast 不在 Widget 树里，不参与命中测试 / 焦点导航 / 手柄分发（`Page::Update` 里只推进动画）。
+- 绘制层级：`Page::Render` 里画在页面内容与 overlay **之后**，而 `Global::draw_list` 是 ImGui 前景 draw list → 高于所有 ImGui 窗口。
+- 线程：Toast 是 UI 层服务，`Show*` / `Update` / `Draw` 都在 UI 线程（本项目 UI 单线程）。以后真有后台线程要发通知，
+  再在 `Show*` 前面挂一个线程安全队列由 UI 线程排空即可。
+
+demo 的右侧控制列加了四个触发按钮（成功 / 失败 / 信息 / 长文本），长文本那条用来验证换行和后续补位。
+
 ### 主题：浅色 / 深色（运行时整套切换）
 
 调色板里的「角色色」都是运行时可变的变量，`Theme::SetMode()` 会把整套颜色换掉：
@@ -805,7 +854,13 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   关掉说明行后主文字就停在偏上 8px 的位置；现在按文字块自己的高度居中。
   实测（说明行关）：无线网络主文字墨迹中心 169.5 / 存储路径 231.5 vs 按钮中心 170 / 232；
   普通按钮（无说明行）主文字墨迹中心 y=45.5、x=217 vs 按钮中心 (46, 218)。
-- 已确认（尺寸统一，参考 GBAStation SettingPage）：`component_view/Theme.h` 的字号/控件高改成
+- 已确认（Toast 边框照 borealis 通知）：按 `borealis/.../notification_manager.cpp` 的
+  `Notification::draw`，把 Toast 的描边换成 **1.5px `rgba(255,255,255,50)` 内侧描边（inset 1）**
+  （`ToastStyle::border_width / border_inset / border_color`）。其余视觉不变：底色 / 圆角 / 阴影仍走
+  `Global::component_style`，状态色条、图标、尺寸、位置、时长都保持原样。
+  抓帧核对：深色主题下卡片左边缘出现一条亮线（实测 (175,175,180)，卡片 (45,45,48)、页面 (30,30,30)），
+  上边缘 y=20 是 (145,145,149)、y=22 回到卡片色 → 1.5px 内侧高光；浅色主题下是一条更细的浅色描边。
+- - 已确认（尺寸统一，参考 GBAStation SettingPage）：`component_view/Theme.h` 的字号/控件高改成
   参考 SettingPage 的一套值（标题 22 / 区块 20 / 正文 16 / 说明 14 / 极小 12、控件高 **56**、
   标签高 26、内容留白 12），组件与 demo 全部改引用常量：Button 默认字号 = kFontBody、
   subtitle = kFontSmall、最小高 = kControlHeight；Badge 字号 = kFontSmall、高 = kBadgeHeight；
