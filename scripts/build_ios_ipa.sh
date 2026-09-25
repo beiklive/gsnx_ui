@@ -66,6 +66,10 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# OUT_DIR 可能来自命令行（相对路径），而打包时会在临时目录里 cd —— 先统一成绝对路径
+mkdir -p "${OUT_DIR}"
+OUT_DIR="$(cd "${OUT_DIR}" && pwd)"
+
 # 把一个 .app 打成 .ipa：Payload/<名字>.app 再 zip 成 .ipa（这是 .ipa 的全部结构）
 package_ipa() {
     local app="$1" out="$2"

@@ -172,13 +172,17 @@ function(gui_dev_add_demo target)
         if(GUI_DEV_SDL2_MAIN)
             target_link_libraries(${target} PRIVATE ${GUI_DEV_SDL2_MAIN})
         endif()
+        # CFBundleIdentifier 只允许字母数字 / 连字符 / 点（下划线非法），
+        # 而且必须和 PRODUCT_BUNDLE_IDENTIFIER 一致，否则 Xcode 会告警。
+        string(REPLACE "_" "-" GUI_DEV_BUNDLE_ID "com.beiklive.gui-dev.${target}")
         set_target_properties(${target} PROPERTIES
             MACOSX_BUNDLE TRUE
             MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in"
             MACOSX_BUNDLE_BUNDLE_NAME "${target}"
-            MACOSX_BUNDLE_GUI_IDENTIFIER "com.beiklive.gui_dev.${target}"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "${GUI_DEV_BUNDLE_ID}"
             MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
             MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+            XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${GUI_DEV_BUNDLE_ID}"
             XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2")
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory
