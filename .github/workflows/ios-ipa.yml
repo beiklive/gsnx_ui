@@ -30,6 +30,7 @@ on:
     paths:
       - ".github/workflows/ios-ipa.yml"
       - "scripts/build_ios_ipa.sh"
+      - "scripts/verify_ios_app.sh"
       - "cmake/toolchains/iOS.cmake"
       - "cmake/Info.plist.in"
 
@@ -79,8 +80,29 @@ jobs:
           echo "--- dist/ios ---"
           ls -la dist/ios || true
 
+      - name: 校验 IPA（可安装性硬性检查）
+        id: verify
+        run: |
+          set -uo pipefail
+          chmod +x scripts/verify_ios_app.sh
+          mkdir -p verify-report
+          status=0
+          shopt -s nullglob
+          ipas=(dist/ios/*.ipa)
+          if [ "${#ipas[@]}" -eq 0 ]; then
+            echo "::error::没有找到 IPA 产物"
+            exit 1
+          fi
+          for ipa in "${ipas[@]}"; do
+            scripts/verify_ios_app.sh "${ipa}" --github 2>&1 | tee -a verify-report/report.txt
+            rc=${PIPESTATUS[0]}
+            [ "${rc}" -ne 0 ] && status="${rc}"
+          done
+          exit "${status}"
+
       - name: 上传 IPA
-        if: always()
+        # 校验不过就不交付产物（坏包装上去只会是"只有图标、点不开"）
+        if: always() && steps.verify.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa-${{ inputs.target || 'gui_dev_demo' }}
@@ -123,6 +145,9 @@ jobs:
             echo "## IPA 结构（前 25 项）"
             unzip -l dist/ios/*.ipa 2>/dev/null | head -25 || echo "（没有 ipa）"
           } > "ci-log/build-run${GITHUB_RUN_NUMBER}-diag.md"
+          if [ -f verify-report/report.txt ]; then
+            cp verify-report/report.txt "ci-log/build-run${GITHUB_RUN_NUMBER}-verify.txt"
+          fi
           if [ -f /tmp/build.log ]; then
             tail -c 200000 /tmp/build.log > "ci-log/build-run${GITHUB_RUN_NUMBER}.log"
           fi
