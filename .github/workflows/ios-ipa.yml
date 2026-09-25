@@ -87,6 +87,28 @@ jobs:
           path: dist/ios/*.ipa
           if-no-files-found: warn
 
+      - name: 成功时在 ci-logs 分支留标记（无需 API 权限即可确认成功）
+        if: success()
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p ci-log
+          {
+            echo "# iOS 打包成功"
+            echo
+            echo "- run: #${GITHUB_RUN_NUMBER}"
+            echo "- commit: ${GITHUB_SHA}"
+            echo "- 目标: ${{ inputs.target || 'gui_dev_demo' }}"
+            echo "- 产物:"
+            ls -lh dist/ios/*.ipa 2>/dev/null | sed 's/^/  /' || echo "  （没找到 ipa，检查上传步骤）"
+            echo
+            echo "下载：本次 run 页面底部 Artifacts → ios-ipa-*"
+          } > ci-log/last-success.md
+          git add -f ci-log
+          git commit -m "CI: iOS 打包成功 run #${GITHUB_RUN_NUMBER}" || true
+          git push -f origin HEAD:ci-logs
+
       - name: 失败时上传构建目录里的日志
         if: failure()
         uses: actions/upload-artifact@v4
