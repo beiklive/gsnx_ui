@@ -1,12 +1,8 @@
 // Toast：通用通知（右上角滑入 → 停留 3s → 滑出，多 Toast 队列 + 自动补位）。
 //
-// 视觉上就是「一个从右边滑进来的 Button Box」：底色 / 圆角 / 阴影 / 字体 / 内边距
+// 视觉上就是「一个从右边滑进来的 Button Box」：底色 / 圆角 / 边框 / 阴影 / 字体 / 内边距
 // 全部走 Global::component_style（和 Button 同一个来源，共用 Draw::ComponentBox 这套画法），
 // Toast 只额外画左侧状态色条 + Material 图标 + 文本 —— 没有第二套 Box 样式。
-//
-// 边框（描边）单独照 GBAStation 用的 borealis 通知：1.5px 的 rgba(255,255,255,50) 内侧描边
-// （borealis Notification::draw 里 nvgStrokeColor(RGBA(255,255,255,50)) + nvgStrokeWidth(1.5f)，
-//  画在 inset 1 的位置），比原来的 1px 灰白边框更细更亮，像一层高光。
 //
 // 业务代码只调 ShowSuccess / ShowError / ShowInfo，不关心坐标、动画、生命周期、排列。
 //
@@ -48,10 +44,6 @@ struct ToastStyle {
     float min_height = Theme::kControlHeight; // 和按钮/行高一致（56）
     float bar_width = 4.0f;     // 左侧状态色条宽度
     float bar_inset = 2.0f;     // 色条离边框的留白（左/上/下都是它）
-    // 边框：照 borealis 通知（其余 Box 视觉仍走 Global::component_style）
-    float border_width = 1.5f;
-    float border_inset = 1.0f;
-    ImVec4 border_color = Theme::rgba(255, 255, 255, 50);
     float icon_size = 22.0f;    // Material 图标字号
     float gap = 10.0f;          // 色条 ↔ 图标 ↔ 文本 的间距
     float padding_x = 16.0f;    // 色条之外的内容左右留白

@@ -216,13 +216,11 @@ Toasts().Show(ToastType::Info, "任意文案");
 `Global::component_style`（和 Button 走同一个画法函数 `Draw::ComponentBox()`），
 Toast 只额外画左侧状态色条 + Material 图标 + 文本。
 
-**边框照 GBAStation 用的 borealis 通知**（`borealis/.../notification_manager.cpp` 的 `Notification::draw`）：
-1.5px 的 `rgba(255,255,255,50)` **内侧描边**（画在 inset 1 的位置，`ToastStyle::border_width /
-border_inset / border_color` 可改），比原来的 1px 灰白边框更细、像一层高光；深色主题下最明显。
+边框 / 圆角 / 阴影都来自 `Global::component_style`，和 Button 完全一致（`Draw::ComponentBox()`）。
 
 | 项 | 值（`ToastStyle`，可改） |
 |---|---|
-| 边框 | 1.5px `rgba(255,255,255,50)`、inset 1（照 borealis） |
+| 边框 | 走 `Global::component_style`（1px 灰白，和 Button 同一套） |
 | 底色 / 圆角 / 阴影 | 走 `Global::component_style`（和 Button 同一套） |
 | 左侧状态色条 | 直角长条，左/上/下离边框 2px；Success 绿 / Error 红 / Info 蓝（颜色只用于色条和图标） |
 | 图标 | Material `check_circle` / `error_outline` / `info`，22px |
@@ -854,13 +852,7 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   关掉说明行后主文字就停在偏上 8px 的位置；现在按文字块自己的高度居中。
   实测（说明行关）：无线网络主文字墨迹中心 169.5 / 存储路径 231.5 vs 按钮中心 170 / 232；
   普通按钮（无说明行）主文字墨迹中心 y=45.5、x=217 vs 按钮中心 (46, 218)。
-- 已确认（Toast 边框照 borealis 通知）：按 `borealis/.../notification_manager.cpp` 的
-  `Notification::draw`，把 Toast 的描边换成 **1.5px `rgba(255,255,255,50)` 内侧描边（inset 1）**
-  （`ToastStyle::border_width / border_inset / border_color`）。其余视觉不变：底色 / 圆角 / 阴影仍走
-  `Global::component_style`，状态色条、图标、尺寸、位置、时长都保持原样。
-  抓帧核对：深色主题下卡片左边缘出现一条亮线（实测 (175,175,180)，卡片 (45,45,48)、页面 (30,30,30)），
-  上边缘 y=20 是 (145,145,149)、y=22 回到卡片色 → 1.5px 内侧高光；浅色主题下是一条更细的浅色描边。
-- - 已确认（尺寸统一，参考 GBAStation SettingPage）：`component_view/Theme.h` 的字号/控件高改成
+- 已确认（尺寸统一，参考 GBAStation SettingPage）：`component_view/Theme.h` 的字号/控件高改成
   参考 SettingPage 的一套值（标题 22 / 区块 20 / 正文 16 / 说明 14 / 极小 12、控件高 **56**、
   标签高 26、内容留白 12），组件与 demo 全部改引用常量：Button 默认字号 = kFontBody、
   subtitle = kFontSmall、最小高 = kControlHeight；Badge 字号 = kFontSmall、高 = kBadgeHeight；
