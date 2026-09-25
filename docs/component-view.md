@@ -324,7 +324,35 @@ connect(glass, &GlassBox::movedTo, this, [](ImVec2 p) { /* 记录位置 */ });
 - 想要真折射需要后端支持：渲染到 FBO → 模糊 → UV 位移 shader。Switch 的 GL 可以；
   mac 的 `SDL_Renderer` 只能用「多次降采样 + 线性过滤」近似（或直接用模拟器的帧纹理做背景采样）
 
-### 4.11 Page（`pages/Page.h`）
+### 4.11 GlassTabs（`components/GlassTabs.h`）
+
+液态玻璃风格的**底部 Tab 条**：抓背景 → 模糊 → 折射 → 玻璃材质 → 高光/边缘 → 内容，
+用 ImGui 现有能力实现，**不需要着色器**（原理与成本见下）：
+
+| 步骤 | 实现 |
+|---|---|
+| 抓背景 | `setBackdrop(纹理, 它在画布上的矩形)` —— 模拟器传游戏帧纹理，demo 传背景图 |
+| 模糊 | 对这张纹理做 **13 抽头环形核**的带偏移采样（`AddImageRounded`），半径 `blur_radius` |
+| 折射 | 从边缘往里画 3 圈「UV 略微放大」的采样（越靠边放大越多、权重越低）→ 边缘背景被掰弯，中心不变 |
+| 材质 | 染色 + 白雾 + 顶部高光 + 镜面光斑（带拖动晃动）+ 内亮边 1.4px + 外暗边 1px |
+| 内容 | 图标 + 文字 + 选中胶囊（`capsule_slide > 0` 才滑动，默认直接切） |
+
+```cpp
+GlassTabs* tabs = Root().Emplace<GlassTabs>();
+tabs->setItems({{Icons::Glyph(Icons::Material::VideogameAsset), "游戏"},
+                {Icons::Glyph(Icons::Material::Save), "存档"},
+                {Icons::Glyph(Icons::Material::Settings), "设置"}});
+tabs->size = ImVec2(760, 104);
+tabs->setBackdrop(ui.GetBackend().LoadTexture("img/xxx.png"), canvas_rect); // 或游戏帧纹理
+connect(tabs, &GlassTabs::selectionChanged, this, [](int i) { /* 切页 */ });
+```
+
+- 交互：← / →（或 L / R）切 Tab、点 Tab 直接选中、`draggable` 拖动（`movedTo` 信号）；`focus_only_self` + `capture_horizontal`，↑/↓ 仍可离开
+- 成本：模糊抽头 × 采样数（13 次贴图四边形，仅在玻璃区域内）＋ 3 圈折射采样；比一次全屏高斯便宜得多
+- 想要真·采样当前帧缓冲（含几何/文字）需要后端离屏渲染 + UV 位移 shader；这条路线在 Switch 的 GL 上可行，
+  mac 的 `SDL_Renderer` 不行 —— 所以当前设计是「宿主把背后那张纹理给我」
+
+### 4.12 Page（`pages/Page.h`）
 
 页面基类：持有根 `Box`、`ToastManager`、`FocusRing`，并提供每帧流程与焦点自动滚动。
 
@@ -449,7 +477,8 @@ Ellipsize / MarqueeText / FlowingRing / Hsv / CheckMark / TriangleRight / Rounde
 ### 9.1 现在有什么（可用于新项目）
 
 盒子/面板（`Box`）、按钮 7 形态（`Button` 家族）、机种徽标（`Badge`）、区块标题（`Header`）、
-纵向 Tab 列（`TabColumn`）、横向胶囊标签条（`CapsuleTabs`）、液态玻璃浮层（`GlassBox`）、通知（`Toast`）、
+纵向 Tab 列（`TabColumn`）、横向胶囊标签条（`CapsuleTabs`）、液态玻璃浮层（`GlassBox`）、
+液态玻璃 Tab 条（`GlassTabs`）、通知（`Toast`）、
 焦点框图层（`FocusRing`）、页面/布局/滚动/焦点/主题/动画基础设施（`Widget / Page / Global / Theme / Anim / Draw`）。
 
 ### 9.2 还没有的（别的项目若需要，要补）
@@ -494,8 +523,9 @@ cmake --build --preset switch                               # Switch（/opt/devk
 ctest --test-dir build/mac                                  # 信号槽语义测试
 
 # 跑演示
-./build/mac/gui_dev_demo
-./build/mac/gui_dev_min_demo        # 最小接入示例
+./build/mac/gui_dev_demo                  # 组件总览（tab 列 + 4 个子页面）
+./build/mac/gui_dev_liquid_glass_demo     # 液态玻璃 Tab 条（拖动/切 Tab 观察模糊与折射）
+./build/mac/gui_dev_min_demo              # 最小接入示例
 GUI_DEV_PERF=1 GUI_DEV_MAX_FPS=60 ./build/mac/gui_dev_demo   # 性能统计
 ```
 

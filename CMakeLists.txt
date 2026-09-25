@@ -161,6 +161,10 @@ add_test(NAME qt_signal_style COMMAND gui_dev_signal_test)
 add_executable(gui_dev_demo demo.cpp)
 target_link_libraries(gui_dev_demo PRIVATE gui_dev_components)
 
+# 液态玻璃演示：底部玻璃 Tab 条（多重采样模糊 + 边缘 UV 折射）+ 文字/图片背景
+add_executable(gui_dev_liquid_glass_demo examples/liquid_glass/main.cpp)
+target_link_libraries(gui_dev_liquid_glass_demo PRIVATE gui_dev_components)
+
 # 最小接入示例：证明 component_view 能整体搬进别的项目（不依赖 demo.cpp / 业务代码）
 add_executable(gui_dev_min_demo examples/min_demo/main.cpp)
 target_link_libraries(gui_dev_min_demo PRIVATE gui_dev_components)
