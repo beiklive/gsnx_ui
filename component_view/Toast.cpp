@@ -173,19 +173,23 @@ void ToastManager::Draw(ImDrawList* dl) {
         const float left = offscreen_x + (parked_x - offscreen_x) * toast.slide;
         const Rect box = Rect::FromPosSize(ImVec2(left, toast.current_y), ImVec2(toast.width, toast.height));
 
-        // 1) 和 Button 一模一样的框（同一套 Global::component_style + Draw::ComponentBox）
-        //    左侧两个角按需求做成直角，右侧保持 Button 的圆角
+        // 1) 和 Button 一模一样的框（同一套 Global::component_style + Draw::ComponentBox）：
+        //    左侧两角 5px 圆角、右侧两角直角
         BoxVisual visual = Global::ComponentBoxVisual();
         visual.background = Theme::U32(Theme::kBgWidget);
-        visual.tl = 0.0f;
-        visual.bl = 0.0f;
+        const float left_radius = style_.left_radius;
+        visual.tl = left_radius;
+        visual.bl = left_radius;
+        visual.tr = 0.0f;
+        visual.br = 0.0f;
         Draw::ComponentBox(dl, box, visual);
 
-        // 2) 左侧状态色条：直角长条，左/上/下都离边框 style_.bar_inset
+        // 2) 左侧状态色条：圆角长条（bar_radius），左/上/下都离边框 style_.bar_inset
         const float inset = style_.bar_inset;
         const Rect bar = Rect::FromPosSize(ImVec2(box.min.x + inset, box.min.y + inset),
                                            ImVec2(style_.bar_width, box.Height() - inset * 2.0f));
-        Draw::RoundedRectFilled(dl, bar, ToastAccentColor(toast.type), 0.0f, 0.0f, 0.0f, 0.0f);
+        Draw::RoundedRectFilled(dl, bar, ToastAccentColor(toast.type), style_.bar_radius, style_.bar_radius,
+                                style_.bar_radius, style_.bar_radius);
 
         // 3) Material 图标（现成的字体图标，不引第二套）
         const float icon_x = bar.max.x + style_.gap;

@@ -42,9 +42,11 @@ using gui_dev::cv::ValueButton;
 namespace Theme = gui_dev::cv::Theme;
 namespace Global = gui_dev::cv::Global;
 
-// 启动缩放：720p 手持基准下 1.0 显得太小，默认整体放大 1.25 倍
-// （右侧控制列的「放大 / 缩小」还能在运行时继续调；GUI_DEV_ZOOM 可覆盖）
-constexpr float kDefaultZoom = 1.25f;
+// 启动缩放：1.0 = 不额外缩放（验过的那版行为）。
+// 之前默认 1.25 会让逻辑画布从 1280x720 变成 1024x576，进而让后端那段「鼠标坐标修正」开始生效
+// （缩放 1.0 时它正好是空操作），怀疑因此把 Switch 上的触摸落点带偏了 —— 先回到 1.0。
+// 需要放大时用 GUI_DEV_ZOOM=<倍率> 或直接改这里。
+constexpr float kDefaultZoom = 1.0f;
 
 // 验收用开关：GUI_DEV_TRACE_SIGNAL=1 时把按钮状态变化打到终端，方便脚本化测试
 bool TraceSignal() {

@@ -41,13 +41,15 @@ enum class ToastState {
 struct ToastStyle {
     float min_width = 200.0f;
     float max_width = 320.0f;
-    float min_height = Theme::kControlHeight; // 和按钮/行高一致（56）
+    float min_height = 44.0f;   // 比按钮行高（56）矮一些；长文本仍会按行数自动长高
     float bar_width = 4.0f;     // 左侧状态色条宽度
     float bar_inset = 2.0f;     // 色条离边框的留白（左/上/下都是它）
+    float bar_radius = 2.0f;    // 色条圆角（0 = 直角）
+    float left_radius = 5.0f;   // 卡片左侧两角圆角（右侧两角固定直角）
     float icon_size = 22.0f;    // Material 图标字号
     float gap = 10.0f;          // 色条 ↔ 图标 ↔ 文本 的间距
     float padding_x = 16.0f;    // 色条之外的内容左右留白
-    float padding_y = 12.0f;    // 内容上下留白
+    float padding_y = 8.0f;     // 内容上下留白（配合 min_height 把卡片压矮）
     float text_size = Theme::kFontBody; // 文本字号统一 16
     float enter_duration = 0.25f;
     float exit_duration = 0.25f;
