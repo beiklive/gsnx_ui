@@ -157,6 +157,17 @@ void TabColumn::OnUpdate(float dt) {
         ApplyItemLook(i);
     }
 
+    // 焦点落到哪一项，选中就立刻跟到哪一项 —— 「切焦点 = 切页面」，不用再按 A。
+    // 放在 OnUpdate 里：这一帧焦点刚变，同一帧就把 selectionChanged 发出去。
+    if (Global::focused != nullptr) {
+        for (int i = 0; i < static_cast<int>(item_buttons_.size()); ++i) {
+            if (item_buttons_[static_cast<std::size_t>(i)] == Global::focused) {
+                setIndex(i);
+                break;
+            }
+        }
+    }
+
     // 焦点自动滚动：焦点项变了、而且落在本列里，就把它滚进可见区
     Widget* focused = Global::focused;
     if (focused != last_focus_) {

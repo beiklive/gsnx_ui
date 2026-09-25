@@ -135,7 +135,7 @@ inline constexpr float kKeySize       = 30.0f;
 
 // 720p 手持基准下几个常用的「页面骨架」尺寸
 inline constexpr float kHudHeight      = 36.0f;
-inline constexpr float kTabColumnWidth = 186.0f;
+inline constexpr float kTabColumnWidth = 210.0f;
 inline constexpr float kPagePadding    = 18.0f;
 
 // 把调色板套到 ImGui 默认样式上（用到标准控件时视觉一致）。
