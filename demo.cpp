@@ -16,6 +16,7 @@
 #include "component_view/components/Box.h"
 #include "component_view/components/Button.h"
 #include "component_view/components/CapsuleTabs.h"
+#include "component_view/components/TabColumn.h"
 #include "component_view/pages/Page.h"
 #include "ui/Icons.h"
 #include "core/App.h"
@@ -29,6 +30,7 @@ namespace Icons = gui_dev::Icons;
 using gui_dev::cv::Badge;
 using gui_dev::cv::BadgeStyle;
 using gui_dev::cv::Box;
+using gui_dev::cv::Widget;
 using gui_dev::cv::EmuPlatform;
 using gui_dev::cv::Button;
 using gui_dev::cv::CapsuleTabs;
@@ -38,6 +40,7 @@ using gui_dev::cv::IconButtonShape;
 using gui_dev::cv::IconTextButton;
 using gui_dev::cv::OptionButton;
 using gui_dev::cv::Page;
+using gui_dev::cv::TabColumn;
 using gui_dev::cv::TextButton;
 using gui_dev::cv::ToastType;
 using gui_dev::cv::ToggleButton;
@@ -59,59 +62,128 @@ bool TraceSignal() {
 
 // ---------------------------------------------------------------- 页面 ----
 
+// 页面 = 左侧 TabColumn（纵向标签列）+ 右侧内容区。
+// 内容区里所有控件在 OnBuild 时一次性建好，按归属的 tab 记进 pages_，切 tab 只切 visible
+// （CollectFocusables 会跳过隐藏控件，所以隐藏页不会抢焦点/按键）。
 class DemoPage : public Page {
 public:
     const char* Title() const override { return "component_view"; }
 
     void OnBuild() override {
-        // 所有按钮都用全局约定样式（Global::component_style）：1px 灰白边框 / 5px 圆角 /
-        // 右下角阴影 / 流光聚焦框（与按钮留 2px 边距）。单个按钮可以用 setBorder() 等覆盖。
-        const float x = 20.0f;
-        const float width = 396.0f;
-        const float height = Theme::kControlHeight; // 统一行高（56）
-        const float gap = 10.0f;
-        float cursor = 20.0f;
-        const auto place = [&](Button* button, const char* name) {
-            button->SetName(name);
-            button->moveTo(x, cursor);
-            button->resize(width, height);
-            button->setSubtitle(button->subtitle, true); // 说明行默认打开（+ 键可以整体关掉）
-            cursor += height + gap;
-            buttons_.push_back(button);
-            return button;
-        };
+        BuildTabColumn();
 
+        BuildButtonPage(); // tab 0 按钮
+        BuildBadgePage();  // tab 1 徽标
+        BuildToastPage();  // tab 2 提示
+        BuildNavPage();    // tab 3 导航
+
+        // 主题开关是「应用级」的：钉在右上角，任何 tab 下都能切，不放进 tab 页面
+        theme_button_ = Root().Emplace<IconButton>(Icons::Glyph(ThemeIcon()));
+        theme_button_->SetName("btn_theme");
+        theme_button_->setSide(kControlSize);
+        theme_button_->setShape(IconButtonShape::RoundedSquare);
+        theme_button_->setSubtitle(ThemeName());
+        connect(theme_button_, &IconButton::clicked, this, [this] { ToggleTheme(); });
+        buttons_.push_back(theme_button_);
+
+        SetActiveTab(tab_column_->index());
+    }
+
+    void OnUpdate(float dt) override {
+        (void)dt;
+        LayoutContent(); // 画布尺寸变了（缩放 / 窗口）就重排
+    }
+
+    // ------------------------------------------------------- tab 列 ----
+    void BuildTabColumn() {
+        tab_column_ = Root().Emplace<TabColumn>();
+        tab_column_->SetName("tab_column");
+        tab_column_->setItems({
+            {Icons::Glyph(Icons::Material::VideogameAsset), "按钮"},
+            {Icons::Glyph(Icons::Material::SportsEsports), "徽标"},
+            {Icons::Glyph(Icons::Material::Info), "提示"},
+            {Icons::Glyph(Icons::Material::Games), "导航"},
+        });
+        // 选中项变了：只切内容区控件的 visible
+        connect(tab_column_, &TabColumn::selectionChanged, this, [this](int index) {
+            SetActiveTab(index);
+            if (TraceSignal()) {
+                std::printf("[signal] tab = %d (%s)\n", index,
+                            tab_column_->items()[static_cast<std::size_t>(index)].text.c_str());
+                std::fflush(stdout);
+            }
+        });
+        // 对已选中项再按 A / 再点一次
+        connect(tab_column_, &TabColumn::activated, this, [this](int index) {
+            Toasts().ShowInfo("已在 " + tab_column_->items()[static_cast<std::size_t>(index)].text + " 页");
+        });
+    }
+
+    // 归到某个 tab：设内容区焦点分区（TabColumn 是分区 1）、登记进 pages_、按当前 tab 决定可见性
+    template <typename T>
+    T* AddTo(int tab, T* widget) {
+        widget->SetFocusZone(kContentZone);
+        pages_[tab].push_back(widget);
+        widget->visible = (tab == active_tab_);
+        return widget;
+    }
+
+    void SetActiveTab(int index) {
+        if (index < 0 || index >= kTabCount) {
+            return;
+        }
+        active_tab_ = index;
+        for (int tab = 0; tab < kTabCount; ++tab) {
+            const bool on = (tab == index);
+            for (Widget* widget : pages_[tab]) {
+                widget->visible = on;
+            }
+        }
+        // → / R 进内容区时落在当前页第一个可聚焦控件上
+        Widget* first = nullptr;
+        for (Widget* widget : pages_[index]) {
+            if (widget->focusable) {
+                first = widget;
+                break;
+            }
+        }
+        tab_column_->setFocusTarget(first);
+    }
+
+    // ------------------------------------------------------- tab 0 按钮 ----
+    void BuildButtonPage() {
         // 1 普通按钮（弹窗的确认 / 取消这类提示文字）：文字居中，不带说明行
-        TextButton* plain = Root().Emplace<TextButton>("普通按钮");
-        place(plain, "btn_text");
+        TextButton* plain = AddTo(kTabButtons, Root().Emplace<TextButton>("普通按钮"));
+        AddStackButton(plain, "btn_text");
 
         // 2 图标 + 文字：图标占左侧正方形格（格内水平+垂直居中），文字紧跟其右
-        IconTextButton* icon_text =
-            Root().Emplace<IconTextButton>(Icons::Glyph(Icons::Material::Play), "图标 + 文字按钮");
+        IconTextButton* icon_text = AddTo(
+            kTabButtons, Root().Emplace<IconTextButton>(Icons::Glyph(Icons::Material::Play), "图标 + 文字按钮"));
         icon_text->setSubtitle("图标是正方形格，格内居中；图标在左、文字紧跟其右");
-        place(icon_text, "btn_icon_text");
+        AddStackButton(icon_text, "btn_icon_text");
 
-        // 4 开关按钮：右侧显示 开/关（开=蓝、关=灰），A/点击切换
-        ToggleButton* toggle = Root().Emplace<ToggleButton>(Icons::Glyph(Icons::Material::Wifi), "无线网络");
+        // 3 开关按钮：右侧显示 开/关（开=蓝、关=灰），A/点击切换
+        ToggleButton* toggle =
+            AddTo(kTabButtons, Root().Emplace<ToggleButton>(Icons::Glyph(Icons::Material::Wifi), "无线网络"));
         toggle->setSubtitle("点击 / A 切换开关状态");
-        place(toggle, "btn_toggle");
         connect(toggle, &ToggleButton::toggled, this, [](bool on) {
-            // 需要的话在这里接收：on = true 表示打开
             if (TraceSignal()) {
                 std::printf("[signal] toggle = %s\n", on ? "开" : "关");
                 std::fflush(stdout);
             }
         });
+        AddStackButton(toggle, "btn_toggle");
 
-        // 5 自定义右侧文字按钮
-        CustomButton* custom = Root().Emplace<CustomButton>(Icons::Glyph(Icons::Material::Storage), "存储路径");
+        // 4 自定义右侧文字按钮
+        CustomButton* custom =
+            AddTo(kTabButtons, Root().Emplace<CustomButton>(Icons::Glyph(Icons::Material::Storage), "存储路径"));
         custom->setRightText("sdmc:/switch/", Theme::kTeal);
         custom->setSubtitle("右侧文字的内容与颜色都可以改（setRightText）");
-        place(custom, "btn_custom");
+        AddStackButton(custom, "btn_custom");
 
-        // 6 LR 选项选择器：右侧 [L] 固定间隔 [R]，L/R 键切换；选项太长就在间隔里滚动
+        // 5 LR 选项选择器：右侧 [L] 固定间隔 [R]，L/R 键切换；选项太长就在间隔里滚动
         OptionButton* option =
-            Root().Emplace<OptionButton>(Icons::Glyph(Icons::Material::ImagePlaceholder), "画面缩放");
+            AddTo(kTabButtons, Root().Emplace<OptionButton>(Icons::Glyph(Icons::Material::ImagePlaceholder), "画面缩放"));
         option->setOptions({"整数缩放", "线性过滤", "CRT 扫描线（像素风，速度慢）"});
         option->setSubtitle("L / R 键切换选项；选项超长会在间隔里滚动");
         connect(option, &OptionButton::selectionChanged, this, [](int index) {
@@ -120,10 +192,11 @@ public:
                 std::fflush(stdout);
             }
         });
-        place(option, "btn_option");
+        AddStackButton(option, "btn_option");
 
-        // 7 LR 数值选择器：右侧 [L] 固定间隔 [R]，初始化时给范围/步长/精度
-        ValueButton* value = Root().Emplace<ValueButton>(Icons::Glyph(Icons::Material::Memory), "音量");
+        // 6 LR 数值选择器：右侧 [L] 固定间隔 [R]，初始化时给范围/步长/精度
+        ValueButton* value =
+            AddTo(kTabButtons, Root().Emplace<ValueButton>(Icons::Glyph(Icons::Material::Memory), "音量"));
         value->setup(65.0f, 0.0f, 100.0f, 5.0f, 0);
         value->setSubtitle("L / R 调值（长按加速），松开才发 valueChanged");
         connect(value, &ValueButton::valueChanged, this, [](float current) {
@@ -132,103 +205,48 @@ public:
                 std::fflush(stdout);
             }
         });
-        place(value, "btn_value");
+        AddStackButton(value, "btn_value");
 
-        // 3 纯图标按钮：只有圆角正方形和圆形两种形态，边长 setSide()；
+        // 7 纯图标按钮：只有圆角正方形和圆形两种形态，边长 setSide()；
         // 有说明行时说明行落到图标下方居中（图标格自动给说明行让位）
-        IconButton* icon_square = Root().Emplace<IconButton>(Icons::Glyph(Icons::Material::Settings));
-        icon_square->setSide(Theme::kControlHeight);
-        icon_square->setShape(IconButtonShape::RoundedSquare);
-        icon_square->setSubtitle("圆角方形");
-        icon_square->moveTo(440.0f, kIconRowY);
-        buttons_.push_back(icon_square);
+        icon_square_ = AddTo(kTabButtons, Root().Emplace<IconButton>(Icons::Glyph(Icons::Material::Settings)));
+        icon_square_->setSide(kControlSize);
+        icon_square_->setShape(IconButtonShape::RoundedSquare);
+        icon_square_->setSubtitle("圆角方形");
+        buttons_.push_back(icon_square_);
 
-        IconButton* icon_circle = Root().Emplace<IconButton>(Icons::Glyph(Icons::Material::Favorite));
-        icon_circle->setSide(Theme::kControlHeight);
-        icon_circle->setShape(IconButtonShape::Circle);
-        icon_circle->moveTo(440.0f + Theme::kControlHeight + 12.0f, kIconRowY);
-        icon_circle->setSubtitle("圆形");
-        buttons_.push_back(icon_circle);
+        icon_circle_ = AddTo(kTabButtons, Root().Emplace<IconButton>(Icons::Glyph(Icons::Material::Favorite)));
+        icon_circle_->setSide(kControlSize);
+        icon_circle_->setShape(IconButtonShape::Circle);
+        icon_circle_->setSubtitle("圆形");
+        buttons_.push_back(icon_circle_);
 
-        // 顺手保留一个可聚焦 Box（容器/控件两种身份），放在按钮右侧。
+        // 顺手保留一个可聚焦 Box（容器/控件两种身份）。
         // 不显式 fillWith，底色就来自调色板 → 切主题会自动跟着变。
-        box_ = Root().Emplace<Box>("box");
-        box_->moveTo(440.0f, 20.0f);
+        box_ = AddTo(kTabButtons, Root().Emplace<Box>("box"));
         box_->resize(124.0f, 124.0f);
         box_->roundCorners(Global::component_style.corner_radius);
         box_->makeFocusable();
         connect(box_, &Box::clicked, this, [this] {
             box_->fillWith(box_->hasFocus() ? Theme::kAccent : Theme::kBgWidget); // 显式设色后就不再跟随主题
         });
-
-        // 胶囊标签条（学 GBAStation 游戏库顶部的机种轮播）：放在徽标墙上方。
-        // 选中项停在条带中心，L/R 或点标签切换；胶囊是 104x42 圆角 21 的半透明高亮，
-        // 字号 17→22、透明度 0.42→1.0 按离中心的距离衰减。
-        capsule_ = Root().Emplace<CapsuleTabs>();
-        capsule_->SetName("capsule_tabs");
-        capsule_->setLabels({"所有", "GBA", "GBC", "FC", "SFC", "NDS", "3DS", "MD"}, 1);
-        capsule_->position = ImVec2(kTabsX, kTabsY);
-        capsule_->size.x = kTabsWidth; // 高度按内容自适应（胶囊 42 + 阴影余量）
-        connect(capsule_, &CapsuleTabs::selectionChanged, this, [this](int index) {
-            if (TraceSignal()) {
-                std::printf("[signal] capsule index = %d (%s)\n", index, capsule_->currentLabel());
-                std::fflush(stdout);
-            }
-        });
-        connect(capsule_, &CapsuleTabs::activated, this, [this](int index) {
-            // A 键 / 再点一次已选中项
-            Toasts().ShowInfo(std::string("进入 ") + capsule_->labels[static_cast<std::size_t>(index)]);
-        });
-
-        // 机种徽标墙：14 个机种 + 一个「其它」兜底，放在网格视图那种容器里
-        BuildBadgeWall();
-
-        // 右侧控制列：从上往下排控制按钮（主题 / 放大 / 缩小）
-        theme_button_ = AddControl(Icons::Material::DarkMode, "btn_theme", ThemeName());
-        connect(theme_button_, &IconButton::clicked, this, [this] { ToggleTheme(); });
-
-        // Toast 触发按钮（业务代码就这一行：Toasts().ShowSuccess(...)）
-        toast_ok_ = AddControl(Icons::Material::CheckCircle, "btn_toast_ok", "成功");
-        connect(toast_ok_, &IconButton::clicked, this, [this] { Toasts().ShowSuccess("保存状态成功"); });
-
-        toast_error_ = AddControl(Icons::Material::ErrorOutline, "btn_toast_error", "失败");
-        connect(toast_error_, &IconButton::clicked, this, [this] { Toasts().ShowError("读取状态失败"); });
-
-        toast_info_ = AddControl(Icons::Material::Info, "btn_toast_info", "信息");
-        connect(toast_info_, &IconButton::clicked, this, [this] { Toasts().ShowInfo("正在加载游戏..."); });
-
-        toast_long_ = AddControl(Icons::Material::Description, "btn_toast_long", "长文本");
-        connect(toast_long_, &IconButton::clicked, this, [this] {
-            // 长文本会自动换行，高度变化会让后面的 Toast 重新排位
-            Toasts().ShowInfo("正在加载游戏资源，正在校验存档完整性，请稍候，不要关闭主机电源。");
-        });
-
-        theme_button_->setIcon(Icons::Glyph(ThemeIcon()));
-        LayoutControls();
     }
 
-    // 右侧控制列贴着画布右边缘、从上往下排（窗口尺寸可变，所以每帧重排一次）
-    void OnUpdate(float dt) override {
-        (void)dt;
-        LayoutControls();
-        LayoutBadges(); // 画布尺寸变了（缩放/窗口）徽标跟着重排
+    void AddStackButton(Button* button, const char* name) {
+        button->SetName(name);
+        button->resize(kStackWidth, Theme::kControlHeight);
+        button->showSubtitle(true);
+        buttons_.push_back(button);
+        stack_buttons_.push_back(button);
     }
 
-    // 一键切浅色 / 深色：换调色板 + 约定样式，再让整棵组件树重新取色
-    void ToggleTheme() {
-        Theme::ToggleMode();
-        Theme::ApplyToImGui();
-        RefreshTheme(); // 内部：Global::ApplyTheme() + 根节点装饰复位 + 整棵树重新取色
-        theme_button_->setIcon(Icons::Glyph(ThemeIcon()));
-        theme_button_->setSubtitle(ThemeName());
-    }
-
+    // ------------------------------------------------------- tab 1 徽标 ----
     // 徽标墙：两列、每个徽标同样大小、文字一律白色（不套容器 Box，直接画在页面上）
-    void BuildBadgeWall() {
+    void BuildBadgePage() {
         constexpr int kBadgeCount = 15; // 14 个机种 + 其它
         for (int i = 0; i < kBadgeCount; ++i) {
             const EmuPlatform platform = i < 14 ? static_cast<EmuPlatform>(i + 1) : EmuPlatform::Unknown;
-            Badge* badge = Root().Emplace<Badge>(platform);
+            Badge* badge = AddTo(kTabBadges, Root().Emplace<Badge>(platform));
             badge->SetName("badge");
             if (platform == EmuPlatform::Unknown) {
                 badge->setText("其它"); // 表里兜底那条文字是空的，这里手动给一个看颜色
@@ -240,38 +258,110 @@ public:
             badge->setColors(PlatformBadgeInfoOf(platform).background, Theme::kWhite);
             badges_.push_back(badge);
         }
-        LayoutBadges();
     }
 
-    // 徽标两列排布：整体贴右侧控制列左边，画布尺寸变了（缩放/窗口）每帧重排
-    void LayoutBadges() {
-        const float right = Global::canvas_size.x - kControlGap - kControlSize - 20.0f;
-        const float left = right - (kBadgeWidth * 2.0f + kBadgeGapX);
-        for (std::size_t i = 0; i < badges_.size(); ++i) {
-            const float x = left + static_cast<float>(i % 2) * (kBadgeWidth + kBadgeGapX);
-            const float y = kBadgeTop + static_cast<float>(i / 2) * (kBadgeHeight + kBadgeGapY);
-            badges_[i]->moveTo(x, y);
-        }
+    // ------------------------------------------------------- tab 2 提示 ----
+    void BuildToastPage() {
+        // Toast 触发按钮（业务代码就这一行：Toasts().ShowSuccess(...)）
+        IconButton* ok = AddToastButton(Icons::Material::CheckCircle, "btn_toast_ok", "成功");
+        connect(ok, &IconButton::clicked, this, [this] { Toasts().ShowSuccess("保存状态成功"); });
+
+        IconButton* error = AddToastButton(Icons::Material::ErrorOutline, "btn_toast_error", "失败");
+        connect(error, &IconButton::clicked, this, [this] { Toasts().ShowError("读取状态失败"); });
+
+        IconButton* info = AddToastButton(Icons::Material::Info, "btn_toast_info", "信息");
+        connect(info, &IconButton::clicked, this, [this] { Toasts().ShowInfo("正在加载游戏..."); });
+
+        IconButton* long_text = AddToastButton(Icons::Material::Description, "btn_toast_long", "长文本");
+        connect(long_text, &IconButton::clicked, this, [this] {
+            // 长文本会自动换行，高度变化会让后面的 Toast 重新排位
+            Toasts().ShowInfo("正在加载游戏资源，正在校验存档完整性，请稍候，不要关闭主机电源。");
+        });
     }
 
-    // 控制列里的按钮：图标 + 按钮外侧说明行，边长统一
-    IconButton* AddControl(gui_dev::Icons::Material icon, const char* name, const char* caption) {
-        IconButton* button = Root().Emplace<IconButton>(Icons::Glyph(icon));
+    IconButton* AddToastButton(gui_dev::Icons::Material icon, const char* name, const char* caption) {
+        IconButton* button = AddTo(kTabToasts, Root().Emplace<IconButton>(Icons::Glyph(icon)));
         button->SetName(name);
         button->setSide(kControlSize);
         button->setShape(IconButtonShape::RoundedSquare);
         button->setSubtitle(caption);
-        controls_[control_count_++] = button;
+        toast_buttons_.push_back(button);
         buttons_.push_back(button); // 蹭一下「+ 键开关说明行」的逻辑
         return button;
     }
 
-    void LayoutControls() {
-        float y = kControlTop;
-        for (int i = 0; i < control_count_; ++i) {
-            controls_[i]->moveTo(ControlX(), y);
-            y += kControlSize + kControlGap;
+    // ------------------------------------------------------- tab 3 导航 ----
+    // 胶囊标签条（学 GBAStation 游戏库顶部的机种轮播）：
+    // 选中项停在条带中心，L/R 或点标签切换；胶囊是 104x42 圆角 21 的半透明高亮，
+    // 字号 17→22、透明度 0.42→1.0 按离中心的距离衰减。
+    void BuildNavPage() {
+        capsule_ = AddTo(kTabNav, Root().Emplace<CapsuleTabs>());
+        capsule_->SetName("capsule_tabs");
+        capsule_->setLabels({"所有", "GBA", "GBC", "FC", "SFC", "NDS", "3DS", "MD"}, 1);
+        capsule_->size.x = kCapsuleWidth; // 高度按内容自适应（胶囊 42 + 阴影余量）
+        connect(capsule_, &CapsuleTabs::selectionChanged, this, [this](int index) {
+            if (TraceSignal()) {
+                std::printf("[signal] capsule index = %d (%s)\n", index, capsule_->currentLabel());
+                std::fflush(stdout);
+            }
+        });
+        connect(capsule_, &CapsuleTabs::activated, this, [this](int index) {
+            // A 键 / 再点一次已选中项
+            Toasts().ShowInfo(std::string("进入 ") + capsule_->labels[static_cast<std::size_t>(index)]);
+        });
+    }
+
+    // ---------------------------------------------------------- 布局 ----
+    void LayoutContent() {
+        const float left = ContentLeft();
+        const float top = ContentTop();
+
+        // TabColumn：贴左边，高度铺满
+        tab_column_->position = ImVec2(kMargin, top);
+        tab_column_->size = ImVec2(Theme::kTabColumnWidth, ContentHeight());
+
+        // 按钮页：6 个变体从上往下；右侧放 Box，Box 下面是两个纯图标按钮
+        for (std::size_t i = 0; i < stack_buttons_.size(); ++i) {
+            stack_buttons_[i]->moveTo(left, top + static_cast<float>(i) * (Theme::kControlHeight + 10.0f));
         }
+        box_->moveTo(left + kStackWidth + 24.0f, top);
+        const float icon_x = left + kStackWidth + 24.0f;
+        const float icon_y = top + 144.0f;
+        icon_square_->moveTo(icon_x, icon_y);
+        icon_circle_->moveTo(icon_x + kControlSize + 12.0f, icon_y);
+
+        // 徽标页：两列，整体在内容区居中
+        const int rows = static_cast<int>((badges_.size() + 1) / 2);
+        const float wall_w = kBadgeWidth * 2.0f + kBadgeGapX;
+        const float wall_h = static_cast<float>(rows) * kBadgeHeight + static_cast<float>(rows - 1) * kBadgeGapY;
+        const float wall_x = left + (ContentWidth() - wall_w) * 0.5f;
+        const float wall_y = top + (ContentHeight() - wall_h) * 0.5f;
+        for (std::size_t i = 0; i < badges_.size(); ++i) {
+            badges_[i]->moveTo(wall_x + static_cast<float>(i % 2) * (kBadgeWidth + kBadgeGapX),
+                               wall_y + static_cast<float>(i / 2) * (kBadgeHeight + kBadgeGapY));
+        }
+
+        // 提示页：几个触发按钮排一行
+        for (std::size_t i = 0; i < toast_buttons_.size(); ++i) {
+            toast_buttons_[i]->moveTo(left + static_cast<float>(i) * (kControlSize + 12.0f), top);
+        }
+
+        // 导航页：胶囊条在内容区居中
+        capsule_->position = ImVec2(left + (ContentWidth() - kCapsuleWidth) * 0.5f,
+                                    top + ContentHeight() * 0.5f - 25.0f);
+        capsule_->size.x = kCapsuleWidth;
+
+        // 主题开关：钉右上角
+        theme_button_->moveTo(ContentRight() - kControlSize, top);
+    }
+
+    // 一键切浅色 / 深色：换调色板 + 约定样式，再让整棵组件树重新取色
+    void ToggleTheme() {
+        Theme::ToggleMode();
+        Theme::ApplyToImGui();
+        RefreshTheme(); // 内部：Global::ApplyTheme() + 根节点装饰复位 + 整棵树重新取色
+        theme_button_->setIcon(Icons::Glyph(ThemeIcon()));
+        theme_button_->setSubtitle(ThemeName());
     }
 
     // + 键：一键开关所有按钮的说明行（验证「是否显示说明」接口，开关都保持文字块垂直居中）
@@ -286,46 +376,45 @@ public:
     }
 
 private:
-    // 控制列参数：贴右边缘 20px，按钮边长 56px
-    static constexpr float kControlSize = Theme::kControlHeight; // 统一控件尺寸（56）
-    static constexpr float kIconRowY = 164.0f; // 两个图标按钮的 y（在 Box 下方）
-    static constexpr float kControlRight = 20.0f;
-    static constexpr float kControlTop = 20.0f;
+    enum TabIndex { kTabButtons = 0, kTabBadges, kTabToasts, kTabNav, kTabCount };
 
-    static float ControlX() { return Global::canvas_size.x - kControlRight - kControlSize; }
+    static constexpr int kContentZone = 2;    // 内容区焦点分区（TabColumn 是 1）
+    static constexpr float kMargin = 20.0f;   // 页面四边留白
+    static constexpr float kColumnGap = 20.0f; // TabColumn 和内容区之间
+    static constexpr float kStackWidth = 396.0f;
+    static constexpr float kControlSize = Theme::kControlHeight; // 统一控件尺寸（56）
+    static constexpr float kCapsuleWidth = 440.0f;
+
+    static float ContentLeft() { return kMargin + Theme::kTabColumnWidth + kColumnGap; }
+    static float ContentRight() { return Global::canvas_size.x - kMargin; }
+    static float ContentTop() { return kMargin; }
+    static float ContentWidth() { return ContentRight() - ContentLeft(); }
+    static float ContentHeight() { return Global::canvas_size.y - kMargin * 2.0f; }
+
     static gui_dev::Icons::Material ThemeIcon() {
         // 图标显示「当前主题」：浅色 = 太阳，深色 = 月亮
         return Theme::IsLight() ? Icons::Material::LightMode : Icons::Material::DarkMode;
     }
     static const char* ThemeName() { return Theme::IsLight() ? "浅色" : "深色"; }
 
-    // 胶囊标签条：徽标墙上方那一条
-    static constexpr float kTabsX = 650.0f;
-    static constexpr float kTabsY = 244.0f;
-    static constexpr float kTabsWidth = 440.0f;
-
-    // 徽标墙几何
-    // 徽标墙：两列，统一尺寸
+    // 徽标墙几何：两列，统一尺寸
     static constexpr float kBadgeWidth = 92.0f;
     static constexpr float kBadgeHeight = Theme::kBadgeHeight; // 统一标签高（26）
     static constexpr float kBadgeGapX = 14.0f;
     static constexpr float kBadgeGapY = 8.0f;
-    static constexpr float kBadgeTop = 300.0f;
 
-    static constexpr int kControlMax = 8;
-    static constexpr float kControlGap = 12.0f;
-
-    std::vector<Button*> buttons_;
+    std::vector<Widget*> pages_[kTabCount];
+    int active_tab_ = 0;
+    std::vector<Button*> buttons_;       // + 键统一切说明行
+    std::vector<Button*> stack_buttons_; // 按钮页左侧那一列（按索引排位置）
+    std::vector<IconButton*> toast_buttons_;
     std::vector<Badge*> badges_;
-    CapsuleTabs* capsule_ = nullptr;
+    TabColumn* tab_column_ = nullptr;
     Box* box_ = nullptr;
+    IconButton* icon_square_ = nullptr;
+    IconButton* icon_circle_ = nullptr;
+    CapsuleTabs* capsule_ = nullptr;
     IconButton* theme_button_ = nullptr;
-    IconButton* toast_ok_ = nullptr;
-    IconButton* toast_error_ = nullptr;
-    IconButton* toast_info_ = nullptr;
-    IconButton* toast_long_ = nullptr;
-    IconButton* controls_[kControlMax] = {};
-    int control_count_ = 0;
     bool subtitle_on_ = true;
 };
 
