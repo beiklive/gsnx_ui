@@ -1,0 +1,67 @@
+plugins {
+    id 'com.android.application'
+}
+
+// SDL 的 Java 代码（SDLActivity / SDLInputConnection 等）不在本仓库里，
+// 通过 gradle.properties 的 sdl2SourceDir 指向 SDL 源码目录即可直接引用。
+def sdl2SourceDir = project.findProperty('sdl2SourceDir') ?: ''
+
+android {
+    namespace 'com.beiklive.guidev'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.beiklive.guidev'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '0.1.0'
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+        externalNativeBuild {
+            cmake {
+                // 和仓库根目录的 CMakeLists 对接：只编 main（libmain.so），依赖走源码编译
+                arguments '-DGUI_DEV_PLATFORM=android',
+                          '-DGUI_DEV_BACKEND=sdl2',
+                          '-DGUI_DEV_DEPS_MODE=fetch',
+                          '-DANDROID_STL=c++_static',
+                          '-DCMAKE_BUILD_TYPE=Release'
+                targets 'main'
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('../../CMakeLists.txt')
+            version '3.22.1+'
+        }
+    }
+
+    sourceSets {
+        main {
+            // 仓库根目录的 assets/ 直接当 APK 的 assets（font/… 、img/…）
+            assets.srcDirs += [file('../../assets')]
+            if (sdl2SourceDir) {
+                java.srcDirs += ["${sdl2SourceDir}/android-project/app/src/main/java"]
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+}
+
+dependencies {
+    // 只用 SDL 自己的 Java 层，不需要额外依赖
+}

@@ -22,6 +22,8 @@ enum class PlatformKind : std::uint8_t {
     Mac,
     Windows,
     Linux,
+    Android,
+    IOS,
 };
 
 #if defined(GUI_DEV_PLATFORM_switch)
@@ -32,11 +34,18 @@ inline constexpr PlatformKind kPlatform = PlatformKind::Mac;
 inline constexpr PlatformKind kPlatform = PlatformKind::Windows;
 #elif defined(GUI_DEV_PLATFORM_linux)
 inline constexpr PlatformKind kPlatform = PlatformKind::Linux;
+#elif defined(GUI_DEV_PLATFORM_android)
+inline constexpr PlatformKind kPlatform = PlatformKind::Android;
+#elif defined(GUI_DEV_PLATFORM_ios)
+inline constexpr PlatformKind kPlatform = PlatformKind::IOS;
 #else
 inline constexpr PlatformKind kPlatform = PlatformKind::Unknown;
 #endif
 
-inline constexpr bool kIsHandheld = kPlatform == PlatformKind::Switch;
+// 掌机（Switch）与移动端（Android/iOS）都属于「手持触屏」这一档：
+// 布局尺寸、触摸优先、虚拟键盘这些策略都一样。
+inline constexpr bool kIsHandheld = kPlatform == PlatformKind::Switch || kPlatform == PlatformKind::Android ||
+                                    kPlatform == PlatformKind::IOS;
 
 inline const char* PlatformName() {
 #if defined(GUI_DEV_PLATFORM_switch)
@@ -47,6 +56,10 @@ inline const char* PlatformName() {
     return "windows";
 #elif defined(GUI_DEV_PLATFORM_linux)
     return "linux";
+#elif defined(GUI_DEV_PLATFORM_android)
+    return "android";
+#elif defined(GUI_DEV_PLATFORM_ios)
+    return "ios";
 #else
     return "unknown";
 #endif

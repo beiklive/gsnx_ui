@@ -1,6 +1,10 @@
 {
   "version": 3,
-  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
   "configurePresets": [
     {
       "name": "mac",
@@ -19,7 +23,9 @@
       "inherits": "mac",
       "displayName": "macOS Release",
       "binaryDir": "${sourceDir}/build/mac-release",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     },
     {
       "name": "switch",
@@ -32,11 +38,90 @@
         "GUI_DEV_PLATFORM": "switch",
         "GUI_DEV_BACKEND": "sdl2"
       }
+    },
+    {
+      "name": "windows",
+      "displayName": "Windows x64（VS 2022，SDL2/libpng 从源码编）",
+      "description": "不需要 vcpkg：GUI_DEV_DEPS_MODE=fetch 会拉 SDL2/libpng/zlib 源码。装了 vcpkg 的话把 GUI_DEV_DEPS_MODE 改成 package 并加上 vcpkg 工具链。",
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "binaryDir": "${sourceDir}/build/windows",
+      "cacheVariables": {
+        "GUI_DEV_PLATFORM": "windows",
+        "GUI_DEV_BACKEND": "sdl2",
+        "GUI_DEV_DEPS_MODE": "fetch"
+      }
+    },
+    {
+      "name": "android",
+      "displayName": "Android arm64-v8a（NDK 工具链 + libmain.so，交给 gradle 打包）",
+      "description": "需要 ANDROID_NDK_HOME。命令行构建用来验证 native 侧；打包 APK 用 android/ 下的 gradle 工程。",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/android",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/Android.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "GUI_DEV_PLATFORM": "android",
+        "GUI_DEV_BACKEND": "sdl2",
+        "GUI_DEV_DEPS_MODE": "fetch"
+      }
+    },
+    {
+      "name": "ios",
+      "displayName": "iOS 真机（arm64，Xcode 工程，.app bundle）",
+      "generator": "Xcode",
+      "binaryDir": "${sourceDir}/build/ios",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/iOS.cmake",
+      "cacheVariables": {
+        "GUI_DEV_PLATFORM": "ios",
+        "GUI_DEV_BACKEND": "sdl2",
+        "GUI_DEV_DEPS_MODE": "fetch"
+      }
+    },
+    {
+      "name": "ios-sim",
+      "inherits": "ios",
+      "displayName": "iOS 模拟器（arm64 + x86_64，不签名）",
+      "binaryDir": "${sourceDir}/build/ios-sim",
+      "cacheVariables": {
+        "GUI_DEV_IOS_SIMULATOR": "ON"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "mac", "configurePreset": "mac" },
-    { "name": "mac-release", "configurePreset": "mac-release" },
-    { "name": "switch", "configurePreset": "switch" }
+    {
+      "name": "mac",
+      "configurePreset": "mac"
+    },
+    {
+      "name": "mac-release",
+      "configurePreset": "mac-release"
+    },
+    {
+      "name": "switch",
+      "configurePreset": "switch"
+    },
+    {
+      "name": "windows",
+      "configurePreset": "windows",
+      "configuration": "Release"
+    },
+    {
+      "name": "android",
+      "configurePreset": "android"
+    },
+    {
+      "name": "ios",
+      "configurePreset": "ios",
+      "configuration": "Release"
+    },
+    {
+      "name": "ios-sim",
+      "configurePreset": "ios-sim",
+      "configuration": "Release"
+    }
   ]
 }

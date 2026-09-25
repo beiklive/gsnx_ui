@@ -1,0 +1,4 @@
+// Android 打包骨架：native 侧仍然是仓库根目录的 CMakeLists.txt（只编 target "main"）。
+plugins {
+    id 'com.android.application' version '8.5.2' apply false
+}

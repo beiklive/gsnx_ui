@@ -20,6 +20,10 @@ endif()
 if(NOT GUI_DEV_PLATFORM)
     if(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
         set(GUI_DEV_PLATFORM "switch")
+    elseif(ANDROID)
+        set(GUI_DEV_PLATFORM "android")
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        set(GUI_DEV_PLATFORM "ios")
     elseif(APPLE)
         set(GUI_DEV_PLATFORM "mac")
     elseif(WIN32)
@@ -69,20 +73,8 @@ endif()
 # --------------------------------------------------------------- backends ----
 # 后端实现只在这里选：换后端不影响 framework/ui 与 framework/core。
 if(GUI_DEV_BACKEND STREQUAL "sdl2")
-    find_package(PkgConfig REQUIRED)
-    # 宿主上 devkitPro 的 pkg-config 常排在 PATH 前面（它只认 switch portlibs），
-    # mac 侧必须显式指到 homebrew 的 pkg-config，否则找不到 sdl2.pc。
-    if(GUI_DEV_PLATFORM STREQUAL "mac" AND NOT DEFINED PKG_CONFIG_EXECUTABLE)
-        find_program(GUI_DEV_HOST_PKG_CONFIG NAMES pkg-config
-            HINTS /opt/homebrew/bin /usr/local/bin)
-        if(GUI_DEV_HOST_PKG_CONFIG)
-            set(PKG_CONFIG_EXECUTABLE ${GUI_DEV_HOST_PKG_CONFIG} CACHE FILEPATH "" FORCE)
-        endif()
-    endif()
-    pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
-    # 图片解码用 libpng：mac(homebrew) 与 Switch(portlibs) 都自带，
-    # 因此不需要 SDL_image（mac 上没有）也不需要 vendored stb_image。
-    pkg_check_modules(LIBPNG REQUIRED IMPORTED_TARGET libpng)
+    # 依赖怎么拿（系统包 / vcpkg / 源码编译）都在这里，出口是 gui_dev::SDL2 / gui_dev::PNG
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dependencies.cmake)
 
     add_library(gui_dev_backend STATIC
         framework/platform/backends/sdl2/Sdl2Backend.cpp
@@ -92,9 +84,12 @@ if(GUI_DEV_BACKEND STREQUAL "sdl2")
         ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
         ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer2.cpp)
 
-    # 字体来源按平台各实现一份（Switch: pl 共享字体 + romfs；桌面: assets/font/*.ttf）
+    # 平台服务按平台各实现一份：
+    #   Switch: pl 共享字体 + romfs；Android: APK assets；其余: assets/font/*.ttf
     if(GUI_DEV_PLATFORM STREQUAL "switch")
         target_sources(gui_dev_backend PRIVATE framework/platform/backends/sdl2/SwitchPlatform.cpp)
+    elseif(GUI_DEV_PLATFORM STREQUAL "android")
+        target_sources(gui_dev_backend PRIVATE framework/platform/backends/sdl2/AndroidPlatform.cpp)
     else()
         target_sources(gui_dev_backend PRIVATE framework/platform/backends/sdl2/DesktopPlatform.cpp)
     endif()
@@ -102,7 +97,7 @@ if(GUI_DEV_BACKEND STREQUAL "sdl2")
         GUI_DEV_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
 
     target_include_directories(gui_dev_backend PUBLIC framework)
-    target_link_libraries(gui_dev_backend PUBLIC imgui PkgConfig::SDL2 PkgConfig::LIBPNG)
+    target_link_libraries(gui_dev_backend PUBLIC imgui gui_dev::SDL2 gui_dev::PNG)
 elseif(GUI_DEV_BACKEND STREQUAL "glfw")
     find_package(OpenGL REQUIRED)
     find_package(glfw3 REQUIRED)
@@ -157,40 +152,88 @@ target_include_directories(gui_dev_signal_test PRIVATE ${CMAKE_CURRENT_SOURCE_DI
 enable_testing()
 add_test(NAME qt_signal_style COMMAND gui_dev_signal_test)
 
+# 每个演示一个 target。移动端不方便一个工程出多个可执行文件，所以这里按平台换形态：
+#   Android : 不建这些，只把 GUI_DEV_ANDROID_APP 编成 SHARED 库 "main"，交给 gradle 打包
+#   iOS     : 编成 .app bundle（assets 拷进 Contents/Resources）
+#   其他    : 普通可执行文件
+function(gui_dev_add_demo target)
+    if(GUI_DEV_PLATFORM STREQUAL "android")
+        return()
+    endif()
+    add_executable(${target} ${ARGN})
+    target_link_libraries(${target} PRIVATE gui_dev_components)
+    if(GUI_DEV_PLATFORM STREQUAL "ios")
+        set_target_properties(${target} PROPERTIES
+            MACOSX_BUNDLE TRUE
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in"
+            MACOSX_BUNDLE_BUNDLE_NAME "${target}"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "com.beiklive.gui_dev.${target}"
+            MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+            XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2")
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+                "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/Resources/assets")
+    endif()
+endfunction()
+
 # 组件演示：入口就是仓库根目录的 demo.cpp
-add_executable(gui_dev_demo demo.cpp)
-target_link_libraries(gui_dev_demo PRIVATE gui_dev_components)
+gui_dev_add_demo(gui_dev_demo demo.cpp)
 
 # 最小接入示例：证明 component_view 能整体搬进别的项目（不依赖 demo.cpp / 业务代码）
-add_executable(gui_dev_min_demo examples/min_demo/main.cpp)
-target_link_libraries(gui_dev_min_demo PRIVATE gui_dev_components)
+gui_dev_add_demo(gui_dev_min_demo examples/min_demo/main.cpp)
+
+# 下面这些示例只对桌面/掌机有意义（Android 上只打包一个 app，iOS 上不必出 5 个 bundle）
+if(NOT GUI_DEV_PLATFORM STREQUAL "android")
 
 # 框架示例：不做暂停菜单之外的业务，只用来对照 framework/ui 的用法
-add_executable(gui_dev_flow_demo
+gui_dev_add_demo(gui_dev_flow_demo
     examples/flow_box/main.cpp
     examples/flow_box/DemoApp.cpp)
-target_link_libraries(gui_dev_flow_demo PRIVATE gui_dev)
 
 # ImGui 能力导览：Tab 分页展示 ImGui 原生控件与接口（页面不滚动）
-add_executable(gui_dev_imgui_tour
+gui_dev_add_demo(gui_dev_imgui_tour
     examples/imgui_tour/main.cpp
     examples/imgui_tour/ImGuiTourApp.cpp
     examples/imgui_tour/TourTabsBasic.cpp
     examples/imgui_tour/TourTabsAdvanced.cpp
     examples/imgui_tour/TourTabsFontSystem.cpp)
-target_link_libraries(gui_dev_imgui_tour PRIVATE gui_dev_components)
 
 # 暂停菜单 Demo：假游戏画面 + Persona 风格动态菜单（纯 UI 展示）
-add_executable(gui_dev_pause_demo
+gui_dev_add_demo(gui_dev_pause_demo
     examples/pause_menu/main.cpp
     examples/pause_menu/PauseDemo.cpp)
-target_link_libraries(gui_dev_pause_demo PRIVATE gui_dev)
 
 # 自定义控件教学 Demo：8 个循序渐进的例子
-add_executable(gui_dev_widget_demo
+gui_dev_add_demo(gui_dev_widget_demo
     examples/widget_lessons/main.cpp
     examples/widget_lessons/WidgetDemo.cpp)
-target_link_libraries(gui_dev_widget_demo PRIVATE gui_dev)
+
+endif() # 非 Android
+
+# ------------------------------------------------------------ 移动端入口 ------
+if(GUI_DEV_PLATFORM STREQUAL "android")
+    # Android：入口必须编成 libmain.so（gradle 会加载 "main"），并且要带上 SDL 的
+    # SDL_android_main.c（真正的 JNI 入口在里面）。
+    set(GUI_DEV_ANDROID_APP_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/demo.cpp"
+        CACHE FILEPATH "Android 上要打包的演示入口")
+    if(NOT GUI_DEV_SDL2_SOURCE_DIR)
+        message(FATAL_ERROR
+            "Android 需要 SDL2 源码（要编 SDL_android_main.c 进 libmain.so）："
+            "用 -DGUI_DEV_DEPS_MODE=fetch，或手动 -DGUI_DEV_SDL2_SOURCE_DIR=<SDL2 源码目录>。")
+    endif()
+    add_library(main SHARED
+        ${GUI_DEV_ANDROID_APP_SOURCE}
+        ${GUI_DEV_SDL2_SOURCE_DIR}/src/main/android/SDL_android_main.c)
+    target_link_libraries(main PRIVATE gui_dev_components)
+    if(GUI_DEV_SDL2_MAIN)
+        target_link_libraries(main PRIVATE ${GUI_DEV_SDL2_MAIN})
+    endif()
+    set_target_properties(main PROPERTIES OUTPUT_NAME "main")
+    # 资源不往源码树里拷：android/app/build.gradle 直接把仓库的 assets/ 当 assets 源目录，
+    # APK 里的 assets/font/*.ttf 由 AndroidPlatform.cpp 用 SDL_RWops 读。
+endif()
 
 if(GUI_DEV_PLATFORM STREQUAL "switch")
     # NRO 打包：nx_create_nro 会生成 NACP 并调用 elf2nro。

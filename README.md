@@ -7,6 +7,8 @@ GBAStation 模拟器家族的**统一前端组件库**。各模拟器核心共�
 - 窗口/渲染：SDL2（mac 与 Switch 共用同一份后端实现）
 - 工具链：mac 用系统 clang + homebrew `sdl2`；Switch 用 `/opt/devkitpro`（devkitA64 + libnx）
 
+📖 **多平台构建：[`docs/platform-builds.md`](docs/platform-builds.md)**（mac / Switch / Windows / Android / iOS 各自的
+preset、依赖策略与验证状态）。
 📖 **组件库参考文档：[`docs/component-view.md`](docs/component-view.md)** —— 组件 API、主题/尺寸规范、
 动画时长、输入与焦点约定、调试开关、以及「搬进别的项目」的完整清单。
 最小接入样板：[`examples/min_demo/main.cpp`](examples/min_demo/main.cpp)。
@@ -54,6 +56,10 @@ GUI_DEV/
 ```
 
 ## 构建
+
+五个平台共用一份 CMakeLists，平台差异靠 preset + 工具链 + 依赖模式收敛（细节见
+[docs/platform-builds.md](docs/platform-builds.md)）：`mac` / `mac-release` / `switch` /
+`windows` / `android` / `ios` / `ios-sim`。
 
 ### macOS（主要开发环境）
 
