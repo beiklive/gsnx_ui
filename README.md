@@ -1,377 +1,216 @@
 # GUI_DEV
 
-GBAStation 模拟器家族的**统一前端组件库**。各模拟器核心共用同一套 UI 代码与视觉规范，
-避免每个核心各写一份界面。
+GBAStation 模拟器家族的**统一前端组件库**：各模拟器核心共用同一套 UI 代码与视觉规范，
+不用每个核心各写一份界面。组件层与业务完全解耦，可以整体搬进别的项目
+（最小接入样板：[examples/min_demo/main.cpp](examples/min_demo/main.cpp)）。
 
-- UI 框架：Dear ImGui（git submodule，锁定 `v1.92.9b`，master 稳定线）
-- 窗口/渲染：SDL2（mac 与 Switch 共用同一份后端实现）
-- 工具链：mac 用系统 clang + homebrew `sdl2`；Switch 用 `/opt/devkitpro`（devkitA64 + libnx）
+- UI：Dear ImGui（submodule，锁定 `v1.92.9b`）
+- 窗口/渲染：SDL2（一套后端覆盖 **macOS / Windows / Switch / Android / iOS**）
+- 构建：CMake + preset（`mac` / `mac-release` / `switch` / `windows` / `android` / `ios` / `ios-sim`）
+- 设计基准：**1280×720 手持空间**，后端按 `drawable / (自动缩放 × UI 缩放)` 出逻辑画布
 
-📖 **多平台构建：[`docs/platform-builds.md`](docs/platform-builds.md)**（mac / Switch / Windows / Android / iOS 各自的
-preset、依赖策略与验证状态）。
-📖 **组件库参考文档：[`docs/component-view.md`](docs/component-view.md)** —— 组件 API、主题/尺寸规范、
-动画时长、输入与焦点约定、调试开关、以及「搬进别的项目」的完整清单。
-最小接入样板：[`examples/min_demo/main.cpp`](examples/min_demo/main.cpp)。
+| 层 | 目录 | 说明 |
+|---|---|---|
+| 引擎 | `framework/` | App 主循环、UiContext、主题、图标、输入抽象、SDL2 后端、暂停菜单 UI 层 |
+| 组件库 | `component_view/` | 业务无关的组件与页面：Widget / Box / Button(7) / Badge / Header / TabColumn / CapsuleTabs / Toast / FocusRing |
+| 使用方 | `demo.cpp`、`examples/` | 演示、示例、测试；组件库不反向依赖它们 |
+
+📖 组件 API 与规范：[docs/component-view.md](docs/component-view.md) ·
+多平台细节与验证状态：[docs/platform-builds.md](docs/platform-builds.md)
 
 ## 目录结构
 
 ```text
 GUI_DEV/
-├── CMakeLists.txt              # imgui / gui_dev_backend / gui_dev / gui_dev_components + 演示/示例/测试目标
-├── CMakePresets.json           # mac / mac-release / switch 预设
-├── demo.cpp                    # ★ 演示入口：在这里登记 component_view 的页面
-├── cmake/toolchains/
-│   └── Switch.cmake            # devkitA64 工具链入口（含 ar 修正）
-├── framework/                  # ★ 框架层（引擎；component_view 建立在它之上）
-│   ├── core/                   # App 基类 + AppRunner 主循环
-│   ├── ui/                     # UiContext / Theme / Icons / Texture / Scene / Components
-│   ├── platform/               # Backend 接口 + 抽象输入 + SDL2 后端
-│   └── gamemenu/               # 暂停菜单 UI 层（Persona 式视觉语言）
-├── component_view/             # ★ 组件库（业务无关，可整体搬进别的项目）
-│   ├── Object.h                # ★ Qt 风格信号槽：Object / Signal / connect / emit
-│   ├── Global.{h,cpp}          # 全局变量：画布 / 鼠标 / 手柄 / 焦点 / 分区 / 输入消费
-│   ├── Theme.{h,cpp}           # 调色板（浅色/深色两套，运行时可切）与 720p 尺寸规范
-│   ├── Types.h                 # Rect / EdgeInsets / BorderStyle / ShadowStyle / BoxVisual / Transform2D
-│   ├── Anim.h                  # 动画工具：SmoothTo / MoveTowards / EaseOutCubic / EaseOutBack / Stagger*
-│   ├── Draw.{h,cpp}            # 绘制原语：圆角矩形 / 软阴影 / 描边文字 / 省略号 / 流光框 / 跑马灯
-│   ├── Widget.{h,cpp}          # ★ 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 溢出滚动 / 焦点动画 / 事件
-│   ├── FocusRing.{h,cpp}       # ★ 焦点框图层：控件只描述，页面每帧统一画一个
-│   ├── Toast.{h,cpp}           # ★ 通用通知：生命周期 / 队列 / 滑入滑出 / 多 Toast 自动补位
-│   ├── components/             # Box / Button(7 形态) / Badge / Header / TabColumn / CapsuleTabs
-│   └── pages/                  # Page 基类（Demo 宿主）
-├── examples/                   # 示例（与组件库互不依赖）
-│   ├── min_demo/               # ★ 最小接入示例：另一个项目要写的全部代码
-│   ├── imgui_tour/             # ★ ImGui 自身能力导览（8 个 Tab，页面不滚动）
-│   ├── flow_box/               # framework/ui 组件预览（流光焦点框）
-│   ├── pause_menu/             # 暂停菜单 Demo（Persona 式动态菜单）
-│   └── widget_lessons/         # 自定义控件 8 例
-├── tests/
-│   └── qt_signal_test.cpp      # 信号槽语义测试（ctest）
-├── third_party/imgui/          # submodule
-├── docs/                       # 组件文档（component-view.md）+ 界面快照
-├── assets/
-│   ├── font/                   # switch_font.ttf / switch_icons.ttf / MaterialIcons-Regular.ttf
-│   └── img/                    # UI 图片（border_gradient.png）
-└── build/                      # 构建产物（已 gitignore）
+├── CMakeLists.txt              # imgui / gui_dev_backend / gui_dev / gui_dev_components + 演示目标
+├── CMakePresets.json           # mac / mac-release / switch / windows / android / ios / ios-sim
+├── cmake/
+│   ├── Dependencies.cmake       # SDL2 + libpng：package（pkg-config/vcpkg）| fetch（源码编译）
+│   ├── Info.plist.in            # iOS bundle 的 Info.plist
+│   └── toolchains/              # Switch.cmake / Android.cmake / iOS.cmake
+├── android/                     # Android gradle 打包骨架（app 模块 + MainActivity + assets）
+├── framework/                   # ★ 引擎层
+│   ├── core/                    # App 基类 + AppRunner 主循环（帧率上限在这里）
+│   ├── ui/                      # UiContext / Theme / Icons / Fonts / Texture / Scene
+│   ├── platform/                # Backend 接口 + 抽象输入 + sdl2 后端（含各平台服务实现）
+│   └── gamemenu/                # 暂停菜单 UI 层（Persona 式视觉语言）
+├── component_view/              # ★ 组件库（可整体搬走）
+│   ├── Object.h  Global.*  Theme.*  Types.h  Anim.h  Draw.*  Widget.*  FocusRing.*  Toast.*
+│   ├── components/              # Box / Button / Badge / Header / TabColumn / CapsuleTabs
+│   └── pages/                   # Page 基类（宿主：根 Box + Toast + 焦点框图层）
+├── demo.cpp                     # ★ 组件库总览演示（左 Tab 列 + 4 个子页面）
+├── examples/                    # 示例（与组件库互不依赖）
+│   ├── min_demo/                # ★ 最小接入示例（另一个项目要写的全部代码）
+│   ├── imgui_tour/              # ImGui 原生能力导览（8 个 Tab）
+│   ├── flow_box/                # framework/ui 组件预览（流光焦点框）
+│   ├── pause_menu/              # 暂停菜单 Demo（Persona 式动态菜单）
+│   └── widget_lessons/          # 自定义控件 8 例
+├── tests/qt_signal_test.cpp     # 信号槽语义测试（ctest）
+├── assets/                      # font/（三个 ttf）+ img/（界面图片）
+├── docs/                        # component-view.md / platform-builds.md + 界面快照
+├── third_party/imgui/           # git submodule
+└── build/                       # 构建产物（已 gitignore）
 ```
 
-## 构建
+## 各平台编译与打包
 
-五个平台共用一份 CMakeLists，平台差异靠 preset + 工具链 + 依赖模式收敛（细节见
-[docs/platform-builds.md](docs/platform-builds.md)）：`mac` / `mac-release` / `switch` /
-`windows` / `android` / `ios` / `ios-sim`。
+五个平台共用一份 `CMakeLists.txt`，差异只在 **preset + 工具链 + 依赖模式**。
+依赖有两种拿法，任选：
 
-### macOS（主要开发环境）
+| 模式 | 命令 | 适用 |
+|---|---|---|
+| `package`（默认） | 直接 `cmake --preset <平台>` | macOS / Linux（系统包）、Windows（vcpkg） |
+| `fetch` | 加 `-DGUI_DEV_DEPS_MODE=fetch` | Windows / Android / iOS：从源码编 SDL2 + libpng，不用先装任何库 |
+
+Linux 没有单独 preset（本仓库主战场是 mac + Switch），手动配即可：
+`cmake -S . -B build/linux -DGUI_DEV_PLATFORM=linux -DGUI_DEV_DEPS_MODE=package`（依赖 `libsdl2-dev` + `libpng-dev`）。
+
+资源（`assets/`：字体 + 图片）在运行时的查找顺序：仓库 `assets/` → 可执行文件旁
+（`SDL_GetBasePath()`，Windows exe 目录 / iOS bundle 内）→ 编译期 `GUI_DEV_ASSET_DIR`；
+Switch 走 `sdmc:/switch/GUI_DEV/assets/` 与 romfs；Android 走 APK 里的 `assets/`。
+
+### macOS（主开发环境）
 
 ```bash
-cmake --preset mac
-cmake --build --preset mac
-./build/mac/gui_dev_imgui_tour    # ★ ImGui 原生能力导览（8 Tab：总览/输入/布局/弹层/高级/绘图/字体样式/系统工具）
-./build/mac/gui_dev_demo          # ★ 手柄优先控件库 demo（左 16 个 Tab + 右展示区）
-./build/mac/gui_dev_flow_demo     # framework/ui 组件预览（可聚焦 Box / 流光边框）
-./build/mac/gui_dev_pause_demo    # 暂停菜单 Demo（Persona 式动态菜单）
+brew install sdl2 libpng
+cmake --preset mac && cmake --build --preset mac          # Debug
+cmake --preset mac-release && cmake --build --preset mac-release
+ctest --test-dir build/mac
+
+./build/mac/gui_dev_demo          # 组件库总览
+./build/mac/gui_dev_min_demo      # 最小接入示例
+./build/mac/gui_dev_imgui_tour    # ImGui 能力导览
+./build/mac/gui_dev_pause_demo    # 暂停菜单
+./build/mac/gui_dev_flow_demo     # 流光焦点框预览
 ./build/mac/gui_dev_widget_demo   # 自定义控件 8 例
 ```
 
-依赖：`brew install sdl2 libpng`（`sdl2-compat` 也可）。预设里显式指定了
-`PKG_CONFIG_EXECUTABLE=/opt/homebrew/bin/pkg-config`，否则会命中排在 PATH 前面的
-devkitPro pkg-config（它只认 Switch portlibs）。
+打包：桌面直接分发可执行文件即可（无 bundle）；要给别人跑就把 `assets/` 放到可执行文件旁边。
+预设里显式写了 `PKG_CONFIG_EXECUTABLE=/opt/homebrew/bin/pkg-config`，否则会命中 PATH 里更靠前的
+devkitPro pkg-config（它只认 Switch 的 portlibs）。
 
-### Switch
-
-```bash
-cmake --preset switch
-cmake --build --preset switch
-# 产物：build/switch/dist/gui_dev_demo.nro
-```
-
-需要 devkitPro 环境变量（默认 `/opt/devkitpro`）与 `switch-sdl2`、`switch-pkg-config`。
-
-## 架构约定
-
-**单向依赖**（重要，破坏它会直接链接失败）：
-
-```text
-demo.cpp  ->  gui_dev_components  ->  gui_dev  ->  gui_dev_backend  ->  imgui
-             (component_view/)      (framework/)
-```
-
-- `framework/ui/` 与 `framework/core/` **禁止** include SDL/GLFW/libnx 等平台头文件，平台能力一律走
-  `gui_dev::Backend`。
-- `component_view/` 只依赖 `gui_dev`（`UiContext` / `TextureRef` / `Backend` / `Icons`），
-  不依赖任何 `examples/`，因此 mac 与 Switch 共用同一份组件代码。
-- `gui_dev_backend` **禁止**调用 `gui_dev` 里的符号（`Theme::Apply()` 因此放在
-  `AppRunner` 而不是后端里）。两个静态库互相引用会形成链接环：GNU ld 单遍扫描，
-  先出现的一方必然解析失败。
-
-**新增平台**：在 `framework/platform/backends/<name>/` 实现 `Backend` + `CreatePlatformBackend()`，
-然后在 CMake 的 `GUI_DEV_BACKEND` 分支里加一个选项。`framework/ui` 一行不用改。
-
-**新增界面**：两种方式——用 `framework` 的 `Scene` + `Components::*`；
-或者用 `component_view` 的 `Page` + `Widget` 组件树（见下节）。
-
-### 生命周期约定（曾因此崩溃）
-
-场景常持有 `TextureRef` / 字体等后端资源，而 `Backend` 由 `AppRunner` 持有。
-**持有后端资源的对象必须先于 `Backend` 析构**，否则退出时会对已释放的 Backend
-调 `ReleaseTexture()` → `SIGSEGV`（`AppRunner::Run()` 内部因此显式
-`app_.Scenes().Clear()`，就在 `ui_.reset()` / `backend_->Shutdown()` 之前）。
-
-双保险：`BackendLiveness`（`Backend.h`）是挂在 Backend 上的存活标记，
-`TextureRef` 一并保存它；Backend 一析构标记即置 false，之后释放纹理只会打警告、
-不会崩：
-
-```text
-[gui_dev] 纹理在后端销毁之后才释放，已跳过（GPU 资源泄漏）。请确保持有纹理的对象先于 Backend 析构。
-```
-
-### 退出路径冒烟测试
-
-`timeout` 杀进程走不到析构，因此专门留了正常退出入口：
+### Nintendo Switch
 
 ```bash
-GUI_DEV_EXIT_AFTER=60 ./build/mac/gui_dev_demo   # 跑满 60 帧后正常退出，退出码应为 0
+export DEVKITPRO=/opt/devkitpro        # 需要 devkitA64 + libnx + switch-sdl2 + switch-pkg-config
+cmake --preset switch && cmake --build --preset switch
+# 产物：build/switch/dist/<目标名>.nro（每个 demo 一个，例如 gui_dev_demo.nro）
 ```
 
-配合 `Backend::RequestQuit()`（UI 里的「退出」入口也用它）。
+打包：`nx_create_nro` 自动生成 NACP 并把 `romfs/` 打进去。**romfs 只放**
+`img/` 与 `font/MaterialIcons-Regular.ttf`（`switch_font.ttf` 10.9MB、`switch_icons.ttf`
+走 HOS 共享字体，不进 romfs，否则 NRO 从 7.6MB 涨到 18MB+）。
+`assets/icon.png` 存在时自动作为图标。部署：把 `.nro` 拷到 `sdmc:/switch/`；
+要换图不用重编，直接覆盖 `sdmc:/switch/GUI_DEV/assets/`。
 
-## component_view 组件库（重建中）
+### Windows x64
 
-组件库已清空重做，现在有两层：**Box（矩形底 / 容器 / 可聚焦控件）** 和 **Button（7 种形态）**。
+```powershell
+:: 方式 A：什么都不装（SDL2/libpng 从源码编，首次配置会慢）
+cmake --preset windows
+cmake --build --preset windows --config Release
+:: 产物：build/windows/Release/gui_dev_demo.exe
+
+:: 方式 B：vcpkg（编得快）
+vcpkg install sdl2:x64-windows libpng:x64-windows
+cmake -S . -B build/windows-vcpkg -G "Visual Studio 17 2022" -A x64 `
+  -DGUI_DEV_PLATFORM=windows -DGUI_DEV_BACKEND=sdl2 -DGUI_DEV_DEPS_MODE=package `
+  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+cmake --build build/windows-vcpkg --config Release
+```
+
+打包：把 `assets/` 目录拷到 exe 旁边（资源查找会看 exe 目录）；用 vcpkg 的动态 SDL2 时
+再把 `SDL2.dll` 一起拷过去，或者用静态 SDL2（`fetch` 模式默认就是静态）。
+
+### Android（arm64-v8a）
 
 ```bash
-cmake --preset mac && cmake --build --preset mac
-./build/mac/gui_dev_demo
+export ANDROID_HOME=$HOME/Library/Android/sdk
+export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+
+# 1) 先验证 native 侧能出 libmain.so（不需要 gradle）
+cmake --preset android && cmake --build --preset android
+
+# 2) 打 APK：把 SDL 的 Java 代码目录告诉 gradle，然后 assemble
+cd android
+printf "sdl2SourceDir=%s\n" "$PWD/../build/android/_deps/sdl2-src" >> gradle.properties
+./gradlew assembleDebug        # 或直接用 Android Studio 打开 android/ 目录
+# 产物：android/app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-保留下来的是「地基」，组件从 Box 开始一个个往上长：
+要点：
+- 入口不是可执行文件而是 `libmain.so`（CMake 在 `GUI_DEV_PLATFORM=android` 时把
+  `demo.cpp` + SDL 的 `SDL_android_main.c` 编成一个 SHARED 库），`MainActivity` 继承 SDL 的 `SDLActivity`。
+- 换演示入口：`-DGUI_DEV_ANDROID_APP_SOURCE=<别的 main.cpp>`。
+- 资源：`android/app/build.gradle` 直接把仓库 `assets/` 当 APK 的 assets；
+  字体由 `AndroidPlatform.cpp` 用 `SDL_RWFromFile` 读进内存给 ImGui（纹理暂不支持，见文档）。
+- 只配了 `arm64-v8a`，其它 ABI 改 `-DGUI_DEV_ANDROID_ABI=armeabi-v7a|x86_64`。
 
-| 文件 | 作用 |
+### iOS（真机 / 模拟器）
+
+```bash
+# 需要完整 Xcode（只有 Command Line Tools 不行）
+cmake --preset ios-sim && cmake --build --preset ios-sim    # 模拟器，默认不签名
+cmake --preset ios && cmake --build --preset ios            # 真机（要自己补签名团队）
+# 产物：build/ios-sim/Release-iphonesimulator/*.app（Xcode 的产物目录）
+xcrun simctl install booted build/ios-sim/Release-iphonesimulator/gui_dev_demo.app
+xcrun simctl launch booted com.beiklive.gui_dev.gui_dev_demo
+```
+
+要点：`GUI_DEV_PLATFORM=ios` 时每个示例都编成 `.app`，`assets/` 被拷进
+`Contents/Resources/assets`（运行时靠 `SDL_GetBasePath()` 找到）；入口是 `SDL_main`
+（demo 的 `main` 经 `<SDL_main.h>` 重定向，iOS 侧由 `SDL2main` 提供 `UIApplicationMain`）。
+真机安装要去掉 preset 里的 `CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO` 并补 `DEVELOPMENT_TEAM`。
+
+### 常用调试开关（环境变量）
+
+| 变量 | 作用 |
 |---|---|
-| `component_view/Object.h` | Qt 风格信号槽（`Object` / `Signal<Args...>` / `connect` / `emit`） |
-| `component_view/Types.h` | `Rect` / `EdgeInsets` / `BorderStyle` / `ShadowStyle` / `Transform2D` / 布局枚举 |
-| `component_view/Theme.{h,cpp}` | VSCode Dark+ 调色板（**RGBA/ImVec4**）+ 720p 手持尺寸基准 + `Theme::ApplyToImGui()` |
-| `component_view/Anim.h` | 动画工具：`SmoothTo` / `MoveTowards` / `EaseOutCubic` / `EaseOutBack` / 逐项错开 |
-| `component_view/Draw.{h,cpp}` | 绘制原语：圆角矩形 / 软阴影 / 文本 / 描边 / 省略号 / 流光框 / 跑马灯 |
-| `component_view/Widget.{h,cpp}` | 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 溢出滚动 / 焦点动画 / 命中测试 / 输入分发 |
-| `component_view/Global.{h,cpp}` | 全局变量：画布 / 鼠标 / 触摸 / 手柄 / 焦点 / 分区 / 输入消费 / 约定样式 |
-| `component_view/components/Box.{h,cpp}` | 矩形底 + 圆角 / 边框 / 阴影；可当容器，也可 `makeFocusable()` 当控件 |
-| `component_view/components/Button.{h,cpp}` | 按钮 7 种形态（见下节） |
-| `component_view/components/Badge.{h,cpp}` | 机种徽标（14 个机种 + 其它，4 种尺寸变体） |
-| `component_view/components/Header.{h,cpp}` | 区块标题：竖条 + 标题 + 右侧补充文字 + 分隔线 |
-| `component_view/components/TabColumn.{h,cpp}` | 左侧纵向 Tab 列（焦点即切页、A 进内容、焦点框分层） |
-| `component_view/components/CapsuleTabs.{h,cpp}` | 横向胶囊标签条（中心高亮 + 距离衰减） |
-| `component_view/FocusRing.{h,cpp}` | 焦点框图层：`Widget::BuildFocusVisual()` 描述，页面统一绘制 |
-| `component_view/pages/Page.{h,cpp}` | 页面基类：root Box 铺满画布 + 布局/命中/更新/绘制 |
-| `demo.cpp` | 演示入口：登记页面、每帧驱动、三个调试开关 |
+| `GUI_DEV_WINDOW=1280x720` | 指定窗口尺寸 |
+| `GUI_DEV_ZOOM=1.2` | 启动缩放（整套 UI 一起放大；只在启动前设置） |
+| `GUI_DEV_THEME=dark` | 深色主题启动 |
+| `GUI_DEV_PERF=1` | 每秒打印 fps / 帧时间 / drawcall / 顶点数 |
+| `GUI_DEV_MAX_FPS=60` | 帧率上限（0 = 不限；Switch 默认 60） |
+| `GUI_DEV_NO_VSYNC=1` | 关垂直同步（测帧率用） |
+| `GUI_DEV_EXIT_AFTER=60` | 跑满 N 帧正常退出（冒烟测试，退出码应为 0） |
+| `GUI_DEV_TRACE_SIGNAL=1` | 打印按钮信号变化（脚本化验收） |
 
-### 现在的 demo 长什么样
+## component_view 组件库
 
-左列 6 个行内按钮 + 右上角一个可聚焦 Box + 右下角两个纯图标按钮（圆角正方形 / 圆形）
-+ **窗口最右侧的控制列**（从上往下排控制按钮：主题 / 成功 / 失败 / 信息 / 长文本）：
+业务无关、可整体搬走的一层。现有组件：`Box`（容器 / 可聚焦控件）、`Button`（7 种形态：
+纯文字 / 图标+文字 / 纯图标 / 开关 / 自定义右侧文字 / LR 选项 / LR 数值）、`Badge`（机种徽标）、
+`Header`（竖条 + 标题 + 分隔线）、`TabColumn`（左侧纵向 Tab 列）、`CapsuleTabs`（横向胶囊标签条）、
+`Toast`（通知）、`FocusRing`（焦点框图层）；基础件是 `Widget / Page / Global / Theme / Anim / Draw / Object`。
 
-```cpp
-// demo.cpp
-void OnBuild() override {
-    TextButton* plain = Root().Emplace<TextButton>("普通按钮");  // 弹窗提示文字：不带说明行
-    plain->moveTo(20.0f, 20.0f);
-    plain->resize(396.0f, 52.0f);
+**API、主题与尺寸规范、动画时长、输入与焦点约定、调试开关、以及接入别的项目的清单，
+都在 [docs/component-view.md](docs/component-view.md)**（本 README 下面只留框架层与历史记录笔记）。
 
-    IconButton* circle = Root().Emplace<IconButton>(Icons::Glyph(Icons::Material::Favorite));
-    circle->setSide(76.0f);                          // 只有圆角正方形 / 圆形两种形态
-    circle->setShape(IconButtonShape::Circle);
-    circle->setSubtitle("圆形");                      // 有说明行时落到图标下方居中
-    circle->moveTo(526.0f, 166.0f);
+加一个组件：
 
-    box_ = Root().Emplace<Box>("box");               // 可聚焦容器
-    box_->moveTo(440.0f, 20.0f);
+1. `component_view/components/` 下新建 `Xxx.{h,cpp}`，继承 `cv::Widget`；
+2. 只实现 `MeasureContent()`（量内容）、`OnDrawContent()`（画内容）、`OnUpdate()`（每帧状态）三件事，
+   其余（布局 / 焦点 / 溢出滚动 / 命中 / 事件）都由基类处理；
+3. 需要焦点框就重写 `BuildFocusVisual()` 描述形状，绘制由 `FocusRing` 图层统一完成；
+4. 颜色一律读 `Theme::` 角色色、尺寸读 `Theme::` 常量，切主题自动跟随；
+5. `.cpp` 会被 CMake 的 GLOB 自动纳入，不用改构建脚本。
 
-    // 右侧控制列：贴右边缘 20px，从上往下排（主题 / 放大 / 缩小）
-    theme_button_ = AddControl(Icons::Material::DarkMode, "btn_theme", ThemeName());
-    connect(theme_button_, &IconButton::clicked, this, [this] { ToggleTheme(); });
+## 示例与测试
 
-    zoom_in_ = AddControl(Icons::Material::ZoomIn, "btn_zoom_in", "放大");
-    connect(zoom_in_, &IconButton::clicked, this, [this] { StepZoom(+1); });
-
-    zoom_out_ = AddControl(Icons::Material::ZoomOut, "btn_zoom_out", "缩小");
-    connect(zoom_out_, &IconButton::clicked, this, [this] { StepZoom(-1); });
-}
-```
-
-### UI 缩放（启动时设定）
-
-界面的物理缩放 = 后端自动缩放 × 用户倍率。自动缩放由分辨率算（`min(h/720, w/1280)`），
-用户倍率在**启动时**设定（720p 手持基准下 1.0 显得小，demo 默认 **1.25**）：
-
-```cpp
-ui.SetUiZoom(1.25f);                          // 0.5..3.0，1.0 = 不额外缩放；OnStart 里调
-GUI_DEV_ZOOM=1.25 ./build/mac/gui_dev_demo    // 调试用
-ui.UiZoom();                                  // 当前倍率
-```
-
-逻辑画布 = `drawable / (自动缩放 × 倍率)`，所以倍率变大 = 画布变小 = 界面变大；
-字体光栅化密度只跟分辨率走（不含倍率），字形按需烘焙，不需要也不应该运行期重建图集。
-
-> **为什么没有运行期缩放按钮**：运行期改 `SDL_RenderSetScale` 会让 SDL 的几何/视口状态错乱。
-> mac 上的 SDL 是 sdl2-compat（2.32.72，SDL2 API 跑在 SDL3 上），实测点一次放大后 20 帧内必崩
-> （Metal：`AGX: Texture read/write assertion failed … Region width OOB`）；把 SDL 缩放固定住、
-> 或跳过 ImGui 绘制，都不再崩 —— 说明崩在 SDL 的缩放路径上（sdl2-compat 的
-> [SDL_RenderSetScale 兼容性问题 #425](https://github.com/libsdl-org/sdl2-compat/issues/425)），
-> 不是组件库的代码。Switch 端的运行期缩放也可能踩到同类问题，所以统一改成启动时设定，
-> 界面上不再提供运行期缩放按钮。要在设备上运行期缩放的话，需要换真实 SDL2 或自己实现缩放几何的渲染路径。
-
-### Toast 通知
-
-业务代码只碰这几个函数，坐标 / 动画 / 生命周期 / 排列 / 图标 / 颜色都在 `ToastManager` 里：
-
-```cpp
-Toasts().ShowSuccess("保存状态成功");   // Page 里的入口
-Toasts().ShowError("读取状态失败");
-Toasts().ShowInfo("正在加载游戏...");
-Toasts().Show(ToastType::Info, "任意文案");
-```
-
-视觉上就是「一个从右边滑进来的 Button Box」：底色 / 圆角 / 阴影 / 字体 / 内边距**全部复用**
-`Global::component_style`（和 Button 走同一个画法函数 `Draw::ComponentBox()`），
-Toast 只额外画左侧状态色条 + Material 图标 + 文本。
-
-边框 / 圆角 / 阴影都来自 `Global::component_style`，和 Button 完全一致（`Draw::ComponentBox()`）。
-
-| 项 | 值（`ToastStyle`，可改） |
+| 目标 | 说明 |
 |---|---|
-| 边框 | 走 `Global::component_style`（1px 灰白，和 Button 同一套） |
-| 底色 / 圆角 / 阴影 | 走 `Global::component_style`（和 Button 同一套） |
-| 左侧状态色条 | 直角长条，左/上/下离边框 2px；Success 绿 / Error 红 / Info 蓝（颜色只用于色条和图标） |
-| 图标 | Material `check_circle` / `error_outline` / `info`，22px |
-| 尺寸 | 宽 200~320 自适应、最小高 `kControlHeight`(56)，长文本自动换行并按行数增高 |
-| 位置 | 右上角：顶部 20、右边 5、多个 Toast 间距 10 |
-| 时长 | 入场 0.25s（EaseOutCubic）→ 停留 **3s**（从入场完成开始算）→ 出场 0.25s → 删除 |
+| `gui_dev_demo` | 组件库总览：左侧 Tab 列 + 按钮 / 徽标 / 提示 / 导航四个子页面 |
+| `gui_dev_min_demo` | 最小接入示例（约 150 行，另一个项目的起点） |
+| `gui_dev_imgui_tour` | ImGui 原生能力导览（8 Tab，页面不滚动） |
+| `gui_dev_pause_demo` | 暂停菜单（Persona 式动态菜单、存档槽、设置、对话框） |
+| `gui_dev_flow_demo` | `framework/ui` 组件预览（可聚焦 Box + 流光焦点框） |
+| `gui_dev_widget_demo` | 自定义控件教学 8 例 |
+| `gui_dev_signal_test` | 信号槽语义测试，`ctest` 跑 |
 
-关键机制（也是没有「删除元素后坐标错乱」的原因）：
+---
 
-```text
-X 轴：Entering 时 slide 0 → 1（EaseOutCubic）；Exiting 时 1 → 0（exponentialIn 风格）并 alpha = slide 淡出
-Y 轴：每帧 targetY = 上一条的 y + 上一条的 height + spacing；
-      currentY = SmoothTo(currentY, targetY, reflow_speed, dt)
-```
-
-两个轴完全独立，所以「A 正在向右退出 / B、C 正在向上补位 / D 正在从右边进入」可以同时发生；
-顶部 Toast 消失后，后面的自动向上补位 —— 不需要 Toast 之间互相知道坐标。
-
-- 去重：**默认关闭**（`dedup_window = 0`，每次 Show 都建一条）；设成 >0 时同类型 + 同文案在该窗口内
-  只刷新停留时间、不新建（正在退出的会被拉回来重新滑入）。
-- 不接管输入：Toast 不在 Widget 树里，不参与命中测试 / 焦点导航 / 手柄分发（`Page::Update` 里只推进动画）。
-- 绘制层级：`Page::Render` 里画在页面内容与 overlay **之后**，而 `Global::draw_list` 是 ImGui 前景 draw list → 高于所有 ImGui 窗口。
-- 线程：Toast 是 UI 层服务，`Show*` / `Update` / `Draw` 都在 UI 线程（本项目 UI 单线程）。以后真有后台线程要发通知，
-  再在 `Show*` 前面挂一个线程安全队列由 UI 线程排空即可。
-
-demo 的右侧控制列加了四个触发按钮（成功 / 失败 / 信息 / 长文本），长文本那条用来验证换行和后续补位。
-
-### 主题：浅色 / 深色（运行时整套切换）
-
-调色板里的「角色色」都是运行时可变的变量，`Theme::SetMode()` 会把整套颜色换掉：
-
-```cpp
-Theme::SetMode(Theme::ThemeMode::Dark);   // 深色：页面 #1E1E1E + 深色控件 + 浅色文字
-Theme::SetMode(Theme::ThemeMode::Light);  // 浅色：页面 #FFFFFF + 浅灰控件 + 深色文字
-Theme::ToggleMode();                      // 一键互切
-Theme::IsLight();                         // 当前是不是浅色
-```
-
-切换分三步，顺序别错：
-
-```cpp
-Theme::ToggleMode();        // 1. 换调色板
-Theme::ApplyToImGui();      // 2. 让 ImGui 原生控件跟着走（WindowBg / FrameBg / 文字色…）
-page.RefreshTheme();        // 3. 组件树重新取色
-```
-
-`Page::RefreshTheme()` = `Global::ApplyTheme()`（约定边框色/阴影浓淡）+ 根节点装饰复位 +
-`Widget::RefreshThemeTree()`（递归调用每个组件的 `OnThemeChanged()`）。
-
-组件怎么跟主题：
-
-| 情况 | 行为 |
-|---|---|
-| 组件默认色（`Box` 底色、`Button` 底色/文字色、`ToggleButton` 开关色、焦点框色） | 自动跟着主题变 |
-| 用户显式设过的颜色（`Box::fillWith` / `Widget::SetBackground` / `Button::setTextColors` / `ToggleButton::setSwitchColors`） | 固定住，切主题不动 |
-| 自己写的组件要跟主题 | 重写 `Widget::OnThemeChanged()`，在那里重新取 `Theme::kXxx` |
-
-新增主题相关颜色时，把它放进 `Theme::SetMode()` 的两套值里即可；`Theme::kBgEditor / kBgWidget /
-kTextPrimary / kAccent / kControlBorder / kSwitchOff / kSwitchKnob` 等都是这样切换的。
-
-> `framework/ui/Icons.h` 里新增了 `LightMode`(U+E518) / `DarkMode`(U+E51C) 两个 Material 图标，
-> 主题切换按钮用它。字形自检（启动时打印）会核对覆盖率：现在是 16 个按键图标 + 37 个 Material 图标。
-
-### 字号与控件尺寸统一（对齐 GBAStation SettingPage）
-
-尺寸只有一处定义：`component_view/Theme.h` 的尺寸常量；组件（Box / Button / Badge / Toast）与 demo
-都引用它，不再各写一套字面量。基准抄的是 GBAStation `src/ui/page/SettingPage.cpp` 那套手持尺寸：
-
-| 角色 | 值 | SettingPage 里的对应 |
-|---|---|---|
-| 大标题 / 卡片标题 | `kFontTitle` = 22 | 捕获卡片标题 26、区块标题 20 之间 |
-| 区块标题 | `kFontHeader` = 20 | `SettingsSectionHeaderView` 的 `nvgFontSize(vg, 20.f)`，行高 58 |
-| 正文（按钮主文字 / Toast 正文） | `kFontBody` = 16 | 页面里最常用的字号（16 出现 15 次） |
-| 说明行 / 提示 / 徽标文字 | `kFontSmall` = 14 | `makeHint` 的 `setFontSize(14.f)`，边距 4/10/16/16 |
-| 极小号 | `kFontTiny` = 12 | 次要标注 |
-| 按钮 / 列表行高 | `kControlHeight` = 56 | 标题行 58、卡片行 54~60 → 取中间值 |
-| 标签（机种徽标）高 | `kBadgeHeight` = 26 | 徽标/标签量级 |
-| 内容留白 | `component_style.content_padding` = 12 | hint 左右 16、容器 padding 12/24/24/24 |
-
-于是所有控件一眼同高：左列按钮 56、图标按钮 56×56（边长 = 行高）、右侧控制列 56、
-Toast 最小高 56；正文统一 16、说明行统一 14、徽标统一 26 高 + 白字。
-实测（1.25 倍缩放下量像素）：左列/控制列每个按钮 56 高、间距 10；Toast 高 56；
-徽标 92×26 两列、行距 32。
-
-### 焦点与导航（Box 既能当容器，也能当控件）
-
-一个 Box 有两种身份，按需要开关：
-
-```cpp
-// 容器：什么都不用调。它只负责位置/背景/子节点排版，焦点落在子节点上
-Box* panel = parent->Emplace<Box>("panel");
-
-// 可聚焦控件：方向键能选中它，A/回车/鼠标左键触发 clicked 信号
-Box* card = parent->Emplace<Box>("card");
-card->makeFocusable();          // = focusable + 焦点框 + 聚焦缩放
-connect(card, &Box::clicked, this, [card] { /* ... */ });
-connect(card, &Box::focusIn, this, [card] { /* ... */ });
-```
-
-可聚焦的 Box 同时还能当容器：子节点照样能被聚焦，因为 `focus_only_self` 默认 false
-（`true` = 复合控件语义，只把自己当焦点停靠点，列表/滑条那种内部自己导航的才需要）。
-
-导航相关的开关（都在 `Widget` 上）：
-
-| 属性 | 作用 |
-|---|---|
-| `focusable` | 是否进入焦点列表（`Page::Update` 每帧收集） |
-| `focus_only_self` | true = 只把自己当停靠点；false = 自己和子节点都能被聚焦 |
-| `focus_zone` | 焦点分区：跨分区只允许左右方向（左列 Tab / 右内容区就是两个分区） |
-| `capture_horizontal` / `capture_vertical` | 自己消费这两个方向，全局导航让位（滑条/L 列表内部导航） |
-| `focus_on_hover` | 桌面端：鼠标悬停即接管焦点（鼠标和手柄共用一个焦点） |
-| `focus_frame` / `focus_scale` / `focus_translate` / `focus_frame_color` / `focus_animation_speed` | 焦点视觉（框 + 缩放 + 位移，都是指数平滑，吃 dt） |
-| `hasFocus()` / `focusIn` / `focusOut` | 读状态 / 收信号 |
-
-鼠标、键盘方向键、手柄方向键走的是同一条路：`Page::Update()` 里
-`Global::CollectFocusables → Global::NavigateFocus(焦点列表)`，算法是**最近邻**
-（主方向投影距离 + 2 倍垂直偏移），优先级：同分区且无祖先/后代关系 → 同分区 → 跨分区（仅左右）。
-程序化切焦点用 `widget->RequestFocus()`（要求 focusable）或 `Global::SetFocus(widget)`；
-初始焦点不设置的话会自动落在焦点列表的第一个。
-
-### 坐标系（先记住这三条）
-
-1. 设计空间固定 **1280x720**（后端按 `min(高/720, 宽/1280)` 缩放），所有尺寸都按 720p 写。
-2. `position` 是**相对父节点内容区左上角**的偏移；页面根节点没有 padding，所以 `(0,0)` 就是屏幕左上角。
-3. `size` 是**外框尺寸**（含 padding/border）；`size = 0` 表示该轴按内容自适应。
-
-### 加组件的步骤（后面每加一个都这么走）
-
-1. 在 `component_view/components/` 下新建 `Xxx.{h,cpp}`，继承 `cv::Widget`；
-2. 需要自绘就重写 `OnDrawContent(ImDrawList*, const Rect&)`，需要测量尺寸就重写 `MeasureContent(avail)`；
-3. 在 `demo.cpp` 的 `OnBuild()` 里 `Emplace<Xxx>(...)` 放出来；
-4. `component_view/` 下的 `.cpp` 由 CMake GLOB 自动纳入，不用改构建脚本。
+# 附录：框架与实现笔记（历史与踩坑记录）
 
 ## ImGui 能力导览（gui_dev_imgui_tour）
 
