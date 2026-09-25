@@ -201,12 +201,13 @@ void Badge::OnDrawContent(ImDrawList* dl, const Rect& content) {
         return; // 规格：空文字不画徽标（其它机种就是这种）
     }
     const float r = resolvedRadius();
-    Draw::RoundedRectFilled(dl, content, Theme::U32(background, alpha), r, r, r, r);
+    const float opacity = EffectiveOpacity();
+    Draw::RoundedRectFilled(dl, content, Theme::U32(background, alpha * opacity), r, r, r, r);
     // NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE：文本落在徽标中心
     const ImVec2 extent = Draw::MeasureText(nullptr, font_size, text.c_str(), 0.0f);
     Draw::Text(dl, nullptr, font_size,
                ImVec2(content.Center().x - extent.x * 0.5f, content.Center().y - extent.y * 0.5f),
-               Theme::U32(foreground, alpha), text.c_str());
+               Theme::U32(foreground, alpha * opacity), text.c_str());
 }
 
 void Badge::OnThemeChanged() {

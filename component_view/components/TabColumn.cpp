@@ -1,24 +1,11 @@
 #include "component_view/components/TabColumn.h"
 
-#include <cmath>
-
+#include "component_view/Anim.h"
 #include "component_view/Draw.h"
 #include "component_view/Global.h"
 #include "component_view/components/Button.h"
 
 namespace gui_dev::cv {
-namespace {
-
-// 指数平滑：与帧率无关，不会过冲（和 Widget.cpp 里那个同款）
-float SmoothTo(float current, float target, float speed, float dt) {
-    if (dt <= 0.0f) {
-        return current;
-    }
-    const float k = 1.0f - std::exp(-speed * dt);
-    return current + (target - current) * k;
-}
-
-} // namespace
 
 TabColumn::TabColumn() : Widget("tab_column") {
     layout = LayoutMode::Vertical;
@@ -52,10 +39,19 @@ TabColumn& TabColumn::setItems(std::vector<Item> items) {
     }
 
     index_ = ClampIndex(index_);
-    indicator_y_ = -1.0f; // 换了数据不播滑动动画
+    focus_anim_.assign(item_buttons_.size(), 0.0f);
     gap.y = style.item_gap;
     SetFocusZone(style.focus_zone); // 整列（含 item）同一分区
+    PlayEnter();                    // 建好就播一次入场
     return *this;
+}
+
+void TabColumn::PlayEnter() {
+    enter_time_ = 0.0f;
+}
+
+float TabColumn::TotalEnterTime() const {
+    return Anim::StaggerTotal(count(), style.enter_stagger, style.enter_duration);
 }
 
 TabColumn& TabColumn::setIndex(int value, bool notify) {
@@ -93,6 +89,18 @@ int TabColumn::ClampIndex(int value) const {
     return value < 0 ? 0 : (value > last ? last : value);
 }
 
+float TabColumn::ItemEnter(int index) const {
+    const float raw = Anim::StaggerElapsed(enter_time_, index, style.enter_stagger, style.enter_duration);
+    return Anim::EaseOutCubic(raw);
+}
+
+float TabColumn::ItemFocus(int index) const {
+    if (index < 0 || index >= static_cast<int>(focus_anim_.size())) {
+        return 0.0f;
+    }
+    return Anim::EaseOutBack(focus_anim_[static_cast<std::size_t>(index)]);
+}
+
 void TabColumn::SelectAt(int index) {
     if (index == index_) {
         emit activated(index); // 对已选中项再点一次 / 再按 A
@@ -104,6 +112,8 @@ void TabColumn::SelectAt(int index) {
 void TabColumn::ApplyItemLook(int index) {
     Button* item = item_buttons_[static_cast<std::size_t>(index)];
     const bool selected = (index == index_);
+    const float enter = ItemEnter(index);
+    const float focus = ItemFocus(index);
 
     // 平铺：没有底色 / 边框 / 阴影，选中底由容器在 OnDrawContent 里画（画在文字下面）
     item->background = 0;
@@ -113,12 +123,18 @@ void TabColumn::ApplyItemLook(int index) {
     item->shadow.enabled = false;
     item->padding = EdgeInsets{style.content_padding, style.padding_y, 12.0f, style.padding_y};
     item->size.y = style.item_height;
-    // 圆角跟选中底一致（默认胶囊 = 高的一半）：按钮的流光焦点框是按 corner_radius + margin 画的，
-    // 不跟着改的话焦点框会是块小圆角矩形，跟胶囊之间露出一块背景。
-    item->corner_radius = style.item_radius > 0.0f ? style.item_radius : style.item_height * 0.5f;
-    // 文字色每帧写死（选中 = 亮、未选中 = 常规），切主题也会被下一帧覆盖
-    item->text_color = selected ? Theme::kTextBright : Theme::kTextPrimary;
+    // 圆角跟选中底一致：按钮的流光焦点框按 corner_radius + margin 画，
+    // 不跟着改的话焦点框的圆角会和选中底对不上。
+    item->corner_radius =
+        style.item_radius > 0.0f ? style.item_radius : style.item_height * 0.5f;
+    // 文字色每帧写死（选中 = 亮、未选中 = 常规；聚焦再往亮色靠一点），切主题下一帧自动覆盖
+    const ImVec4 base = selected ? Theme::kTextBright : Theme::kTextPrimary;
+    item->text_color = Theme::Mix(base, Theme::kTextBright, focus * 0.6f);
     item->text_color_follows_theme = false;
+
+    // 入场：从左侧滑入 + 淡入（opacity 现在对文字/图标也生效）；焦点响应：轻微右移
+    item->visual_translate = ImVec2(style.enter_offset * (1.0f - enter) + style.focus_offset * focus, 0.0f);
+    item->opacity = enter;
 }
 
 ImVec2 TabColumn::MeasureContent(const ImVec2& available) {
@@ -130,18 +146,15 @@ void TabColumn::OnUpdate(float dt) {
     if (item_buttons_.empty()) {
         return;
     }
-    for (int i = 0; i < static_cast<int>(item_buttons_.size()); ++i) {
-        ApplyItemLook(i);
+    enter_time_ = Minf(enter_time_ + Maxf(dt, 0.0f), TotalEnterTime());
+    if (focus_anim_.size() != item_buttons_.size()) {
+        focus_anim_.assign(item_buttons_.size(), 0.0f);
     }
-
-    // 选中底：平滑滑到新选中项（第一帧直接对齐）
-    const Rect& target = item_buttons_[static_cast<std::size_t>(ClampIndex(index_))]->rect;
-    if (indicator_y_ < 0.0f) {
-        indicator_y_ = target.min.y;
-        indicator_h_ = target.Height();
-    } else {
-        indicator_y_ = SmoothTo(indicator_y_, target.min.y, style.slide_speed, dt);
-        indicator_h_ = SmoothTo(indicator_h_, target.Height(), style.slide_speed, dt);
+    for (int i = 0; i < static_cast<int>(item_buttons_.size()); ++i) {
+        const bool focused = item_buttons_[static_cast<std::size_t>(i)]->focused;
+        focus_anim_[static_cast<std::size_t>(i)] =
+            Anim::MoveTowards(focus_anim_[static_cast<std::size_t>(i)], focused ? 1.0f : 0.0f, style.focus_duration, dt);
+        ApplyItemLook(i);
     }
 
     // 焦点自动滚动：焦点项变了、而且落在本列里，就把它滚进可见区
@@ -179,11 +192,20 @@ void TabColumn::OnDrawContent(ImDrawList* dl, const Rect& content) {
     if (dl == nullptr || item_buttons_.empty()) {
         return;
     }
-    // 选中底 + 左侧色条：画在子项之前（子项是它的文字/图标，必须盖在上面）
-    const Rect base = MapFromSelf(Rect{ImVec2(rect.min.x, indicator_y_),
-                                       ImVec2(rect.max.x, indicator_y_ + indicator_h_)});
+    // 选中底 + 左侧色条：画在子项之前（子项是它的文字/图标，必须盖在上面）。
+    // 底不做位移动画：直接用选中项当前这一帧的矩形（含它自己的入场/焦点位移），
+    // 所以切到哪一项就落在哪一项上，不会从上一项滑过去。
+    const int selected = ClampIndex(index_);
+    const float enter = ItemEnter(selected);
+    const float focus = ItemFocus(selected);
+    const float dx = style.enter_offset * (1.0f - enter) + style.focus_offset * focus;
+    const Rect item = item_buttons_[static_cast<std::size_t>(selected)]->rect.Translate(ImVec2(dx, 0.0f));
+    const Rect base = MapFromSelf(item).Inset(0.0f, 0.0f, 0.0f, 0.0f);
+    const float alpha = enter;
+
     const float radius = style.item_radius > 0.0f ? style.item_radius : base.Height() * 0.5f;
-    Draw::RoundedRectFilled(dl, base, Theme::U32(Theme::kSelection), radius, radius, radius, radius);
+    Draw::RoundedRectFilled(dl, base, Theme::Alpha(Theme::U32(Theme::kSelection), alpha), radius, radius, radius,
+                            radius);
 
     if (style.indicator_width > 0.0f) {
         const float bar_h = Maxf(base.Height() - style.indicator_margin_y * 2.0f, 8.0f);
@@ -191,7 +213,7 @@ void TabColumn::OnDrawContent(ImDrawList* dl, const Rect& content) {
         const Rect bar = Rect::FromPosSize(
             ImVec2(base.min.x + style.indicator_inset, base.Center().y - bar_h * 0.5f),
             ImVec2(style.indicator_width, bar_h));
-        Draw::RoundedRectFilled(dl, bar, Theme::U32(Theme::kAccent), bar_r, bar_r, bar_r, bar_r);
+        Draw::RoundedRectFilled(dl, bar, Theme::Alpha(Theme::U32(Theme::kAccent), alpha), bar_r, bar_r, bar_r, bar_r);
     }
 }
 

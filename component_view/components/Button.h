@@ -112,6 +112,10 @@ protected:
     virtual bool CaptionOutside() const;              // IconButton：说明行画在控件外面
     bool SubtitleVisible() const { return show_subtitle && SubtitleAllowed() && !CaptionOutside(); }
 
+    // 文字 / 图标 / 开关的颜色统一过一遍 Widget::opacity：入出场淡入淡出、禁用态都靠它
+    ImU32 Ink(const ImVec4& color) const { return Theme::Alpha(Theme::U32(color), EffectiveOpacity()); }
+    ImU32 Ink(ImU32 color) const { return Theme::Alpha(color, EffectiveOpacity()); }
+
     // 左侧「图标 + 文字」块：
     //   有主文字 = 图标（正方形格，格内水平+垂直居中）+ 文字紧跟其右
     //   没主文字 = 图标在上、说明行在下方居中（竖排）

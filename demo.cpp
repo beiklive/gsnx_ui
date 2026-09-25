@@ -15,7 +15,9 @@
 #include "component_view/components/Badge.h"
 #include "component_view/components/Box.h"
 #include "component_view/components/Button.h"
+#include "component_view/Anim.h"
 #include "component_view/components/CapsuleTabs.h"
+#include "component_view/components/Header.h"
 #include "component_view/components/TabColumn.h"
 #include "component_view/pages/Page.h"
 #include "ui/Icons.h"
@@ -36,6 +38,7 @@ using gui_dev::cv::Button;
 using gui_dev::cv::CapsuleTabs;
 using gui_dev::cv::CustomButton;
 using gui_dev::cv::IconButton;
+using gui_dev::cv::Header;
 using gui_dev::cv::IconButtonShape;
 using gui_dev::cv::IconTextButton;
 using gui_dev::cv::OptionButton;
@@ -47,6 +50,7 @@ using gui_dev::cv::ToggleButton;
 using gui_dev::cv::ValueButton;
 namespace Theme = gui_dev::cv::Theme;
 namespace Global = gui_dev::cv::Global;
+namespace Anim = gui_dev::cv::Anim;
 
 // 启动缩放：1.0 = 不额外缩放（验过的那版行为）。
 // 之前默认 1.25 会让逻辑画布从 1280x720 变成 1024x576，进而让后端那段「鼠标坐标修正」开始生效
@@ -65,6 +69,10 @@ bool TraceSignal() {
 // 页面 = 左侧 TabColumn（纵向标签列）+ 右侧内容区。
 // 内容区里所有控件在 OnBuild 时一次性建好，按归属的 tab 记进 pages_，切 tab 只切 visible
 // （CollectFocusables 会跳过隐藏控件，所以隐藏页不会抢焦点/按键）。
+// 页面 = 左侧 TabColumn（纵向标签列）+ 右侧内容区，内容区用 Header 把控件按区块水平分隔开。
+// 所有控件在 OnBuild 时一次性建好，按归属的 tab 记进 pages_；切 tab 时：
+//   旧页播 0.16s 退场（左移 + 淡出）→ 播完才隐藏，新页 0.28s 逐项错开入场（右滑 + 淡入），
+//   两页同时进行，所以不会出现「瞬间刷新」。动画参数与语义对齐 examples/pause_menu。
 class DemoPage : public Page {
 public:
     const char* Title() const override { return "component_view"; }
@@ -86,11 +94,11 @@ public:
         connect(theme_button_, &IconButton::clicked, this, [this] { ToggleTheme(); });
         buttons_.push_back(theme_button_);
 
-        SetActiveTab(tab_column_->index());
+        ShowTab(0);
     }
 
     void OnUpdate(float dt) override {
-        (void)dt;
+        UpdatePageAnim(dt);
         LayoutContent(); // 画布尺寸变了（缩放 / 窗口）就重排
     }
 
@@ -104,41 +112,49 @@ public:
             {Icons::Glyph(Icons::Material::Info), "提示"},
             {Icons::Glyph(Icons::Material::Games), "导航"},
         });
-        // 选中项变了：只切内容区控件的 visible
+        // 选中项变了：切内容区（旧页退场 + 新页入场）
         connect(tab_column_, &TabColumn::selectionChanged, this, [this](int index) {
-            SetActiveTab(index);
+            ShowTab(index);
             if (TraceSignal()) {
                 std::printf("[signal] tab = %d (%s)\n", index,
                             tab_column_->items()[static_cast<std::size_t>(index)].text.c_str());
                 std::fflush(stdout);
             }
         });
-        // 对已选中项再按 A / 再点一次
+        // 对已选中项再按 A / 再点一次：重播一次入场
         connect(tab_column_, &TabColumn::activated, this, [this](int index) {
+            page_anim_[index].enter_time = 0.0f;
             Toasts().ShowInfo("已在 " + tab_column_->items()[static_cast<std::size_t>(index)].text + " 页");
         });
     }
 
-    // 归到某个 tab：设内容区焦点分区（TabColumn 是分区 1）、登记进 pages_、按当前 tab 决定可见性
+    // ------------------------------------------------- 子页面切换动画 ----
+    // 归到某个 tab：设内容区焦点分区（TabColumn 是分区 1）、登记进 pages_（先全部隐藏，由 ShowTab 打开）
     template <typename T>
     T* AddTo(int tab, T* widget) {
         widget->SetFocusZone(kContentZone);
+        widget->visible = false;
         pages_[tab].push_back(widget);
-        widget->visible = (tab == active_tab_);
         return widget;
     }
 
-    void SetActiveTab(int index) {
+    void ShowTab(int index) {
         if (index < 0 || index >= kTabCount) {
             return;
         }
-        active_tab_ = index;
-        for (int tab = 0; tab < kTabCount; ++tab) {
-            const bool on = (tab == index);
-            for (Widget* widget : pages_[tab]) {
-                widget->visible = on;
-            }
+        // 上一次退场还没播完就直接结束它，避免两页同时在退
+        if (exiting_tab_ >= 0) {
+            page_anim_[exiting_tab_].exit = 1.0f;
+            exiting_tab_ = -1;
         }
+        if (index != active_tab_ && !pages_[active_tab_].empty()) {
+            page_anim_[active_tab_].exit = 0.0f;
+            exiting_tab_ = active_tab_;
+        }
+        active_tab_ = index;
+        page_anim_[index].enter_time = 0.0f; // 新页从 0 开始入场
+        ApplyTabVisibility();
+
         // → / R 进内容区时落在当前页第一个可聚焦控件上
         Widget* first = nullptr;
         for (Widget* widget : pages_[index]) {
@@ -150,8 +166,75 @@ public:
         tab_column_->setFocusTarget(first);
     }
 
+    // 当前页 + 正在退场的那一页可见，其余隐藏
+    void ApplyTabVisibility() {
+        for (int tab = 0; tab < kTabCount; ++tab) {
+            const bool shown = (tab == active_tab_) || (tab == exiting_tab_);
+            for (Widget* widget : pages_[tab]) {
+                widget->visible = shown;
+            }
+        }
+    }
+
+    // 项数多的时候把错开步长压小，保证整页入场总时长不超过 kPageMaxTotal
+    static float PageStagger(int count) {
+        const int last = count > 0 ? count - 1 : 0;
+        if (last == 0) {
+            return kPageStagger;
+        }
+        return gui_dev::cv::Minf(kPageStagger, (kPageMaxTotal - kPageEnterDuration) / static_cast<float>(last));
+    }
+
+    void UpdatePageAnim(float dt) {
+        const float total_enter = Anim::StaggerTotal(static_cast<int>(pages_[active_tab_].size()),
+                                                     PageStagger(static_cast<int>(pages_[active_tab_].size())),
+                                                     kPageEnterDuration);
+        page_anim_[active_tab_].enter_time =
+            gui_dev::cv::Minf(page_anim_[active_tab_].enter_time + gui_dev::cv::Maxf(dt, 0.0f), total_enter);
+        if (exiting_tab_ >= 0) {
+            page_anim_[exiting_tab_].exit =
+                Anim::AdvanceOnce(page_anim_[exiting_tab_].exit, kPageExitDuration, dt);
+            if (page_anim_[exiting_tab_].exit >= 1.0f) {
+                exiting_tab_ = -1;
+                ApplyTabVisibility();
+            }
+        }
+        for (int tab = 0; tab < kTabCount; ++tab) {
+            if (tab == active_tab_) {
+                // 入场：逐项错开 + 从右滑入 + 淡入（和 pause_menu 的菜单项同一套做法）
+                const std::vector<Widget*>& list = pages_[tab];
+                for (std::size_t i = 0; i < list.size(); ++i) {
+                    const float stagger = Anim::EaseOutCubic(Anim::StaggerElapsed(
+                        page_anim_[tab].enter_time, static_cast<int>(i), PageStagger(static_cast<int>(list.size())),
+                        kPageEnterDuration));
+                    list[i]->visual_translate = ImVec2(kPageEnterOffset * (1.0f - stagger), 0.0f);
+                    list[i]->opacity = stagger;
+                }
+            } else if (tab == exiting_tab_) {
+                const float eased = Anim::EaseOutCubic(page_anim_[tab].exit);
+                for (Widget* widget : pages_[tab]) {
+                    widget->visual_translate = ImVec2(-kPageExitOffset * eased, 0.0f);
+                    widget->opacity = 1.0f - eased;
+                }
+            }
+        }
+    }
+
+    // ---------------------------------------------------------- 区块 ----
+    // 区块标题（竖条 + 标题 + 右对齐补充文字 + 底部分隔线），宽度撑满内容区
+    Header* AddHeader(int tab, const char* title, const char* info = nullptr) {
+        Header* header = AddTo(tab, Root().Emplace<Header>(title));
+        header->SetName("section_header");
+        if (info != nullptr) {
+            header->setInfo(info);
+        }
+        return header;
+    }
+
     // ------------------------------------------------------- tab 0 按钮 ----
     void BuildButtonPage() {
+        header_buttons_ = AddHeader(kTabButtons, "按钮变体", "点击 / A 触发，+ 键切说明行");
+
         // 1 普通按钮（弹窗的确认 / 取消这类提示文字）：文字居中，不带说明行
         TextButton* plain = AddTo(kTabButtons, Root().Emplace<TextButton>("普通按钮"));
         AddStackButton(plain, "btn_text");
@@ -207,6 +290,8 @@ public:
         });
         AddStackButton(value, "btn_value");
 
+        header_icons_ = AddHeader(kTabButtons, "图标按钮 / 容器");
+
         // 7 纯图标按钮：只有圆角正方形和圆形两种形态，边长 setSide()；
         // 有说明行时说明行落到图标下方居中（图标格自动给说明行让位）
         icon_square_ = AddTo(kTabButtons, Root().Emplace<IconButton>(Icons::Glyph(Icons::Material::Settings)));
@@ -244,6 +329,7 @@ public:
     // 徽标墙：两列、每个徽标同样大小、文字一律白色（不套容器 Box，直接画在页面上）
     void BuildBadgePage() {
         constexpr int kBadgeCount = 15; // 14 个机种 + 其它
+        header_badges_ = AddHeader(kTabBadges, "机种徽标", "15 个机种");
         for (int i = 0; i < kBadgeCount; ++i) {
             const EmuPlatform platform = i < 14 ? static_cast<EmuPlatform>(i + 1) : EmuPlatform::Unknown;
             Badge* badge = AddTo(kTabBadges, Root().Emplace<Badge>(platform));
@@ -262,6 +348,8 @@ public:
 
     // ------------------------------------------------------- tab 2 提示 ----
     void BuildToastPage() {
+        header_toasts_ = AddHeader(kTabToasts, "状态提示", "一个按钮一行业务代码");
+
         // Toast 触发按钮（业务代码就这一行：Toasts().ShowSuccess(...)）
         IconButton* ok = AddToastButton(Icons::Material::CheckCircle, "btn_toast_ok", "成功");
         connect(ok, &IconButton::clicked, this, [this] { Toasts().ShowSuccess("保存状态成功"); });
@@ -295,6 +383,8 @@ public:
     // 选中项停在条带中心，L/R 或点标签切换；胶囊是 104x42 圆角 21 的半透明高亮，
     // 字号 17→22、透明度 0.42→1.0 按离中心的距离衰减。
     void BuildNavPage() {
+        header_nav_ = AddHeader(kTabNav, "胶囊标签条", "L / R 或点标签切换");
+
         capsule_ = AddTo(kTabNav, Root().Emplace<CapsuleTabs>());
         capsule_->SetName("capsule_tabs");
         capsule_->setLabels({"所有", "GBA", "GBC", "FC", "SFC", "NDS", "3DS", "MD"}, 1);
@@ -315,44 +405,63 @@ public:
     void LayoutContent() {
         const float left = ContentLeft();
         const float top = ContentTop();
+        const float header_w = ContentWidth();
 
         // TabColumn：贴左边，高度铺满
         tab_column_->position = ImVec2(kMargin, top);
         tab_column_->size = ImVec2(Theme::kTabColumnWidth, ContentHeight());
 
-        // 按钮页：6 个变体从上往下；右侧放 Box，Box 下面是两个纯图标按钮
+        // ---- 按钮页：两个区块，每块用 Header 分隔 ----
+        float y = top;
+        header_buttons_->position = ImVec2(left, y);
+        header_buttons_->size.x = header_w;
+        y += kHeaderHeight + kHeaderGap;
         for (std::size_t i = 0; i < stack_buttons_.size(); ++i) {
-            stack_buttons_[i]->moveTo(left, top + static_cast<float>(i) * (Theme::kControlHeight + 10.0f));
+            stack_buttons_[i]->moveTo(left, y + static_cast<float>(i) * (Theme::kControlHeight + 10.0f));
         }
-        box_->moveTo(left + kStackWidth + 24.0f, top);
-        const float icon_x = left + kStackWidth + 24.0f;
-        const float icon_y = top + 144.0f;
-        icon_square_->moveTo(icon_x, icon_y);
-        icon_circle_->moveTo(icon_x + kControlSize + 12.0f, icon_y);
+        y += static_cast<float>(stack_buttons_.size()) * (Theme::kControlHeight + 10.0f) - 10.0f + kSectionGap;
+        header_icons_->position = ImVec2(left, y);
+        header_icons_->size.x = header_w;
+        y += kHeaderHeight + kHeaderGap;
+        icon_square_->moveTo(left, y);
+        icon_circle_->moveTo(left + kControlSize + 12.0f, y);
+        box_->moveTo(left + 216.0f, y);
 
-        // 徽标页：两列，整体在内容区居中
+        // ---- 徽标页：标题下面、内容区里居中 ----
+        header_badges_->position = ImVec2(left, top);
+        header_badges_->size.x = header_w;
         const int rows = static_cast<int>((badges_.size() + 1) / 2);
         const float wall_w = kBadgeWidth * 2.0f + kBadgeGapX;
         const float wall_h = static_cast<float>(rows) * kBadgeHeight + static_cast<float>(rows - 1) * kBadgeGapY;
-        const float wall_x = left + (ContentWidth() - wall_w) * 0.5f;
-        const float wall_y = top + (ContentHeight() - wall_h) * 0.5f;
+        const float area_top = top + kHeaderHeight + kSectionGap;
+        const float area_h = top + ContentHeight() - area_top;
+        const float wall_x = left + (header_w - wall_w) * 0.5f;
+        const float wall_y = area_top + (area_h - wall_h) * 0.5f;
         for (std::size_t i = 0; i < badges_.size(); ++i) {
             badges_[i]->moveTo(wall_x + static_cast<float>(i % 2) * (kBadgeWidth + kBadgeGapX),
                                wall_y + static_cast<float>(i / 2) * (kBadgeHeight + kBadgeGapY));
         }
 
-        // 提示页：几个触发按钮排一行
+        // ---- 提示页：标题下面一行触发按钮 ----
+        header_toasts_->position = ImVec2(left, top);
+        header_toasts_->size.x = header_w;
         for (std::size_t i = 0; i < toast_buttons_.size(); ++i) {
-            toast_buttons_[i]->moveTo(left + static_cast<float>(i) * (kControlSize + 12.0f), top);
+            toast_buttons_[i]->moveTo(left + static_cast<float>(i) * (kControlSize + 12.0f),
+                                      top + kHeaderHeight + kHeaderGap);
         }
 
-        // 导航页：胶囊条在内容区居中
-        capsule_->position = ImVec2(left + (ContentWidth() - kCapsuleWidth) * 0.5f,
-                                    top + ContentHeight() * 0.5f - 25.0f);
-        capsule_->size.x = kCapsuleWidth;
+        // ---- 导航页：标题下面居中放胶囊条 ----
+        header_nav_->position = ImVec2(left, top);
+        header_nav_->size.x = header_w;
+        {
+            const float area_top = top + kHeaderHeight + kSectionGap;
+            const float area_h = top + ContentHeight() - area_top;
+            capsule_->position = ImVec2(left + (header_w - kCapsuleWidth) * 0.5f, area_top + (area_h - 50.0f) * 0.5f);
+            capsule_->size.x = kCapsuleWidth;
+        }
 
-        // 主题开关：钉右上角
-        theme_button_->moveTo(ContentRight() - kControlSize, top);
+        // 主题开关：钉右下角（右上角会和第一个 Header 的补充文字 / 分隔线打架）
+        theme_button_->moveTo(ContentRight() - kControlSize, top + ContentHeight() - kControlSize);
     }
 
     // 一键切浅色 / 深色：换调色板 + 约定样式，再让整棵组件树重新取色
@@ -378,12 +487,27 @@ public:
 private:
     enum TabIndex { kTabButtons = 0, kTabBadges, kTabToasts, kTabNav, kTabCount };
 
-    static constexpr int kContentZone = 2;    // 内容区焦点分区（TabColumn 是 1）
-    static constexpr float kMargin = 20.0f;   // 页面四边留白
+    // 子页面入 / 退场（对齐 examples/pause_menu 的菜单出场参数）
+    struct PageAnim {
+        float enter_time = 1.0e9f; // 入场已经播了多少秒
+        float exit = 1.0f;         // 0..1 退场进度
+    };
+
+    static constexpr int kContentZone = 2;     // 内容区焦点分区（TabColumn 是 1）
+    static constexpr float kMargin = 20.0f;    // 页面四边留白
     static constexpr float kColumnGap = 20.0f; // TabColumn 和内容区之间
     static constexpr float kStackWidth = 396.0f;
     static constexpr float kControlSize = Theme::kControlHeight; // 统一控件尺寸（56）
     static constexpr float kCapsuleWidth = 440.0f;
+    static constexpr float kHeaderHeight = 58.0f;
+    static constexpr float kHeaderGap = 8.0f;   // 标题到本区块内容
+    static constexpr float kSectionGap = 16.0f; // 上一块内容到下一个标题
+    static constexpr float kPageEnterDuration = 0.28f; // 子页入场时长
+    static constexpr float kPageExitDuration = 0.16f;  // 子页退场时长
+    static constexpr float kPageStagger = 0.03f;       // 逐项错开（项数多时会自动压小）
+    static constexpr float kPageMaxTotal = 0.50f;      // 整页入场总时长上限
+    static constexpr float kPageEnterOffset = 26.0f;   // 入场时从右滑入
+    static constexpr float kPageExitOffset = 20.0f;    // 退场时往左滑出
 
     static float ContentLeft() { return kMargin + Theme::kTabColumnWidth + kColumnGap; }
     static float ContentRight() { return Global::canvas_size.x - kMargin; }
@@ -404,12 +528,19 @@ private:
     static constexpr float kBadgeGapY = 8.0f;
 
     std::vector<Widget*> pages_[kTabCount];
+    PageAnim page_anim_[kTabCount];
     int active_tab_ = 0;
+    int exiting_tab_ = -1;
     std::vector<Button*> buttons_;       // + 键统一切说明行
     std::vector<Button*> stack_buttons_; // 按钮页左侧那一列（按索引排位置）
     std::vector<IconButton*> toast_buttons_;
     std::vector<Badge*> badges_;
     TabColumn* tab_column_ = nullptr;
+    Header* header_buttons_ = nullptr;
+    Header* header_icons_ = nullptr;
+    Header* header_badges_ = nullptr;
+    Header* header_toasts_ = nullptr;
+    Header* header_nav_ = nullptr;
     Box* box_ = nullptr;
     IconButton* icon_square_ = nullptr;
     IconButton* icon_circle_ = nullptr;

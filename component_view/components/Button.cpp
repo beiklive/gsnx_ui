@@ -219,7 +219,7 @@ void Button::drawLeftBlock(ImDrawList* dl, const LeftBlock& block) const {
             y = block.icon.Center().y - (ink_top + ink_bottom) * 0.5f;
         }
         Draw::Text(dl, nullptr, glyph_size, ImVec2(block.icon.Center().x - extent.x * 0.5f, y),
-                   Theme::U32(text_color), icon.c_str());
+                   Ink(text_color), icon.c_str());
     }
     if (text.empty() && !show_sub) {
         return;
@@ -230,17 +230,17 @@ void Button::drawLeftBlock(ImDrawList* dl, const LeftBlock& block) const {
         // 纯图标形态：说明行在图标下方居中
         if (show_sub) {
             Draw::Text(dl, nullptr, sub_size, ImVec2(block.text.min.x, block.text.min.y),
-                       Theme::U32(subtitle_color), subtitle.c_str());
+                       Ink(subtitle_color), subtitle.c_str());
         }
         return;
     }
 
     // 主文字在上、说明行在下，两块作为整体已经垂直居中
     const float main_y = show_sub ? block.text.min.y : block.text.Center().y - main_extent.y * 0.5f;
-    Draw::Text(dl, nullptr, main_size, ImVec2(block.text.min.x, main_y), Theme::U32(text_color), text.c_str());
+    Draw::Text(dl, nullptr, main_size, ImVec2(block.text.min.x, main_y), Ink(text_color), text.c_str());
     if (show_sub) {
         Draw::Text(dl, nullptr, sub_size, ImVec2(block.text.min.x, main_y + main_extent.y + 2.0f),
-                   Theme::U32(subtitle_color), subtitle.c_str());
+                   Ink(subtitle_color), subtitle.c_str());
     }
 }
 
@@ -269,14 +269,14 @@ void Button::drawLrRow(ImDrawList* dl, const Rect& right_rect, const char* conte
     const float total = left_extent.x + kLrGap + ResolvedSlotWidth() + kLrGap + right_extent.x;
     const float x = right_rect.max.x - total; // 整行靠右对齐
     const float center_y = right_rect.Center().y;
-    Draw::Text(dl, nullptr, size, ImVec2(x, center_y - left_extent.y * 0.5f), Theme::U32(Theme::kTextMuted),
+    Draw::Text(dl, nullptr, size, ImVec2(x, center_y - left_extent.y * 0.5f), Ink(Theme::kTextMuted),
                kLeftKeyGlyph);
     const Rect slot = Rect::FromPosSize(ImVec2(x + left_extent.x + kLrGap, right_rect.min.y),
                                        ImVec2(ResolvedSlotWidth(), right_rect.Height()));
     Draw::MarqueeText(dl, nullptr, size, slot, content_color, content, Global::time,
                       Global::component_style.marquee_speed);
     const float right_x = x + left_extent.x + kLrGap + ResolvedSlotWidth() + kLrGap;
-    Draw::Text(dl, nullptr, size, ImVec2(right_x, center_y - right_extent.y * 0.5f), Theme::U32(Theme::kTextMuted),
+    Draw::Text(dl, nullptr, size, ImVec2(right_x, center_y - right_extent.y * 0.5f), Ink(Theme::kTextMuted),
                kRightKeyGlyph);
 }
 
@@ -316,7 +316,9 @@ void Button::OnDrawOverlay(ImDrawList* dl, const Rect& content) {
     const float brightness =
         focus_brightness >= 0.0f ? focus_brightness : Global::component_style.focus_brightness;
     // 外扩后的圆角 = 按钮圆角 + 外扩量，这样流光框的圆角跟按钮轮廓平行
-    Draw::FlowingRing(dl, ring, width, phase, saturation, brightness, focus_mix, 3.0f, corner_radius + margin);
+    // 焦点框也跟着 Widget::opacity 淡入淡出（入场/禁用时和按钮本体一致）
+    Draw::FlowingRing(dl, ring, width, phase, saturation, brightness, focus_mix * EffectiveOpacity(), 3.0f,
+                      corner_radius + margin);
 }
 
 bool Button::OnPadAction(InputAction action) {
@@ -433,7 +435,7 @@ void IconButton::drawCaption(ImDrawList* dl) const {
     } else {
         return; // 上下都放不下：不显示提示文字
     }
-    Draw::Text(dl, nullptr, size, ImVec2(self.Center().x - extent.x * 0.5f, y), Theme::U32(subtitle_color),
+    Draw::Text(dl, nullptr, size, ImVec2(self.Center().x - extent.x * 0.5f, y), Ink(subtitle_color),
                subtitle.c_str());
 }
 
@@ -514,7 +516,7 @@ void ToggleButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
                                          ImVec2(switch_width, height));
     const float radius = height * 0.5f;
     // 轨道：关闭灰 -> 打开蓝，颜色跟着动画一起过渡
-    Draw::RoundedRectFilled(dl, track, Theme::Mix(Theme::U32(off_color), Theme::U32(on_color), t), radius, radius,
+    Draw::RoundedRectFilled(dl, track, Ink(Theme::Mix(Theme::U32(off_color), Theme::U32(on_color), t)), radius, radius,
                             radius, radius);
     // 旋钮：从左滑到右
     const float inset = Maxf(2.0f, height * 0.12f);
@@ -525,11 +527,11 @@ void ToggleButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
                                         ImVec2(knob_r * 2.0f, knob_r * 2.0f));
     ShadowStyle knob_shadow;
     knob_shadow.enabled = true;
-    knob_shadow.color = Theme::U32(Theme::rgba(0, 0, 0, 110));
+    knob_shadow.color = Ink(Theme::U32(Theme::rgba(0, 0, 0, 110)));
     knob_shadow.offset = ImVec2(0.0f, 1.0f);
     knob_shadow.blur = 3.0f;
     Draw::SoftShadow(dl, knob, knob_shadow, knob_r, knob_r, knob_r, knob_r);
-    Draw::RoundedRectFilled(dl, knob, Theme::U32(knob_color), knob_r, knob_r, knob_r, knob_r);
+    Draw::RoundedRectFilled(dl, knob, Ink(knob_color), knob_r, knob_r, knob_r, knob_r);
 }
 
 bool ToggleButton::OnPadAction(InputAction action) {
@@ -570,7 +572,7 @@ void CustomButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
     const float size = mainFontSize();
     const ImVec2 extent = Draw::MeasureText(nullptr, size, right_text.c_str(), 0.0f);
     Draw::Text(dl, nullptr, size,
-               ImVec2(right_rect.max.x - extent.x, right_rect.Center().y - extent.y * 0.5f), Theme::U32(right_color),
+               ImVec2(right_rect.max.x - extent.x, right_rect.Center().y - extent.y * 0.5f), Ink(right_color),
                right_text.c_str());
 }
 
@@ -622,7 +624,7 @@ float OptionButton::rightSideWidth() const {
 }
 
 void OptionButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
-    drawLrRow(dl, right_rect, currentOption(), Theme::U32(option_color));
+    drawLrRow(dl, right_rect, currentOption(), Ink(option_color));
 }
 
 bool OptionButton::OnPadAction(InputAction action) {
@@ -682,7 +684,7 @@ float ValueButton::rightSideWidth() const {
 
 void ValueButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
     const std::string shown = valueText();
-    drawLrRow(dl, right_rect, shown.c_str(), Theme::U32(value_color));
+    drawLrRow(dl, right_rect, shown.c_str(), Ink(value_color));
 }
 
 void ValueButton::stepBy(int direction, float multiplier) {

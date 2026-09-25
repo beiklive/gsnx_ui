@@ -7,13 +7,15 @@
 // 库里 Button 已经把「左侧图标正方形格 + 文字紧跟其右」、流光焦点框、命中测试、主题跟随
 // 都做完了，所以这里只补四件事：
 //   1. 单选状态（index）与信号
-//   2. 选中视觉：选中项背后一块底（Theme::kSelection）+ 左侧强调色条，底会平滑滑到新选中项
+//   2. 选中视觉：选中项背后一块圆角底（Theme::kSelection）+ 左侧强调色条；
+//      底色不做位移动画，切到哪一项就直接落在哪一项上（需求：背景不要移动动画）
 //   3. 焦点分区：整列（含 item）一个 focus_zone，配合页面把内容区设成另一个 zone，
 //      ↑↓ 就在列内、→ 才跨到内容区（Global::NavigateFocus 的规则）
 //   4. 焦点自动滚动：全库没人调 EnsureVisible，这里补上（焦点项变化就滚进可见区）
 //
-// item 的视觉每帧由容器统一刷（平铺、无边框无阴影、左内边距、选中/未选中文字色），
-// 所以切主题后会自动跟着调色板走，不需要额外的 OnThemeChanged 钩子。
+// 动效（参照 examples/pause_menu 的菜单出场，见 component_view/Anim.h）：
+//   * 入场：整列 0.28s 推进，逐项错开 25ms，从左侧滑入 + 淡入（EaseOutCubic）
+//   * 焦点响应：固定 0.16s 推进，几何量套 EaseOutBack 产生轻微右移 + 文字提亮
 #pragma once
 
 #include <string>
@@ -35,14 +37,20 @@ public:
     struct Style {
         float item_height = Theme::kControlHeight; // 每项高度（56）
         float item_gap = 4.0f;                     // 项间距
-        float item_radius = 0.0f;                  // 选中底圆角，<=0 = 胶囊（高的一半）
+        float item_radius = 5.0f;                  // 选中底圆角（<=0 = 胶囊）
         float content_padding = 16.0f;             // 项内左边距（文字离左边缘；左侧色条就在这里）
         float padding_y = 12.0f;                   // 项内上下留白（图标格 = 高 - 2*它）
         float indicator_width = 4.0f;              // 左侧强调色条宽度，0 = 不画
         float indicator_inset = 10.0f;             // 色条离项左边缘
         float indicator_margin_y = 12.0f;          // 色条上下留白
-        float slide_speed = 16.0f;                 // 选中底滑动速度（1/s）
         int focus_zone = 1;                        // 整列的焦点分区（内容区建议设成另一个值）
+
+        // ---- 动效 ----
+        float enter_duration = 0.28f;   // 整列入场时长（秒）
+        float enter_stagger = 0.025f;   // 逐项错开（秒/项）
+        float enter_offset = -30.0f;    // 入场时从左侧滑入的偏移（px）
+        float focus_duration = 0.16f;   // 焦点切换响应时长（秒，参考值 120~220ms）
+        float focus_offset = 4.0f;      // 焦点项右移量（px，套 EaseOutBack）
     };
 
     TabColumn();
@@ -57,6 +65,9 @@ public:
     // → / R：把焦点交给内容区的入口控件（页面接一根线就行）
     TabColumn& setFocusTarget(Widget* target);
     Widget* focusTarget() const { return focus_target_; }
+
+    // 重播一次入场（页面出现 / 回到本页时调用）
+    void PlayEnter();
 
     Style style;
 
@@ -74,16 +85,22 @@ private:
     void SelectAt(int index); // item 被点击：不一样就切，一样就发 activated
     void ApplyItemLook(int index);
     int ClampIndex(int value) const;
+    // 整列入场需要播多久（含逐项错开的尾巴）
+    float TotalEnterTime() const;
+    // 第 index 项当前的入场进度（已套 EaseOutCubic）
+    float ItemEnter(int index) const;
+    // 第 index 项当前的焦点动画量（已套 EaseOutBack）
+    float ItemFocus(int index) const;
     // 把子项的布局矩形映射到本节点当前的绘制坐标（自身的焦点缩放/位移也算进去）
     Rect MapFromSelf(const Rect& r) const;
 
     std::vector<Item> items_;
     std::vector<Button*> item_buttons_;
+    std::vector<float> focus_anim_; // 每项的焦点动画进度 0..1
     Widget* focus_target_ = nullptr;
     Widget* last_focus_ = nullptr;
     int index_ = 0;
-    float indicator_y_ = -1.0f; // <0 = 还没初始化，第一帧直接对齐不播动画
-    float indicator_h_ = 0.0f;
+    float enter_time_ = 1.0e9f; // 入场已经播了多少秒（>= TotalEnterTime() 表示播完）
 };
 
 } // namespace gui_dev::cv
