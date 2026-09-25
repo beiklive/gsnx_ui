@@ -19,6 +19,7 @@
 
 #include <imgui.h>
 
+#include "component_view/Theme.h"
 #include "component_view/Types.h"
 
 namespace gui_dev::cv {
@@ -40,14 +41,14 @@ enum class ToastState {
 struct ToastStyle {
     float min_width = 200.0f;
     float max_width = 320.0f;
-    float min_height = 44.0f;
+    float min_height = Theme::kControlHeight; // 和按钮/行高一致（56）
     float bar_width = 4.0f;     // 左侧状态色条宽度
     float bar_inset = 2.0f;     // 色条离边框的留白（左/上/下都是它）
-    float icon_size = 20.0f;    // Material 图标字号
+    float icon_size = 22.0f;    // Material 图标字号
     float gap = 10.0f;          // 色条 ↔ 图标 ↔ 文本 的间距
-    float padding_x = 14.0f;    // 色条之外的内容左右留白
-    float padding_y = 10.0f;    // 内容上下留白
-    float text_size = 15.0f;    // 文本字号（0 = 用 Theme::kFontBody）
+    float padding_x = 16.0f;    // 色条之外的内容左右留白
+    float padding_y = 12.0f;    // 内容上下留白
+    float text_size = Theme::kFontBody; // 文本字号统一 16
     float enter_duration = 0.25f;
     float exit_duration = 0.25f;
     float visible_duration = 3.0f; // 入场完成之后才开始算

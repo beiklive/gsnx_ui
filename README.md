@@ -237,6 +237,27 @@ kTextPrimary / kAccent / kControlBorder / kSwitchOff / kSwitchKnob` 等都是这
 > `framework/ui/Icons.h` 里新增了 `LightMode`(U+E518) / `DarkMode`(U+E51C) 两个 Material 图标，
 > 主题切换按钮用它。字形自检（启动时打印）会核对覆盖率：现在是 16 个按键图标 + 37 个 Material 图标。
 
+### 字号与控件尺寸统一（对齐 GBAStation SettingPage）
+
+尺寸只有一处定义：`component_view/Theme.h` 的尺寸常量；组件（Box / Button / Badge / Toast）与 demo
+都引用它，不再各写一套字面量。基准抄的是 GBAStation `src/ui/page/SettingPage.cpp` 那套手持尺寸：
+
+| 角色 | 值 | SettingPage 里的对应 |
+|---|---|---|
+| 大标题 / 卡片标题 | `kFontTitle` = 22 | 捕获卡片标题 26、区块标题 20 之间 |
+| 区块标题 | `kFontHeader` = 20 | `SettingsSectionHeaderView` 的 `nvgFontSize(vg, 20.f)`，行高 58 |
+| 正文（按钮主文字 / Toast 正文） | `kFontBody` = 16 | 页面里最常用的字号（16 出现 15 次） |
+| 说明行 / 提示 / 徽标文字 | `kFontSmall` = 14 | `makeHint` 的 `setFontSize(14.f)`，边距 4/10/16/16 |
+| 极小号 | `kFontTiny` = 12 | 次要标注 |
+| 按钮 / 列表行高 | `kControlHeight` = 56 | 标题行 58、卡片行 54~60 → 取中间值 |
+| 标签（机种徽标）高 | `kBadgeHeight` = 26 | 徽标/标签量级 |
+| 内容留白 | `component_style.content_padding` = 12 | hint 左右 16、容器 padding 12/24/24/24 |
+
+于是所有控件一眼同高：左列按钮 56、图标按钮 56×56（边长 = 行高）、右侧控制列 56、
+Toast 最小高 56；正文统一 16、说明行统一 14、徽标统一 26 高 + 白字。
+实测（1.25 倍缩放下量像素）：左列/控制列每个按钮 56 高、间距 10；Toast 高 56；
+徽标 92×26 两列、行距 32。
+
 ### 焦点与导航（Box 既能当容器，也能当控件）
 
 一个 Box 有两种身份，按需要开关：
@@ -784,6 +805,14 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   关掉说明行后主文字就停在偏上 8px 的位置；现在按文字块自己的高度居中。
   实测（说明行关）：无线网络主文字墨迹中心 169.5 / 存储路径 231.5 vs 按钮中心 170 / 232；
   普通按钮（无说明行）主文字墨迹中心 y=45.5、x=217 vs 按钮中心 (46, 218)。
+- 已确认（尺寸统一，参考 GBAStation SettingPage）：`component_view/Theme.h` 的字号/控件高改成
+  参考 SettingPage 的一套值（标题 22 / 区块 20 / 正文 16 / 说明 14 / 极小 12、控件高 **56**、
+  标签高 26、内容留白 12），组件与 demo 全部改引用常量：Button 默认字号 = kFontBody、
+  subtitle = kFontSmall、最小高 = kControlHeight；Badge 字号 = kFontSmall、高 = kBadgeHeight；
+  Toast 正文 = kFontBody、最小高 = kControlHeight、内边距 16/12、图标 22；
+  demo 的左列按钮 / 图标按钮边长 / 控制列按钮全部 = kControlHeight。
+  实测：左列与控制列每个按钮 56 高、间距 10；图标按钮 56×56；Toast 高 56；
+  徽标统一 92×26、两列、行距 32、白字。mac Debug/Release + Switch 编译通过、ctest 全绿、6 个 demo 退出码 0。
 - 已确认（第六轮反馈修复）：
   ① **缩放崩溃**：运行期点放大后 mac 必崩（Metal `AGX … Region width OOB`），逐项实验定位到
   「运行期改 SDL 渲染缩放」这一条路径（把 SDL 缩放固定住或跳过 ImGui 绘制都不崩；字体图集尺寸

@@ -102,13 +102,16 @@ inline constexpr ImVec4 kShadow = rgba(0, 0, 0, 140); // #0000008C
 inline constexpr ImVec4 kShadowSoft = rgba(0, 0, 0, 80); // #00000050
 
 // ---- 尺寸（720p 设计空间，后端按 UiScale 统一放大） -------------------------
-// 基准是「720p 手持屏」：字号/行高/间距都按在 6 寸屏上握着看设计，
-// 不是桌面显示器上看的比例。改这里就能整体调整密度。
-inline constexpr float kFontTitle  = 26.0f;
-inline constexpr float kFontHeader = 19.0f;
-inline constexpr float kFontBody   = 17.0f;
-inline constexpr float kFontSmall  = 13.0f;
-inline constexpr float kFontTiny   = 11.0f;
+// 基准对齐 GBAStation 的 SettingPage（borealis 那套手持尺寸）：
+//   区块标题 20~22 / 正文 16 / 说明 14 / 极小 12
+//   行高（按钮、列表行）56：SettingPage 的标题行 58、卡片行 54~60 都落在这个量级
+//   标签（机种徽标）26 高，字号用说明字号 14
+// 组件（Box / Button / Badge / Toast）只允许引用这里的常量，不要再各写一套字面量。
+inline constexpr float kFontTitle  = 22.0f; // 大标题 / 卡片标题
+inline constexpr float kFontHeader = 20.0f; // 区块标题（SettingPage 的 section header = 20）
+inline constexpr float kFontBody   = 16.0f; // 正文：按钮主文字、Toast 正文
+inline constexpr float kFontSmall  = 14.0f; // 说明行 / 提示 / 徽标文字
+inline constexpr float kFontTiny   = 12.0f; // 极小号
 
 inline constexpr float kRadiusNone  = 0.0f;
 inline constexpr float kRadiusSmall = 3.0f;
@@ -119,7 +122,8 @@ inline constexpr float kGapSmall = 6.0f;
 inline constexpr float kGap      = 10.0f;
 inline constexpr float kGapLarge = 16.0f;
 
-inline constexpr float kControlHeight = 34.0f;
+inline constexpr float kControlHeight = 56.0f; // 按钮 / 列表行统一高度
+inline constexpr float kBadgeHeight   = 26.0f; // 机种徽标（标签）高度
 inline constexpr float kListRowHeight = 32.0f;
 inline constexpr float kKeySize       = 30.0f;
 

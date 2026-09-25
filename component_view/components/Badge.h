@@ -57,8 +57,8 @@ enum class BadgeStyle {
 
 // 变体的几何参数（宿主也能直接读，不必建控件）
 struct BadgeStyleParams {
-    float font_size = 12.0f;
-    float height = 20.0f;
+    float font_size = Theme::kFontSmall; // 统一尺寸：14
+    float height = Theme::kBadgeHeight;  // 统一尺寸：26
     float min_width = 36.0f;
     float pad_x = 8.0f;
     float radius = 4.0f;             // <0 = 胶囊（height / 2）
@@ -80,8 +80,8 @@ public:
     std::string text;
     ImVec4 background = Theme::rgba(100, 100, 100, 200);
     ImVec4 foreground = Theme::kTextPrimary;
-    float font_size = 12.0f;
-    float height = 20.0f;
+    float font_size = Theme::kFontSmall; // 统一尺寸：14
+    float height = Theme::kBadgeHeight;  // 统一尺寸：26
     float min_width = 36.0f;
     float pad_x = 8.0f;
     float radius = 4.0f;

@@ -63,7 +63,7 @@ public:
         // 右下角阴影 / 流光聚焦框（与按钮留 2px 边距）。单个按钮可以用 setBorder() 等覆盖。
         const float x = 20.0f;
         const float width = 396.0f;
-        const float height = 52.0f;
+        const float height = Theme::kControlHeight; // 统一行高（56）
         const float gap = 10.0f;
         float cursor = 20.0f;
         const auto place = [&](Button* button, const char* name) {
@@ -132,16 +132,16 @@ public:
         // 3 纯图标按钮：只有圆角正方形和圆形两种形态，边长 setSide()；
         // 有说明行时说明行落到图标下方居中（图标格自动给说明行让位）
         IconButton* icon_square = Root().Emplace<IconButton>(Icons::Glyph(Icons::Material::Settings));
-        icon_square->setSide(76.0f);
+        icon_square->setSide(Theme::kControlHeight);
         icon_square->setShape(IconButtonShape::RoundedSquare);
         icon_square->setSubtitle("圆角方形");
-        icon_square->moveTo(440.0f, 166.0f);
+        icon_square->moveTo(440.0f, kIconRowY);
         buttons_.push_back(icon_square);
 
         IconButton* icon_circle = Root().Emplace<IconButton>(Icons::Glyph(Icons::Material::Favorite));
-        icon_circle->setSide(76.0f);
+        icon_circle->setSide(Theme::kControlHeight);
         icon_circle->setShape(IconButtonShape::Circle);
-        icon_circle->moveTo(526.0f, 166.0f);
+        icon_circle->moveTo(440.0f + Theme::kControlHeight + 12.0f, kIconRowY);
         icon_circle->setSubtitle("圆形");
         buttons_.push_back(icon_circle);
 
@@ -263,7 +263,8 @@ public:
 
 private:
     // 控制列参数：贴右边缘 20px，按钮边长 56px
-    static constexpr float kControlSize = 56.0f;
+    static constexpr float kControlSize = Theme::kControlHeight; // 统一控件尺寸（56）
+    static constexpr float kIconRowY = 164.0f; // 两个图标按钮的 y（在 Box 下方）
     static constexpr float kControlRight = 20.0f;
     static constexpr float kControlTop = 20.0f;
 
@@ -276,8 +277,8 @@ private:
 
     // 徽标墙几何
     // 徽标墙：两列，统一尺寸
-    static constexpr float kBadgeWidth = 84.0f;
-    static constexpr float kBadgeHeight = 24.0f;
+    static constexpr float kBadgeWidth = 92.0f;
+    static constexpr float kBadgeHeight = Theme::kBadgeHeight; // 统一标签高（26）
     static constexpr float kBadgeGapX = 14.0f;
     static constexpr float kBadgeGapY = 8.0f;
     static constexpr float kBadgeTop = 300.0f;
