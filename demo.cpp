@@ -42,6 +42,10 @@ using gui_dev::cv::ValueButton;
 namespace Theme = gui_dev::cv::Theme;
 namespace Global = gui_dev::cv::Global;
 
+// 启动缩放：720p 手持基准下 1.0 显得太小，默认整体放大 1.25 倍
+// （右侧控制列的「放大 / 缩小」还能在运行时继续调；GUI_DEV_ZOOM 可覆盖）
+constexpr float kDefaultZoom = 1.25f;
+
 // 验收用开关：GUI_DEV_TRACE_SIGNAL=1 时把按钮状态变化打到终端，方便脚本化测试
 bool TraceSignal() {
     const char* value = std::getenv("GUI_DEV_TRACE_SIGNAL");
@@ -55,9 +59,6 @@ public:
     const char* Title() const override { return "component_view"; }
 
     void OnBuild() override {
-        // Toast 停靠位置：让开右边的控制列（56 + 20 + 16 = 92）
-        Toasts().Style().right_margin = 92.0f;
-
         // 所有按钮都用全局约定样式（Global::component_style）：1px 灰白边框 / 5px 圆角 /
         // 右下角阴影 / 流光聚焦框（与按钮留 2px 边距）。单个按钮可以用 setBorder() 等覆盖。
         const float x = 20.0f;
@@ -162,12 +163,6 @@ public:
         theme_button_ = AddControl(Icons::Material::DarkMode, "btn_theme", ThemeName());
         connect(theme_button_, &IconButton::clicked, this, [this] { ToggleTheme(); });
 
-        zoom_in_ = AddControl(Icons::Material::ZoomIn, "btn_zoom_in", "放大");
-        connect(zoom_in_, &IconButton::clicked, this, [this] { StepZoom(+1); });
-
-        zoom_out_ = AddControl(Icons::Material::ZoomOut, "btn_zoom_out", "缩小");
-        connect(zoom_out_, &IconButton::clicked, this, [this] { StepZoom(-1); });
-
         // Toast 触发按钮（业务代码就这一行：Toasts().ShowSuccess(...)）
         toast_ok_ = AddControl(Icons::Material::CheckCircle, "btn_toast_ok", "成功");
         connect(toast_ok_, &IconButton::clicked, this, [this] { Toasts().ShowSuccess("保存状态成功"); });
@@ -192,6 +187,7 @@ public:
     void OnUpdate(float dt) override {
         (void)dt;
         LayoutControls();
+        LayoutBadges(); // 画布尺寸变了（缩放/窗口）徽标跟着重排
     }
 
     // 一键切浅色 / 深色：换调色板 + 约定样式，再让整棵组件树重新取色
@@ -203,38 +199,35 @@ public:
         theme_button_->setSubtitle(ThemeName());
     }
 
-    // 徽标墙：3 列 × 5 行（14 个机种 + 其它），底下一个容器 Box 当网格视图那层底
+    // 徽标墙：两列、每个徽标同样大小、文字一律白色（不套容器 Box，直接画在页面上）
     void BuildBadgeWall() {
-        Box* panel = Root().Emplace<Box>("badge_panel"); // 先 Emplace：画在徽标下面
-        panel->moveTo(kPanelX, kPanelY);
-        panel->resize(kPanelW, kPanelH);
-
         constexpr int kBadgeCount = 15; // 14 个机种 + 其它
         for (int i = 0; i < kBadgeCount; ++i) {
             const EmuPlatform platform = i < 14 ? static_cast<EmuPlatform>(i + 1) : EmuPlatform::Unknown;
-            // 徽标直接挂根节点：position 就是规格里的绝对 (x, y)
             Badge* badge = Root().Emplace<Badge>(platform);
             badge->SetName("badge");
             if (platform == EmuPlatform::Unknown) {
                 badge->setText("其它"); // 表里兜底那条文字是空的，这里手动给一个看颜色
             }
-            badge->moveTo(kBadgeX + static_cast<float>(i % 3) * kBadgeCellW,
-                          kBadgeY + static_cast<float>(i / 3) * kBadgeCellH);
+            // 统一尺寸 + 白字（Badge 默认文字色跟主题，这里显式固定成白色）
+            badge->setHeight(kBadgeHeight);
+            badge->setFixedWidth(true);
+            badge->setMinWidth(kBadgeWidth);
+            badge->setColors(PlatformBadgeInfoOf(platform).background, Theme::kWhite);
+            badges_.push_back(badge);
         }
+        LayoutBadges();
+    }
 
-        // 变体演示：iisu 封面卡（胶囊 + 白字）、GameDataView（宽固定 62 的固定蓝）、GridItem（白字）
-        const float variants_y = kBadgeY + 5.0f * kBadgeCellH + 6.0f;
-        Badge* iisu = Root().Emplace<Badge>(EmuPlatform::NDS);
-        iisu->setStyle(BadgeStyle::IisuCover);
-        iisu->moveTo(kBadgeX, variants_y);
-
-        Badge* data_view = Root().Emplace<Badge>(EmuPlatform::PSP);
-        data_view->setStyle(BadgeStyle::GameDataView);
-        data_view->moveTo(kBadgeX + 110.0f, variants_y - 3.0f);
-
-        Badge* grid_item = Root().Emplace<Badge>(EmuPlatform::Arcade);
-        grid_item->setStyle(BadgeStyle::GridItem);
-        grid_item->moveTo(kBadgeX + 220.0f, variants_y);
+    // 徽标两列排布：整体贴右侧控制列左边，画布尺寸变了（缩放/窗口）每帧重排
+    void LayoutBadges() {
+        const float right = Global::canvas_size.x - kControlGap - kControlSize - 20.0f;
+        const float left = right - (kBadgeWidth * 2.0f + kBadgeGapX);
+        for (std::size_t i = 0; i < badges_.size(); ++i) {
+            const float x = left + static_cast<float>(i % 2) * (kBadgeWidth + kBadgeGapX);
+            const float y = kBadgeTop + static_cast<float>(i / 2) * (kBadgeHeight + kBadgeGapY);
+            badges_[i]->moveTo(x, y);
+        }
     }
 
     // 控制列里的按钮：图标 + 按钮外侧说明行，边长统一
@@ -255,27 +248,6 @@ public:
             controls_[i]->moveTo(ControlX(), y);
             y += kControlSize + kControlGap;
         }
-    }
-
-    // 放大 / 缩小：按台阶表调整 UI 缩放（后端的用户倍率，乘在自动缩放之上）
-    void StepZoom(int direction) {
-        int index = ZoomIndex() + direction;
-        index = index < 0 ? 0 : (index >= kZoomCount ? kZoomCount - 1 : index);
-        ui().SetUiZoom(kZoomSteps[index]); // 逻辑画布 = drawable / (自动缩放 * zoom) → 界面随之变大变小
-    }
-
-    int ZoomIndex() const {
-        const float current = ui().UiZoom();
-        int best = 0;
-        float best_delta = 1e9f;
-        for (int i = 0; i < kZoomCount; ++i) {
-            const float delta = kZoomSteps[i] > current ? kZoomSteps[i] - current : current - kZoomSteps[i];
-            if (delta < best_delta) {
-                best_delta = delta;
-                best = i;
-            }
-        }
-        return best;
     }
 
     // + 键：一键开关所有按钮的说明行（验证「是否显示说明」接口，开关都保持文字块垂直居中）
@@ -303,30 +275,24 @@ private:
     static const char* ThemeName() { return Theme::IsLight() ? "浅色" : "深色"; }
 
     // 徽标墙几何
-    static constexpr float kPanelX = 640.0f;
-    static constexpr float kPanelY = 300.0f;
-    static constexpr float kBadgeX = kPanelX + 14.0f; // 第一个徽标的绝对坐标
-    static constexpr float kBadgeY = kPanelY + 12.0f;
-    static constexpr float kBadgeCellW = 150.0f;
-    static constexpr float kBadgeCellH = 34.0f;
-    static constexpr float kPanelW = kBadgeCellW * 3.0f + 22.0f;
-    static constexpr float kPanelH = kBadgeCellH * 5.0f + 48.0f;
+    // 徽标墙：两列，统一尺寸
+    static constexpr float kBadgeWidth = 84.0f;
+    static constexpr float kBadgeHeight = 24.0f;
+    static constexpr float kBadgeGapX = 14.0f;
+    static constexpr float kBadgeGapY = 8.0f;
+    static constexpr float kBadgeTop = 300.0f;
 
-    // UI 缩放台阶：0.8 起步到 2.0，中间 1.0 是「不额外缩放」
-    static constexpr int kZoomCount = 9;
-    static constexpr float kZoomSteps[kZoomCount] = {0.8f, 0.9f, 1.0f, 1.1f, 1.25f, 1.4f, 1.6f, 1.8f, 2.0f};
     static constexpr int kControlMax = 8;
     static constexpr float kControlGap = 12.0f;
 
     std::vector<Button*> buttons_;
+    std::vector<Badge*> badges_;
     Box* box_ = nullptr;
     IconButton* theme_button_ = nullptr;
     IconButton* toast_ok_ = nullptr;
     IconButton* toast_error_ = nullptr;
     IconButton* toast_info_ = nullptr;
     IconButton* toast_long_ = nullptr;
-    IconButton* zoom_in_ = nullptr;
-    IconButton* zoom_out_ = nullptr;
     IconButton* controls_[kControlMax] = {};
     int control_count_ = 0;
     bool subtitle_on_ = true;
@@ -368,6 +334,8 @@ public:
     }
 
     void OnStart(gui_dev::UiContext& ui) override {
+        // 720p 手持基准下整体放大 1.25 倍（右侧控制列的放大/缩小还能再调）
+        ui.SetUiZoom(kDefaultZoom);
         // 默认浅色主题（桌面端白底看着舒服），右侧控制列的按钮还能一键切成深色
         gui_dev::cv::Theme::SetMode(gui_dev::cv::Theme::ThemeMode::Light);
         gui_dev::cv::Theme::ApplyToImGui();

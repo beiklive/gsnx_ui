@@ -174,16 +174,18 @@ void ToastManager::Draw(ImDrawList* dl) {
         const Rect box = Rect::FromPosSize(ImVec2(left, toast.current_y), ImVec2(toast.width, toast.height));
 
         // 1) 和 Button 一模一样的框（同一套 Global::component_style + Draw::ComponentBox）
+        //    左侧两个角按需求做成直角，右侧保持 Button 的圆角
         BoxVisual visual = Global::ComponentBoxVisual();
         visual.background = Theme::U32(Theme::kBgWidget);
+        visual.tl = 0.0f;
+        visual.bl = 0.0f;
         Draw::ComponentBox(dl, box, visual);
 
-        // 2) 左侧状态色条：贴住左边缘，左边两个角跟着 Box 圆角
-        const float inset = Global::component_style.border_width * 0.5f + style_.bar_inset;
+        // 2) 左侧状态色条：直角长条，左/上/下都离边框 style_.bar_inset
+        const float inset = style_.bar_inset;
         const Rect bar = Rect::FromPosSize(ImVec2(box.min.x + inset, box.min.y + inset),
                                            ImVec2(style_.bar_width, box.Height() - inset * 2.0f));
-        const float bar_radius = Minf(style_.bar_width * 0.5f, Global::component_style.corner_radius);
-        Draw::RoundedRectFilled(dl, bar, ToastAccentColor(toast.type), bar_radius, 0.0f, bar_radius, 0.0f);
+        Draw::RoundedRectFilled(dl, bar, ToastAccentColor(toast.type), 0.0f, 0.0f, 0.0f, 0.0f);
 
         // 3) Material 图标（现成的字体图标，不引第二套）
         const float icon_x = bar.max.x + style_.gap;

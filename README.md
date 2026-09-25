@@ -149,7 +149,7 @@ cmake --preset mac && cmake --build --preset mac
 ### 现在的 demo 长什么样
 
 左列 6 个行内按钮 + 右上角一个可聚焦 Box + 右下角两个纯图标按钮（圆角正方形 / 圆形）
-+ **窗口最右侧的控制列**（从上往下排控制按钮：主题 / 放大 / 缩小）：
++ **窗口最右侧的控制列**（从上往下排控制按钮：主题 / 成功 / 失败 / 信息 / 长文本）：
 
 ```cpp
 // demo.cpp
@@ -179,198 +179,27 @@ void OnBuild() override {
 }
 ```
 
-### UI 缩放（放大 / 缩小按钮）
+### UI 缩放（启动时设定）
 
 界面的物理缩放 = 后端自动缩放 × 用户倍率。自动缩放由分辨率算（`min(h/720, w/1280)`），
-用户倍率由右侧控制列的「放大 / 缩小」按钮调，逻辑画布 = `drawable / (自动缩放 × 倍率)`，
-所以倍率变大 = 画布变小 = 界面变大。倍率改变后会递增 `DisplayGeneration`，
-字体按新密度重建（放大后文字依然锐利）。
+用户倍率在**启动时**设定（720p 手持基准下 1.0 显得小，demo 默认 **1.25**）：
 
 ```cpp
-ui.SetUiZoom(1.25f);          // 0.5..3.0，1.0 = 不额外缩放
-ui.UiZoom();                  // 当前倍率
-GUI_DEV_ZOOM=1.25 ./build/mac/gui_dev_demo   # 调试：以指定倍率启动
+ui.SetUiZoom(1.25f);                          // 0.5..3.0，1.0 = 不额外缩放；OnStart 里调
+GUI_DEV_ZOOM=1.25 ./build/mac/gui_dev_demo    // 调试用
+ui.UiZoom();                                  // 当前倍率
 ```
 
-台阶表在 `demo.cpp`：`0.8 / 0.9 / 1.0 / 1.1 / 1.25 / 1.4 / 1.6 / 1.8 / 2.0`，默认 1.0。
+逻辑画布 = `drawable / (自动缩放 × 倍率)`，所以倍率变大 = 画布变小 = 界面变大；
+字体光栅化密度只跟分辨率走（不含倍率），字形按需烘焙，不需要也不应该运行期重建图集。
 
-`Box` 提供的链式设置：`moveTo / resize / fillWith / roundCorners / outline / dropShadow`
-（名字不能叫 `border` / `shadow` —— 那是 `Widget` 的成员变量）。
-
-### Button：7 种形态 + 全局约定样式
-
-约定（定义在 `Global::component_style`，改全局变量后每个按钮调 `applyComponentStyle()` 生效，
-单个按钮可以用链式接口覆盖）：
-
-| 约定 | 默认值 | 单实例覆盖 |
-|---|---|---|
-| 边框 | 1px 灰白 `rgb(190,190,195)` | `setBorder(width, color)` |
-| 圆角 | 5px | `setCornerRadius(px)` |
-| 阴影 | 右下 `offset(4,4)` / blur 10 / `rgba(0,0,0,120)` | `setShadow(offset, blur, color)` |
-| 聚焦框 | 完整闭合的流光框，与按钮留 **2px** 边距，宽 **3px** | `setFlowingFocus(bool)` + `focus_margin / focus_width / focus_saturation / focus_brightness / focus_phase_offset` |
-| 内容留白 | 8px | `setContentPadding(px)` |
-| 图标格 | 正方形，边长 = 内容区高度（四周留白相同） | `setIconCellSize(px)` |
-| LR 间隔 | 90px 固定宽，内容居中、超长滚动 | `setSlotWidth(px)` |
-
-流光框的相位跟 `Global::time` 走（`focus_flow_speed` 控制流速），颜色是沿圆角边框按弧长流动的 HSV，
-所以四边一直是闭合的，不会出现"只有上下两条线"的聚焦效果。
-
-| # | 类 | 构造 | 左侧 | 右侧 |
-|---|---|---|---|---|
-| 1 | `TextButton` | `("文字")` | 文字水平居中，**不带说明行**（弹窗的确认/取消这类提示文字） | — |
-| 2 | `IconTextButton` | `(icon, "文字")` | 图标占左侧正方形格（格内水平+垂直居中）+ 文字紧跟其右 | — |
-| 3 | `IconButton` | `(icon)` | 只有图标，两种形态：`setShape(RoundedSquare/Circle)` + `setSide(px)`；说明行画在按钮外面 | — |
-| 4 | `ToggleButton` | `(icon, "文字")` | 图标 + 文字 | 右侧滑块开关（开=蓝、关=灰），切换有滑动动画，A/点击切换，`toggled(bool)` |
-| 5 | `CustomButton` | `(icon, "文字")` | 图标 + 文字 | 自定义文字：`setRightText(text, color)` |
-| 6 | `OptionButton` | `(icon, "文字")` | 图标 + 文字 | `[L] 选项 [R]`：固定间隔、居中、超长滚动；`setOptions({...})`，L/R 切换，`selectionChanged(int)` |
-| 7 | `ValueButton` | `(icon, "文字")` | 图标 + 文字 | `[L] 数值 [R]`：同上；`setup(初值, 最小, 最大, 步长, 小数位)`，L/R 调值，`valueChanged(float)` |
-
-说明行（subtitle）除 `TextButton` 外都支持：`setSubtitle("小字", true)` / `showSubtitle(false)`。
-有主文字时主文字在上、说明行在下，两块整体垂直居中，`text_align` 决定水平位置。
-**关掉说明行后主文字会重新回到按钮的竖直中线**（文字块按自己的高度居中，不跟着图标格的高度走）。
-
-**图标一律按「墨迹」居中**（`Draw::GlyphInkExtent` 取字形的可见上下边界）：行盒下方带 descender
-空白，按行盒居中图标会看起来偏上；按墨迹居中后图标正落在按钮的竖直中线上。
-
-**聚焦不改变尺寸**：图标和文字保持原尺寸，聚焦视觉只由流光框表达（`focus_width` 默认 3px）。
-
-`IconButton` 只有**圆角正方形**和**圆形**两种形态（圆形时圆角 = 边长的一半），宽度等于边长，
-不再是通栏按钮。它的说明行**不在按钮里画，而是画在按钮外面**（`setSubtitle` 的开关照样有效）：
-默认在按钮下方，下方空间不足就等距放到上方，上下都不够就直接不显示。
-可用空间 = 画布 ∩ 父节点（`CaptionLimit()`），间距用 `caption_gap`（默认 4px）。
-
-`OptionButton` / `ValueButton` 的右侧是 `[L] <固定间隔> [R]`：间隔宽度固定（默认 90px），
-文字/数字在间隔里居中；**放不下就在间隔里横向循环滚动**（跑马灯，超出部分按间隔裁掉）。
-
-`ValueButton` 支持**长按加速**：按住 0.35s 后开始重复，重复间隔从 120ms 收紧到 30ms（有下限），
-每次跳跃的步长倍率从 1 涨到 8 倍（有上限，且取整保证值仍落在 `step` 网格上）。
-`valueChanged` **只在松开时发一次**（短按、长按都一样），按住过程中只改显示值。
-参数：`repeat_delay / repeat_interval / repeat_min_interval / repeat_accel_time / repeat_max_multiplier`。
-
-按键对应关系（`framework/platform/backends/sdl2/Sdl2Backend.cpp` 的映射表）：
-手柄 `L/R`（PageLeft/PageRight）＝ 键盘 `Q/E`；`+`（Menu）＝ 键盘 `Tab` / `=`，
-demo 里用 `+` 一键开关所有按钮的说明行。
-
-验收用的脚本化输入（按键逐帧注入 + 终端打信号，帧抓取用的是临时探针，不留在树里）：
-
-```bash
-GUI_DEV_TRACE_SIGNAL=1 GUI_DEV_EXIT_AFTER=120 \
-GUI_DEV_CAPTURE_SCRIPT="D:4,Q:1,E:1,D:2,E:2" ./build/mac/gui_dev_demo
-# [signal] option index = 2        ← L 切到超长选项（间隔里滚动）
-# [signal] value = 70 / 75         ← 短按 R 两次，每次松开各发一次
-```
-长按用 `!E:90` 这种写法（按住 90 帧再松开）：`[signal] value = 90`，整个长按只发一次信号。
-
-### 颜色一律写成 rgb() / rgba()（分量 0..255）
-
-`Theme.h` 里的颜色写法跟 CSS 一样，分量都是 **0..255**；返回类型是 `ImVec4`（内部 0..1），
-和 ImGui 的样式系统同一种类型：
-
-```cpp
-inline constexpr ImVec4 kAccent = rgb(0, 122, 204);      // #007ACC
-inline constexpr ImVec4 kScrim  = rgba(8, 8, 10, 200);   // #08080AC8（带 alpha 用 rgba）
-```
-
-| 工具 | 用途 |
-|---|---|
-| `Theme::rgb(r, g, b)` / `Theme::rgba(r, g, b, a)` | 0..255 写颜色，越界自动夹到 0..255，返回 `ImVec4` |
-| `Theme::U32(color)` / `U32(color, alpha)` | 转成 `ImU32`（`ImDrawList` 与 `Widget` 的 ImU32 属性要这个） |
-| `Theme::Alpha(color, k)` / `Theme::Mix(a, b, t)` | 改透明度 / 插值（`ImVec4` 与 `ImU32` 两种重载都在） |
-
-`Widget::SetBackground` 和 `Box::fillWith` 都有 `ImVec4` 重载，所以平时直接
-`box->fillWith(Theme::kBgWidget)` 就行，只有画 draw list 时才需要 `Theme::U32(...)`。
-
-`Theme.h` 末尾有一组 `static_assert`，只校验**写法**（`rgb()`/`rgba()`/`U32()`/夹取/带 alpha 的
-`U32` 都能精确还原成 `IM_COL32(...)`）。调色板的具体数值故意不锁死——那几个值是随时可以调的。
-
-### 机种徽标（Badge）
-
-从现网 NanoVG 实现提取的绘制方法：**运行时画一个圆角矩形 + 居中短文本**，没有图片、没有九宫格。
-
-```text
-textW  = 文本宽度(text)
-badgeW = fixed_width ? min_width : max(min_width, textW + 2 * pad_x)
-badgeH = height
-圆角   = radius（<0 = 胶囊 = height/2）
-绘制   = 圆角矩形填底色 + 文本居中落在 (x + badgeW/2, y + badgeH/2)
-返回   = badgeWidth()   → 调用方接右侧元素（间距 10）
-```
-
-```cpp
-Badge* badge = panel->Emplace<Badge>(EmuPlatform::GBA); // 查表注入文字 + 平台色
-badge->moveTo(x, y);
-const float w = badge->badgeWidth();                    // 右侧元素 = x + w + 10
-```
-
-| 变体（`setStyle`） | fontSize | 高 | minWidth | padX | 圆角 | 底色 | 文字色 |
-|---|---|---|---|---|---|---|---|
-| `GridListDetail`（默认） | 12 | 20 | 36 | 8 | 4 | 平台色 α220 | 主题正文色（浅色主题=深字） |
-| `IisuCover` | 12 | 17 | 30 | 14 | 胶囊 | 平台色 α220 ×`alpha` | 白 α255 ×`alpha` |
-| `GameDataView` | 14 | 26 | 62（**宽固定**） | 8 | 5 | **固定** rgba(79,153,222,205) | 白 α245 |
-| `GridItem` | 12 | 20 | 36（文本 >3 字符时 58） | 8 | 4 | 平台色 | 白 α255 |
-
-`alpha` 是给宿主喂动画进度用的倍率（iisu 封面卡那种淡入）。文字与颜色**不在控件里硬编码**：
-`setPlatform()` 走 `PlatformBadgeInfoOf()` 查表（`EmuPlatform` = 1..14，与现网枚举、Web 端顺序一致），
-需要自定义就 `setText()` / `setColors()`。
-
-| id | 文字 | 底色 RGB（α220） | id | 文字 | 底色 RGB（α220） |
-|---|---|---|---|---|---|
-| 1 | GBA | 108,77,191 | 8 | MD | 23,55,139 |
-| 2 | GBC | 0,112,221 | 9 | Arcade | 236,134,44 |
-| 3 | GB | 0,168,107 | 10 | DC | 0,142,180 |
-| 4 | FC | 218,41,28 | 11 | PSP | 67,118,226 |
-| 5 | SFC | 160,100,180 | 12 | PS1 | 74,74,82 |
-| 6 | NDS | 54,150,190 | 13 | Saturn | 68,82,150 |
-| 7 | 3DS | 230,79,91 | 14 | GC / Wii | 54,102,196 |
-| 其它 | （空文字，规格里不画） | 100,100,100,200 | | | |
-
-demo 里 3 列 × 5 行把 14 个机种 + 一个「其它」（手动给了文字才看得见颜色）全摆出来了，
-底下再放三个变体（胶囊 / 固定宽蓝 / GridItem 白字）供对照。
-
-> 图片徽标层（`resources/img/LogoLayer/*.png`，跟封面同一个贴合矩形 + 圆角 8、盖在填充后描边前）
-> 是和文字徽标**两套东西**，现网也还没在画，这里没有实现。
-
-### Toast 通知
-
-「一个从右边滑进来的 Button Box」：底色 / 圆角 / 边框 / 阴影 / 字体 / 间距**全部复用**
-`Global::component_style`，和 Button 走同一个画法函数 `Draw::ComponentBox()`；
-Toast 只额外画左侧状态色条 + Material 图标 + 文本。
-
-```cpp
-Toasts().ShowSuccess("保存状态成功");   // Page 里的入口
-Toasts().ShowError("读取状态失败");
-Toasts().ShowInfo("正在加载游戏...");
-Toasts().Show(ToastType::Info, "任意文案"); // 通用入口
-```
-
-业务代码只碰这三个函数，坐标 / 动画 / 生命周期 / 排列 / 图标 / 颜色都在 ToastManager 里。
-
-| 项 | 值（`ToastStyle`，可改） |
-|---|---|
-| 类型 → 颜色 | Success 绿 `Theme::kSuccess`、Error 红 `Theme::kError`、Info 蓝 `Theme::kAccent`（**只用于色条和图标**） |
-| 图标 | `check_circle` / `error_outline` / `info`（现成 Material Icons，没引第二套图标库） |
-| 尺寸 | min 宽 200、max 宽 320、min 高 44；短消息按内容宽，长消息撑到 320 后**自动换行**并按行数增高 |
-| 时长 | 入场 0.25s（EaseOutCubic）→ 停留 **3s**（从入场完成开始算）→ 出场 0.25s → 删除 |
-| 位置 | 右上角：右 margin 20（demo 里设成 92 让开控制列）、上 margin 20；按 `io.DisplaySize` 动态算 |
-| 多 Toast | 垂直排列、间距 10；每帧重算 `targetY`，`currentY` 用指数趋近平滑跟上 |
-
-关键机制（也是没有「删除元素后坐标错乱」的原因）：
-
-```text
-X 轴：Entering 时 slide 0 → 1，Exiting 时 1 → 0（定时长 + EaseOutCubic）
-Y 轴：每帧 targetY = 上一条的 y + 上一条的 height + spacing；
-      currentY = SmoothTo(currentY, targetY, reflow_speed, dt)
-```
-
-两个轴完全独立，所以「A 正在向右退出 / B、C 正在向上补位 / D 正在从右边进入」可以同时发生；
-顶部 Toast 消失后，后面的自动向上补位 —— 不需要 Toast 之间互相知道坐标。
-
-- 去重：同类型 + 同文案在 0.5s 内重复出现时**不新建**，只刷新停留时间（正在退出的会被拉回来重新滑入）。
-- 不接管输入：Toast 不在 Widget 树里，不参与命中测试 / 焦点导航 / 手柄分发（`Page::Update` 里只推进动画）。
-- 绘制层级：`Page::Render` 里画在页面内容与 overlay **之后**，而 `Global::draw_list` 是 ImGui 前景 draw list → 高于所有 ImGui 窗口。
-- 线程：Toast 是 UI 层服务，`Show*` / `Update` / `Draw` 都在 UI 线程（本项目 UI 单线程）。以后真有后台线程要发通知，再在 `Show*` 前面挂一个线程安全队列由 UI 线程排空即可。
-
-demo 的右侧控制列加了四个触发按钮（成功 / 失败 / 信息 / 长文本），长文本那条用来验证换行和后续补位。
+> **为什么没有运行期缩放按钮**：运行期改 `SDL_RenderSetScale` 会让 SDL 的几何/视口状态错乱。
+> mac 上的 SDL 是 sdl2-compat（2.32.72，SDL2 API 跑在 SDL3 上），实测点一次放大后 20 帧内必崩
+> （Metal：`AGX: Texture read/write assertion failed … Region width OOB`）；把 SDL 缩放固定住、
+> 或跳过 ImGui 绘制，都不再崩 —— 说明崩在 SDL 的缩放路径上（sdl2-compat 的
+> [SDL_RenderSetScale 兼容性问题 #425](https://github.com/libsdl-org/sdl2-compat/issues/425)），
+> 不是组件库的代码。Switch 端的运行期缩放也可能踩到同类问题，所以统一改成启动时设定，
+> 界面上不再提供运行期缩放按钮。要在设备上运行期缩放的话，需要换真实 SDL2 或自己实现缩放几何的渲染路径。
 
 ### 主题：浅色 / 深色（运行时整套切换）
 
@@ -955,6 +784,19 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   关掉说明行后主文字就停在偏上 8px 的位置；现在按文字块自己的高度居中。
   实测（说明行关）：无线网络主文字墨迹中心 169.5 / 存储路径 231.5 vs 按钮中心 170 / 232；
   普通按钮（无说明行）主文字墨迹中心 y=45.5、x=217 vs 按钮中心 (46, 218)。
+- 已确认（第六轮反馈修复）：
+  ① **缩放崩溃**：运行期点放大后 mac 必崩（Metal `AGX … Region width OOB`），逐项实验定位到
+  「运行期改 SDL 渲染缩放」这一条路径（把 SDL 缩放固定住或跳过 ImGui 绘制都不崩；字体图集尺寸
+  一直是 imgui 512×512 == sdl 512×512、无待更新块，不是我们的纹理管理），mac 的 SDL 是
+  sdl2-compat（有已知的 SDL_RenderSetScale 兼容问题）。改成**启动时设定缩放**（demo 默认 1.25），
+  去掉运行期缩放按钮；同时不再让缩放触发布局图集重建、字体密度只跟分辨率走。
+  ② **Toast 连点只能触发一次**：去重窗口默认 0（关闭），实测连点 4 次 → 4 条（色条 y 22/76/130/184）。
+  ③ Toast 右边距 20 → **5px**：实测右边缘 1019（画布 1024）。
+  ④ Toast 左侧两角改直角、色条直角且左/上/下离边框 2px：实测左上角 3×3 全是边框/填充（无页面白）、
+  色条从 (821,22) 起（= 框 (819,20) + 2px）、宽 4、无圆角。
+  ⑤ 徽标墙改成**两列、统一尺寸、白字、不套容器 Box**：实测两列 8 行、每个徽标 84×24、行距 32、
+  墙外页面纯白（255,255,255）、徽标内最亮像素 (255,255,255)（白字）、填充色 = 平台色 α220 叠白底。
+  ⑥ **界面整体放大**：demo 默认缩放 1.25（720p 手持），可以用 kDefaultZoom / GUI_DEV_ZOOM 调。
 - 已确认（Toast 通知系统）：新增 `component_view/Toast.{h,cpp}`（ToastManager + Toast + ToastStyle），
   Page 持有并在每帧 `Update` / `Draw`。**视觉完全复用 Button 的 Box**：把 `Widget::DrawBackground` 的
   画法抽成 `Draw::ComponentBox()`（Box / Button / Toast 共用），样式参数统一从 `Global::component_style`

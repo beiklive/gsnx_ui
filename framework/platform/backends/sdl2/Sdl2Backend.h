@@ -47,7 +47,8 @@ public:
 
 private:
     void ApplyAction(InputFrame& in, SDL_Keycode key, InputAction action, bool down);
-    float ComputeUiScale() const;
+    // with_zoom=false 时只按分辨率算（字体密度用这个，不含用户缩放）
+    float ComputeUiScale(bool with_zoom = true) const;
 
     SDL_Window* window_ = nullptr;
     SDL_Renderer* renderer_ = nullptr;
@@ -72,8 +73,9 @@ private:
     std::uint32_t display_generation_ = 0;
     int last_drawable_w_ = 0;
     int last_drawable_h_ = 0;
-    float ui_scale_ = 1.0f;
-    float ui_zoom_ = 1.0f; // 用户缩放（放大/缩小按钮），乘在自动缩放之上
+    float ui_scale_ = 1.0f;  // 渲染缩放 = 自动缩放 × 用户缩放
+    float auto_scale_ = 1.0f; // 只按分辨率算的自动缩放（字体光栅化密度用）
+    float ui_zoom_ = 1.0f;    // 用户缩放（放大/缩小按钮），乘在自动缩放之上
 
     BackendConfig cfg_{};
     // Init 时构建一次（避免每帧分配）

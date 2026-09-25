@@ -133,7 +133,8 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
     }
 
     GetDrawableSize(last_drawable_w_, last_drawable_h_);
-    ui_scale_ = ComputeUiScale();
+    auto_scale_ = ComputeUiScale(false); // 只按分辨率算；用户缩放另外乘
+    ui_scale_ = auto_scale_ * ui_zoom_;
     perf_counter_ = SDL_GetPerformanceCounter();
 
     // 驱动描述：只在这里拼一次（每帧读的是 c_str()，不产生分配）
@@ -157,7 +158,7 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
     return BackendStatus::Ok;
 }
 
-float Sdl2Backend::ComputeUiScale() const {
+float Sdl2Backend::ComputeUiScale(bool with_zoom) const {
     // 设计基准：1280x720。UI 里写的一切尺寸都是这个空间里的值。
     //
     // scale = min(h/720, w/1280)：取两者中更受限的一个，于是逻辑画布恒为
@@ -176,7 +177,9 @@ float Sdl2Backend::ComputeUiScale() const {
     float scale = by_height < by_width ? by_height : by_width;
     // 用户缩放（「放大 / 缩小」按钮）乘在这里：逻辑画布 = drawable / scale，
     // 所以 zoom 变大 = 逻辑画布变小 = 界面变大。
-    scale *= ui_zoom_;
+    if (with_zoom) {
+        scale *= ui_zoom_;
+    }
     if (scale < 0.3f) {
         scale = 0.3f;
     }
@@ -186,15 +189,22 @@ float Sdl2Backend::ComputeUiScale() const {
     return scale;
 }
 
+// 注意：运行期改渲染缩放会让 SDL 的几何/视口状态错乱（mac 的 sdl2-compat + Metal 实测
+// 20 帧内必崩：AGX "Region width OOB"），所以它只用于启动前（或分辨率变化时）设定。
+// demo 里由 kDefaultZoom / GUI_DEV_ZOOM 在 OnStart 里设定，界面上不再提供运行期缩放按钮。
 void Sdl2Backend::SetUiZoom(float zoom) {
     const float next = zoom < 0.5f ? 0.5f : (zoom > 3.0f ? 3.0f : zoom);
     if (next == ui_zoom_) {
         return;
     }
     ui_zoom_ = next;
-    ui_scale_ = ComputeUiScale();
-    // 逻辑画布和字体光栅化密度都变了：递增 generation 让上层重建字体
-    ++display_generation_;
+    ui_scale_ = auto_scale_ * ui_zoom_;
+    // 注意：这里**不**递增 display_generation_。
+    // 缩放只改「逻辑画布 + 光栅化密度」，imgui 1.92 的字形是按需烘焙的，
+    // 密度变了它会自己烘一份新的，不需要（也不应该在运行期）ClearFonts() 重建设备图集
+    // —— Switch 上点放大/缩小崩溃就是死在那条重建路径上。
+    std::fprintf(stderr, "[gui_dev] UI 缩放 %.2fx（渲染缩放 %.3f）\n", static_cast<double>(ui_zoom_),
+                 static_cast<double>(ui_scale_));
 }
 
 void Sdl2Backend::Shutdown() {
@@ -362,7 +372,8 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
     if (w != last_drawable_w_ || h != last_drawable_h_) {
         last_drawable_w_ = w;
         last_drawable_h_ = h;
-        ui_scale_ = ComputeUiScale();
+        auto_scale_ = ComputeUiScale(false);
+        ui_scale_ = auto_scale_ * ui_zoom_;
         ++display_generation_;
         // 分辨率切换后上一帧的计时无意义，避免 dt 尖峰。
         perf_counter_ = SDL_GetPerformanceCounter();
@@ -425,7 +436,10 @@ void Sdl2Backend::NewImGuiFrame() {
     // 此值在 SDL 后端里只作为「字体光栅化密度」使用：imgui 1.92 会用它把字形
     // 光栅化到物理像素密度（imgui.cpp: g.FontRasterizerDensity = DisplayFramebufferScale.x），
     // 这样放大后文字依然锐利。
-    io.DisplayFramebufferScale = ImVec2(scale, scale);
+    // 字体光栅化密度只跟分辨率走（不含用户缩放）：缩放只放大几何，
+    // 字形仍在同一密度下烘焙，运行期不会重排/重建设备图集。
+    const float density = auto_scale_ > 0.0f ? auto_scale_ : scale;
+    io.DisplayFramebufferScale = ImVec2(density, density);
     // 字号已经在设计空间里定死，这里不能再乘一次（否则会双重放大）。
     ImGui::GetStyle().FontScaleMain = 1.0f;
     io.DeltaTime = delta_time_ > 0.0f ? delta_time_ : (1.0f / 60.0f);

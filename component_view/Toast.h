@@ -42,7 +42,7 @@ struct ToastStyle {
     float max_width = 320.0f;
     float min_height = 44.0f;
     float bar_width = 4.0f;     // 左侧状态色条宽度
-    float bar_inset = 1.0f;     // 色条离边框的留白
+    float bar_inset = 2.0f;     // 色条离边框的留白（左/上/下都是它）
     float icon_size = 20.0f;    // Material 图标字号
     float gap = 10.0f;          // 色条 ↔ 图标 ↔ 文本 的间距
     float padding_x = 14.0f;    // 色条之外的内容左右留白
@@ -52,10 +52,10 @@ struct ToastStyle {
     float exit_duration = 0.25f;
     float visible_duration = 3.0f; // 入场完成之后才开始算
     float reflow_speed = 14.0f;    // Y 轴补位的指数趋近速度
-    float right_margin = 20.0f;    // 离屏幕右边
+    float right_margin = 5.0f;     // 离屏幕右边
     float top_margin = 20.0f;      // 离屏幕顶部
     float spacing = 10.0f;         // 多个 Toast 之间的垂直间距
-    float dedup_window = 0.5f;     // 同类型同文案在这个窗口内重复出现 → 只刷新不新建
+    float dedup_window = 0.0f;     // 0 = 不去重（每次 Show 都建一条）；>0 时同类型同文案在这个窗口内只刷新不新建
 };
 
 // 单个 Toast 的数据（位置只存「当前值」和「目标值」，X/Y 两套动画互不影响）
