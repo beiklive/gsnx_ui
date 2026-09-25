@@ -75,12 +75,26 @@ std::vector<std::uint32_t> OwnedCodepoints(FontContent content) {
 }
 
 // 码位列表 -> imgui 要的 [first,last] 区间数组（0 结尾）。
-std::vector<ImWchar> CompressRanges(const std::vector<std::uint32_t>& codes) {
+// imgui 限制这个数组不超过 64 项（GlyphExcludeRanges[] size must be small），
+// 图标码位是稀疏分布的，逐个成区间会随图标数量增长超限。排除表只需要挡住
+// 「别的字体源拥有」的码位，所以中间没有 own 码位的相邻区间可以直接合并 ——
+// 多排掉几个私用区空码位没有副作用。
+std::vector<ImWchar> CompressRanges(const std::vector<std::uint32_t>& codes, const std::vector<std::uint32_t>& own) {
+    const auto own_between = [&own](std::uint32_t lo, std::uint32_t hi) {
+        for (std::uint32_t c : own) { // own 数量小（几十~千），线性扫足够
+            if (c > lo && c < hi) {
+                return true;
+            }
+        }
+        return false;
+    };
     std::vector<ImWchar> ranges;
     for (std::uint32_t code : codes) {
-        if (!ranges.empty() && ranges.size() % 2 == 0 &&
-            code == static_cast<std::uint32_t>(ranges.back()) + 1u) {
-            ranges.back() = static_cast<ImWchar>(code); // 与上一区间连续，向后扩
+        const bool extendable = !ranges.empty() && ranges.size() % 2 == 0 &&
+                                code >= static_cast<std::uint32_t>(ranges.back()) + 1u &&
+                                !own_between(static_cast<std::uint32_t>(ranges.back()), code);
+        if (extendable) {
+            ranges.back() = static_cast<ImWchar>(code); // 与上一区间之间的空隙里没有自己的码位，直接连起来
         } else {
             ranges.push_back(static_cast<ImWchar>(code));
             ranges.push_back(static_cast<ImWchar>(code));
@@ -186,7 +200,7 @@ void UiContext::RebuildFonts() {
             }
             std::sort(blocked.begin(), blocked.end());
             blocked.erase(std::unique(blocked.begin(), blocked.end()), blocked.end());
-            exclusion_[i] = CompressRanges(blocked);
+            exclusion_[i] = CompressRanges(blocked, owned[i]);
         }
     }
 

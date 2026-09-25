@@ -45,6 +45,7 @@ Button& Button::applyComponentStyle() {
     padding = EdgeInsets::All(style.content_padding);
     if (background == 0) {
         background = Theme::U32(Theme::kBgWidget);
+        background_follows_theme = true;
     }
     return *this;
 }
@@ -99,6 +100,8 @@ Button& Button::setFontSize(float main_size, float sub_size) {
 Button& Button::setTextColors(ImVec4 main_color, ImVec4 sub_color) {
     text_color = main_color;
     subtitle_color = sub_color;
+    text_color_follows_theme = false; // 显式设过色：切主题时保持不动
+    subtitle_color_follows_theme = false;
     return *this;
 }
 
@@ -326,6 +329,19 @@ bool Button::OnPadAction(InputAction action) {
     return onRightSideKey(action);
 }
 
+void Button::OnThemeChanged() {
+    applyComponentStyle(); // 边框 / 阴影 / 圆角 / 内容留白
+    if (background_follows_theme) {
+        background = Theme::U32(Theme::kBgWidget);
+    }
+    if (text_color_follows_theme) {
+        text_color = Theme::kTextPrimary;
+    }
+    if (subtitle_color_follows_theme) {
+        subtitle_color = Theme::kTextMuted;
+    }
+}
+
 // ---------------------------------------------------------- 1 纯文字按钮 ----
 // 弹窗的「确认 / 取消」这类提示文字：文字居中，不带说明行。
 // 说明行接口在这里无效（SubtitleAllowed() = false），避免有人在提示按钮上误加小字。
@@ -466,7 +482,17 @@ ToggleButton& ToggleButton::setSwitchColors(ImVec4 on, ImVec4 off, ImVec4 knob) 
     on_color = on;
     off_color = off;
     knob_color = knob;
+    switch_colors_follow_theme = false; // 显式设过色：切主题时保持不动
     return *this;
+}
+
+void ToggleButton::OnThemeChanged() {
+    Button::OnThemeChanged();
+    if (switch_colors_follow_theme) {
+        on_color = Theme::kAccent;
+        off_color = Theme::kSwitchOff;
+        knob_color = Theme::kSwitchKnob;
+    }
 }
 
 float ToggleButton::rightSideWidth() const {

@@ -102,6 +102,8 @@ constexpr MaterialEntry kMaterialTable[] = {
     {Material::Archive, "archive", 0xE149},
     {Material::FileGame, "file_game", 0xE338},
     {Material::HelpOutline, "help_outline", 0xE8FD},
+    {Material::LightMode, "light_mode", 0xE518},
+    {Material::DarkMode, "dark_mode", 0xE51C},
 };
 
 static_assert(sizeof(kMaterialTable) / sizeof(kMaterialTable[0]) == kMaterialCount,

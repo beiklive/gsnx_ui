@@ -49,6 +49,9 @@ public:
     float subtitle_size = 0.0f;   // 0 = Theme::kFontSmall
     ImVec4 text_color = Theme::kTextPrimary;
     ImVec4 subtitle_color = Theme::kTextMuted;
+    // 文字颜色是否跟随主题：用 setTextColors() 设过颜色就置 false（固定色）
+    bool text_color_follows_theme = true;
+    bool subtitle_color_follows_theme = true;
     float lr_slot_width = -1.0f;  // LR 选择器中间那一格的宽度，<0 = Global::component_style
 
     // ---- 流光聚焦框（默认取 Global::component_style） -----------------------
@@ -88,6 +91,8 @@ signals:
     Signal<float> valueChanged;     // LR 数值类：当前值
 
 protected:
+    void OnThemeChanged() override; // 切主题：重新套用约定样式 + 刷新跟随主题的颜色
+
     // 子类扩展点
     virtual float rightSideWidth() const;
     virtual void drawRightSide(ImDrawList* dl, const Rect& right_rect);
@@ -174,8 +179,9 @@ public:
     bool checked = false;
     // 开关外观
     ImVec4 on_color = Theme::kAccent;      // 打开时的轨道色
-    ImVec4 off_color = Theme::rgb(88, 88, 92); // 关闭时的轨道色
-    ImVec4 knob_color = Theme::kTextBright;    // 旋钮色
+    ImVec4 off_color = Theme::kSwitchOff;      // 关闭时的轨道色
+    ImVec4 knob_color = Theme::kSwitchKnob;    // 旋钮色（两套主题都是白色）
+    bool switch_colors_follow_theme = true;    // setSwitchColors() 之后置 false
     float switch_width = 46.0f;
     float switch_height = 26.0f;
     float knob_speed = 14.0f; // 动画收敛速度（越大越快）
@@ -190,6 +196,7 @@ protected:
     void drawRightSide(ImDrawList* dl, const Rect& right_rect) override;
     bool OnPadAction(InputAction action) override;
     void OnUpdate(float dt) override;
+    void OnThemeChanged() override;
 
 private:
     float knob_mix_ = -1.0f; // <0 = 还没初始化，第一帧直接对齐到 checked（不播动画）

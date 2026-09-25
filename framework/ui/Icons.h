@@ -92,6 +92,8 @@ enum class Material : std::uint8_t {
     Archive,
     FileGame,
     HelpOutline,
+    LightMode,
+    DarkMode,
     Count,
 };
 

@@ -24,7 +24,7 @@ GUI_DEV/
 ├── component_view/             # ★ 组件与页面（你的工作区）
 │   ├── Object.h                # ★ Qt 风格信号槽：Object / Signal / connect / emit
 │   ├── Global.{h,cpp}          # 全局变量：画布 / 鼠标 / 手柄 / 焦点 / 分区 / 输入消费
-│   ├── Theme.{h,cpp}           # VSCode Dark+ 调色板与 720p 尺寸规范
+│   ├── Theme.{h,cpp}           # 调色板（浅色/深色两套，运行时可切）与 720p 尺寸规范
 │   ├── Types.h                 # Rect / EdgeInsets / BorderStyle / ShadowStyle / Transform2D / 枚举
 │   ├── Draw.{h,cpp}            # 绘制原语：圆角矩形 / 软阴影 / 描边文字 / 省略号 / 流光框 / 跑马灯
 │   ├── Widget.{h,cpp}          # ★ 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 溢出滚动 / 焦点动画 / 事件
@@ -147,7 +147,8 @@ cmake --preset mac && cmake --build --preset mac
 
 ### 现在的 demo 长什么样
 
-左列 6 个行内按钮 + 右上角一个可聚焦 Box + 右下角两个纯图标按钮（圆角正方形 / 圆形）：
+左列 6 个行内按钮 + 右上角一个可聚焦 Box + 右下角两个纯图标按钮（圆角正方形 / 圆形）
++ **窗口最右侧的控制列**（从上往下排控制按钮，现在只有一个「浅色 / 深色主题」）：
 
 ```cpp
 // demo.cpp
@@ -164,6 +165,12 @@ void OnBuild() override {
 
     box_ = Root().Emplace<Box>("box");               // 可聚焦容器
     box_->moveTo(440.0f, 20.0f);
+
+    // 右侧控制列：贴右边缘 20px，从上往下排；第一个是主题切换
+    theme_button_ = Root().Emplace<IconButton>(Icons::Glyph(ThemeIcon()));
+    theme_button_->setSide(56.0f);
+    theme_button_->setSubtitle(ThemeName());         // 说明行在按钮外面显示当前主题
+    connect(theme_button_, &IconButton::clicked, this, [this] { ToggleTheme(); });
 }
 ```
 
@@ -255,6 +262,42 @@ inline constexpr ImVec4 kScrim  = rgba(8, 8, 10, 200);   // #08080AC8（带 alph
 
 `Theme.h` 末尾有一组 `static_assert`，只校验**写法**（`rgb()`/`rgba()`/`U32()`/夹取/带 alpha 的
 `U32` 都能精确还原成 `IM_COL32(...)`）。调色板的具体数值故意不锁死——那几个值是随时可以调的。
+
+### 主题：浅色 / 深色（运行时整套切换）
+
+调色板里的「角色色」都是运行时可变的变量，`Theme::SetMode()` 会把整套颜色换掉：
+
+```cpp
+Theme::SetMode(Theme::ThemeMode::Dark);   // 深色：页面 #1E1E1E + 深色控件 + 浅色文字
+Theme::SetMode(Theme::ThemeMode::Light);  // 浅色：页面 #FFFFFF + 浅灰控件 + 深色文字
+Theme::ToggleMode();                      // 一键互切
+Theme::IsLight();                         // 当前是不是浅色
+```
+
+切换分三步，顺序别错：
+
+```cpp
+Theme::ToggleMode();        // 1. 换调色板
+Theme::ApplyToImGui();      // 2. 让 ImGui 原生控件跟着走（WindowBg / FrameBg / 文字色…）
+page.RefreshTheme();        // 3. 组件树重新取色
+```
+
+`Page::RefreshTheme()` = `Global::ApplyTheme()`（约定边框色/阴影浓淡）+ 根节点装饰复位 +
+`Widget::RefreshThemeTree()`（递归调用每个组件的 `OnThemeChanged()`）。
+
+组件怎么跟主题：
+
+| 情况 | 行为 |
+|---|---|
+| 组件默认色（`Box` 底色、`Button` 底色/文字色、`ToggleButton` 开关色、焦点框色） | 自动跟着主题变 |
+| 用户显式设过的颜色（`Box::fillWith` / `Widget::SetBackground` / `Button::setTextColors` / `ToggleButton::setSwitchColors`） | 固定住，切主题不动 |
+| 自己写的组件要跟主题 | 重写 `Widget::OnThemeChanged()`，在那里重新取 `Theme::kXxx` |
+
+新增主题相关颜色时，把它放进 `Theme::SetMode()` 的两套值里即可；`Theme::kBgEditor / kBgWidget /
+kTextPrimary / kAccent / kControlBorder / kSwitchOff / kSwitchKnob` 等都是这样切换的。
+
+> `framework/ui/Icons.h` 里新增了 `LightMode`(U+E518) / `DarkMode`(U+E51C) 两个 Material 图标，
+> 主题切换按钮用它。字形自检（启动时打印）会核对覆盖率：现在是 16 个按键图标 + 37 个 Material 图标。
 
 ### 焦点与导航（Box 既能当容器，也能当控件）
 
@@ -803,6 +846,17 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   关掉说明行后主文字就停在偏上 8px 的位置；现在按文字块自己的高度居中。
   实测（说明行关）：无线网络主文字墨迹中心 169.5 / 存储路径 231.5 vs 按钮中心 170 / 232；
   普通按钮（无说明行）主文字墨迹中心 y=45.5、x=217 vs 按钮中心 (46, 218)。
+- 已确认（主题切换 + 右侧控制列）：调色板改成运行时可切的角色色，`Theme::SetMode(Light/Dark)` +
+  `Theme::ApplyToImGui()` + `Page::RefreshTheme()`（递归 `Widget::OnThemeChanged()`）；组件默认色跟随主题，
+  用 setter 显式设过的颜色固定。窗口最右侧加了从上往下排的控制列，第一个是「浅色 / 深色主题」图标按钮
+  （太阳/月亮 + 按钮外说明行显示当前主题），默认浅色。
+  抓帧核对：浅色 页面 (255,255,255) / 按钮面 (232,232,235) / 开关轨道 (190,190,196)；
+  切深色后 页面 (30,30,30) / 按钮面 (45,45,48) / 开关轨道 (88,88,92)；两帧 57517/57600 采样像素不同；
+  旋钮两套主题都是白色。顺带修掉两个过程中暴露的问题：
+  ① 根节点是透明容器，切主题时 `Box::applyComponentStyle()` 会把边框/阴影重新打开 → 整页被自己的
+  阴影压暗（实测深色页面 30 → 22），现在 `Page::RefreshTheme()` 在刷新后把根节点装饰复位；
+  ② `GlyphExcludeRanges[]` 超过 imgui 的 64 项上限（加两个图标就崩），`CompressRanges()` 现在会合并
+  「中间没有自己码位」的相邻区间。
 - 已确认（Button 第五轮调整）：① LR 选择器的固定间隔 120px → **90px**（原来的 3/4）——抓帧核对
   `[L] 整数缩放 [R]`：L 字形 264 起、内容墨迹中心 333（间隔中心 336）、R 落在右端 390~407；
   ② `ToggleButton` 右侧的「开/关」文字换成**滑块开关**（轨道 + 旋钮，开=#007ACC、关=rgb(88,88,92)、

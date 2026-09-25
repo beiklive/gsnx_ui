@@ -42,26 +42,43 @@ inline constexpr ImVec4 Mix(const ImVec4& a, const ImVec4& b, float t) {
 }
 ImU32 Mix(ImU32 a, ImU32 b, float t);
 
-// ---- VSCode Dark+ 调色板 ---------------------------------------------------
-// 编辑器底色 rgb(30, 30, 30) 而不是纯黑：纯黑在大屏上对比过强、边缘有光晕感。
-inline constexpr ImVec4 kBgEditor = rgb(255, 255, 255); // #FFFFFF（VSCode 默认底色是 rgb(30,30,30) #1E1E1E）
-inline constexpr ImVec4 kBgSideBar = rgb(37, 37, 38); // #252526
-inline constexpr ImVec4 kBgPanel = rgb(37, 37, 38); // #252526
-inline constexpr ImVec4 kBgActivity = rgb(51, 51, 51); // #333333
-inline constexpr ImVec4 kBgWidget = rgb(45, 45, 48); // #2D2D30
-inline constexpr ImVec4 kBgWidgetHi = rgb(55, 55, 58); // #37373A
-inline constexpr ImVec4 kBgInput = rgb(60, 60, 60); // #3C3C3C
-inline constexpr ImVec4 kBorder = rgb(60, 60, 60); // #3C3C3C
-inline constexpr ImVec4 kBorderStrong = rgb(84, 84, 88); // #545458
-inline constexpr ImVec4 kTextPrimary = rgb(212, 212, 212); // #D4D4D4
-inline constexpr ImVec4 kTextBright = rgb(255, 255, 255); // #FFFFFF
-inline constexpr ImVec4 kTextMuted = rgb(133, 133, 133); // #858585
-inline constexpr ImVec4 kTextDisabled = rgb(106, 106, 106); // #6A6A6A
-inline constexpr ImVec4 kAccent = rgb(0, 122, 204); // #007ACC  // VSCode 焦点蓝
-inline constexpr ImVec4 kAccentHover = rgb(17, 119, 187); // #1177BB
-inline constexpr ImVec4 kButton = rgb(14, 99, 156); // #0E639C
-inline constexpr ImVec4 kButtonActive = rgb(10, 75, 119); // #0A4B77
-inline constexpr ImVec4 kSelection = rgb(38, 79, 120); // #264F78
+// ---- 主题模式：浅色 / 深色（运行时整套切换） --------------------------------
+// 下面这些「角色色」是可在运行时改的变量：Theme::SetMode() 会把对应调色板写进去，
+// 组件每帧读它们，所以切主题不需要重建 UI。其余语义色（错误红 / 警告黄 / 链接蓝…）
+// 两套主题共用，不跟着切。
+enum class ThemeMode { Light, Dark };
+
+// 当前生效的调色板（启动默认是「VSCode Dark+」，和原来说明一致）
+inline ImVec4 kBgEditor = rgb(255, 255, 255); // #FFFFFF（深色主题里会换成 rgb(30,30,30)）
+inline ImVec4 kBgSideBar = rgb(37, 37, 38); // #252526
+inline ImVec4 kBgPanel = rgb(37, 37, 38); // #252526
+inline ImVec4 kBgActivity = rgb(51, 51, 51); // #333333
+inline ImVec4 kBgWidget = rgb(45, 45, 48); // #2D2D30
+inline ImVec4 kBgWidgetHi = rgb(55, 55, 58); // #37373A
+inline ImVec4 kBgInput = rgb(60, 60, 60); // #3C3C3C
+inline ImVec4 kBorder = rgb(60, 60, 60); // #3C3C3C
+inline ImVec4 kBorderStrong = rgb(84, 84, 88); // #545458
+inline ImVec4 kTextPrimary = rgb(212, 212, 212); // #D4D4D4
+inline ImVec4 kTextBright = rgb(255, 255, 255); // #FFFFFF
+inline ImVec4 kTextMuted = rgb(133, 133, 133); // #858585
+inline ImVec4 kTextDisabled = rgb(106, 106, 106); // #6A6A6A
+inline ImVec4 kAccent = rgb(0, 122, 204); // #007ACC  // VSCode 焦点蓝
+inline ImVec4 kAccentHover = rgb(17, 119, 187); // #1177BB
+inline ImVec4 kButton = rgb(14, 99, 156); // #0E639C
+inline ImVec4 kButtonActive = rgb(10, 75, 119); // #0A4B77
+inline ImVec4 kSelection = rgb(38, 79, 120); // #264F78
+// 组件（Box / Button）专用：约定边框色与开关轨道色
+inline ImVec4 kControlBorder = rgb(190, 190, 195); // #BEBEC3
+inline ImVec4 kSwitchOff = rgb(88, 88, 92); // #58585C（开关轨道，关）
+inline ImVec4 kSwitchKnob = rgb(255, 255, 255); // #FFFFFF（开关旋钮，两套主题都是白的）
+
+inline ThemeMode theme_mode = ThemeMode::Dark;
+
+// 切主题：把整套角色色换成浅色 / 深色；切完调 ApplyToImGui() 让 ImGui 原生控件一致
+void SetMode(ThemeMode mode);
+inline void ToggleMode() { SetMode(theme_mode == ThemeMode::Dark ? ThemeMode::Light : ThemeMode::Dark); }
+inline ThemeMode Mode() { return theme_mode; }
+inline bool IsLight() { return theme_mode == ThemeMode::Light; }
 inline constexpr ImVec4 kError = rgb(241, 76, 76); // #F14C4C
 inline constexpr ImVec4 kWarning = rgb(204, 167, 0); // #CCA700
 inline constexpr ImVec4 kTeal = rgb(78, 201, 176); // #4EC9B0
@@ -71,9 +88,9 @@ inline constexpr ImVec4 kYellow = rgb(220, 220, 170); // #DCDCAA
 inline constexpr ImVec4 kBlue = rgb(86, 156, 214); // #569CD6
 inline constexpr ImVec4 kGreen = rgb(106, 153, 85); // #6A9955
 inline constexpr ImVec4 kWhite = rgb(255, 255, 255); // #FFFFFF
-inline constexpr ImVec4 kSuccess = kTeal;
+inline ImVec4 kSuccess = kTeal;
 inline constexpr ImVec4 kTrack = rgb(58, 58, 61); // #3A3A3D  // 滑条 / 进度条底色
-inline constexpr ImVec4 kTrackFill = rgb(0, 122, 204); // #007ACC
+inline ImVec4 kTrackFill = kAccent; // 跟随主题强调色
 inline constexpr ImVec4 kScrim = rgba(8, 8, 10, 200); // #08080AC8  // 弹层遮罩
 inline constexpr ImVec4 kListRow = rgb(42, 42, 45); // #2A2A2D
 inline constexpr ImVec4 kListRowAlt = rgb(36, 36, 39); // #242427

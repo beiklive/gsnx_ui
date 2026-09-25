@@ -72,6 +72,8 @@ public:
     float corner_bl = -1.0f;
     float corner_br = -1.0f;
     ImU32 background = 0;
+    // 底色是否来自调色板（组件默认）→ 切主题时刷新；用户显式设过色就置 false
+    bool background_follows_theme = false;
 
     // ---- 边框 / 阴影 -------------------------------------------------------
     BorderStyle border;
@@ -198,6 +200,8 @@ signals:
     void LayoutTree(const ImVec2& parent_content_pos, const ImVec2& parent_content_size);
     void UpdateTree(float dt);
     void DrawTree(ImDrawList* dl);
+    // 切主题后让「自己 + 所有子节点」重新取调色板里的颜色（宿主调一次即可）
+    void RefreshThemeTree();
     void CollectFocusables(std::vector<Widget*>& out);
     // 鼠标命中：子节点优先 + z_order 高者优先。
     Widget* HitTest(const ImVec2& p);
@@ -277,11 +281,13 @@ signals:
     }
     Widget& SetBackground(ImU32 color) {
         background = color;
+        background_follows_theme = false;
         return *this;
     }
     // 直接吃 Theme 的 ImVec4（rgba()/rgb() 的结果），省掉一层 U32()
     Widget& SetBackground(const ImVec4& color) {
         background = Theme::U32(color);
+        background_follows_theme = false;
         return *this;
     }
     Widget& SetBorder(float width, ImU32 color) {
@@ -374,6 +380,9 @@ protected:
     virtual bool OnPadAction(InputAction action);
     // 布局完成后调用（算滚动上限等）
     virtual void OnAfterLayout() {}
+    // 主题（浅色/深色）切换：组件在这里重新取调色板里的颜色。
+    // RefreshThemeTree() 会递归调用整棵子树，宿主切完主题调一次即可。
+    virtual void OnThemeChanged();
 
     // 子类可用：自身填充色（已乘 opacity / disabled）
     ImU32 Tint(ImU32 color) const;

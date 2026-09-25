@@ -43,6 +43,9 @@ public:
                      float frame_offset = 3.0f, ImU32 frame_color = Theme::U32(Theme::kAccent));
     // 复合控件语义：自己可聚焦，但不把子节点算进焦点导航（容器保持默认即可）
     Box& focusOnlySelf(bool value = true);
+
+protected:
+    void OnThemeChanged() override; // 切主题：底色（若来自调色板）与约定样式重新取色
 };
 
 } // namespace gui_dev::cv

@@ -7,8 +7,9 @@
 namespace gui_dev::cv {
 
 Box::Box() : Widget("box") {
-    // 默认给一个可见的底色，免得新建出来「什么都没有」看不出位置
+    // 默认给一个可见的底色（来自调色板，切主题会跟着变），免得新建出来「什么都没有」
     background = Theme::U32(Theme::kBgWidget);
+    background_follows_theme = true;
     applyComponentStyle();
 }
 
@@ -41,12 +42,21 @@ Box& Box::resize(float width, float height) {
 
 Box& Box::fillWith(ImU32 color) {
     background = color;
+    background_follows_theme = false; // 显式设过色：不再跟随主题
     return *this;
 }
 
 Box& Box::fillWith(const ImVec4& color) {
     background = Theme::U32(color);
+    background_follows_theme = false;
     return *this;
+}
+
+void Box::OnThemeChanged() {
+    if (background_follows_theme && background != 0) { // 0 = 透明，别给透明节点补底色
+        background = Theme::U32(Theme::kBgWidget);
+    }
+    applyComponentStyle(); // 边框色 / 阴影浓淡也来自约定样式
 }
 
 Box& Box::roundCorners(float value) {

@@ -531,6 +531,17 @@ void Widget::UpdateTree(float dt) {
     }
 }
 
+void Widget::OnThemeChanged() {}
+
+void Widget::RefreshThemeTree() {
+    OnThemeChanged();
+    for (auto& child : children) {
+        if (child != nullptr) {
+            child->RefreshThemeTree();
+        }
+    }
+}
+
 void Widget::emitWidgetPressed() {
     emit pressed();
 }

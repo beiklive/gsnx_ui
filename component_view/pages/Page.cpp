@@ -13,6 +13,7 @@ Box& Page::Root() {
     if (root_ == nullptr) {
         root_ = std::make_unique<Box>("page_root");
         root_->background = 0;                  // 背景由 Page::Render 统一铺
+        root_->background_follows_theme = false; // 透明根节点不跟着主题铺底
         root_->border.width = 0.0f;             // 整页容器不画边框
         root_->shadow.enabled = false;          // 阴影会铺满整块矩形，透明根节点会把页面压暗
         root_->corner_radius = 0.0f;
@@ -20,6 +21,19 @@ Box& Page::Root() {
         root_->layout = LayoutMode::Free;       // 子节点用 position 自己定位
     }
     return *root_;
+}
+
+void Page::RefreshTheme() {
+    Global::ApplyTheme();
+    if (root_ != nullptr) {
+        root_->RefreshThemeTree();
+        // 注意顺序：RefreshThemeTree() 会走到根节点的 Box::OnThemeChanged() →
+        // applyComponentStyle() 又把边框/阴影打开，所以根节点的「不画装饰」要最后复位。
+        root_->background = 0;
+        root_->background_follows_theme = false;
+        root_->border.width = 0.0f;
+        root_->shadow.enabled = false;
+    }
 }
 
 void Page::Update(float dt) {

@@ -88,6 +88,10 @@ inline bool consumed[kInputActionCount] = {};
 bool Available(InputAction action);
 void MarkConsumed(InputAction action);
 
+// 让「约定样式」跟随当前主题（边框色 / 阴影浓淡）。切完主题调一次，
+// 再对页面根节点调 Widget::RefreshThemeTree() 让组件重新取色。
+void ApplyTheme();
+
 // ---- 组件 ID -------------------------------------------------------------
 inline WidgetId next_widget_id = 1;
 

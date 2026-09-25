@@ -136,16 +136,43 @@ public:
         icon_circle->setSubtitle("圆形");
         buttons_.push_back(icon_circle);
 
-        // 顺手保留一个可聚焦 Box（容器/控件两种身份），放在按钮右侧
+        // 顺手保留一个可聚焦 Box（容器/控件两种身份），放在按钮右侧。
+        // 不显式 fillWith，底色就来自调色板 → 切主题会自动跟着变。
         box_ = Root().Emplace<Box>("box");
         box_->moveTo(440.0f, 20.0f);
         box_->resize(124.0f, 124.0f);
-        box_->fillWith(Theme::kBgWidget);
         box_->roundCorners(Global::component_style.corner_radius);
         box_->makeFocusable();
         connect(box_, &Box::clicked, this, [this] {
-            box_->fillWith(box_->hasFocus() ? Theme::kAccent : Theme::kBgWidget);
+            box_->fillWith(box_->hasFocus() ? Theme::kAccent : Theme::kBgWidget); // 显式设色后就不再跟随主题
         });
+
+        // 右侧控制列：从上往下排控制按钮，现在只有「浅色 / 深色主题」这一个
+        theme_button_ = Root().Emplace<IconButton>(Icons::Glyph(ThemeIcon()));
+        theme_button_->SetName("btn_theme");
+        theme_button_->setSide(kControlSize);
+        theme_button_->setShape(IconButtonShape::RoundedSquare);
+        theme_button_->setSubtitle(ThemeName());
+        theme_button_->moveTo(ControlX(), kControlTop);
+        buttons_.push_back(theme_button_); // 蹭一下「+ 键开关说明行」的逻辑
+        connect(theme_button_, &IconButton::clicked, this, [this] { ToggleTheme(); });
+    }
+
+    // 右侧控制列贴着画布右边缘（窗口尺寸可变，所以每帧算一次 x）
+    void OnUpdate(float dt) override {
+        (void)dt;
+        if (theme_button_ != nullptr) {
+            theme_button_->moveTo(ControlX(), kControlTop);
+        }
+    }
+
+    // 一键切浅色 / 深色：换调色板 + 约定样式，再让整棵组件树重新取色
+    void ToggleTheme() {
+        Theme::ToggleMode();
+        Theme::ApplyToImGui();
+        RefreshTheme(); // 内部：Global::ApplyTheme() + 根节点装饰复位 + 整棵树重新取色
+        theme_button_->setIcon(Icons::Glyph(ThemeIcon()));
+        theme_button_->setSubtitle(ThemeName());
     }
 
     // + 键：一键开关所有按钮的说明行（验证「是否显示说明」接口，开关都保持文字块垂直居中）
@@ -160,8 +187,21 @@ public:
     }
 
 private:
+    // 控制列参数：贴右边缘 20px，按钮边长 56px
+    static constexpr float kControlSize = 56.0f;
+    static constexpr float kControlRight = 20.0f;
+    static constexpr float kControlTop = 20.0f;
+
+    static float ControlX() { return Global::canvas_size.x - kControlRight - kControlSize; }
+    static gui_dev::Icons::Material ThemeIcon() {
+        // 图标显示「当前主题」：浅色 = 太阳，深色 = 月亮
+        return Theme::IsLight() ? Icons::Material::LightMode : Icons::Material::DarkMode;
+    }
+    static const char* ThemeName() { return Theme::IsLight() ? "浅色" : "深色"; }
+
     std::vector<Button*> buttons_;
     Box* box_ = nullptr;
+    IconButton* theme_button_ = nullptr;
     bool subtitle_on_ = true;
 };
 
@@ -201,7 +241,10 @@ public:
     }
 
     void OnStart(gui_dev::UiContext& ui) override {
+        // 默认浅色主题（桌面端白底看着舒服），右侧控制列的按钮还能一键切成深色
+        gui_dev::cv::Theme::SetMode(gui_dev::cv::Theme::ThemeMode::Light);
         gui_dev::cv::Theme::ApplyToImGui();
+        gui_dev::cv::Global::ApplyTheme();
         Scenes().Reset(std::make_unique<HostScene>());
 
         page_ = std::make_unique<DemoPage>();

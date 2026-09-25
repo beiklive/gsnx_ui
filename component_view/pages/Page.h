@@ -41,6 +41,9 @@ public:
 
     // 页面根节点：位置相对页面左上角，铺满整个画布
     Box& Root();
+    // 切主题后调一次：重置根节点装饰（整页容器本来就不画底/边框/阴影），
+    // 再让整棵组件树重新取色。Global::ApplyTheme() 也一起做了。
+    void RefreshTheme();
     UiContext& ui() const { return *ui_; }
 
 private:

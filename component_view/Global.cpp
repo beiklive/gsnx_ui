@@ -2,6 +2,7 @@
 
 #include <cfloat>
 
+#include "component_view/Theme.h"
 #include "component_view/Widget.h"
 #include "ui/UiContext.h"
 
@@ -11,6 +12,18 @@ namespace {
 bool prev_mouse_down[3] = {false, false, false};
 
 } // namespace
+
+void ApplyTheme() {
+    // 深色主题用灰白边框 + 浓一点的阴影；浅色主题边框更浅、阴影更淡
+    component_style.border_color = Theme::kControlBorder;
+    if (Theme::IsLight()) {
+        component_style.shadow_color = Theme::rgba(0, 0, 0, 55);
+        component_style.shadow_blur = 8.0f;
+    } else {
+        component_style.shadow_color = Theme::rgba(0, 0, 0, 120);
+        component_style.shadow_blur = 10.0f;
+    }
+}
 
 void BeginFrame(UiContext& ui) {
     ImGuiIO& io = ImGui::GetIO();
