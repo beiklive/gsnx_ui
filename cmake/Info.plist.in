@@ -12,12 +12,48 @@
     <string>6.0</string>
     <key>CFBundleName</key>
     <string>${MACOSX_BUNDLE_BUNDLE_NAME}</string>
+    <key>CFBundleDisplayName</key>
+    <string>${MACOSX_BUNDLE_BUNDLE_NAME}</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
     <string>${MACOSX_BUNDLE_SHORT_VERSION_STRING}</string>
     <key>CFBundleVersion</key>
     <string>${MACOSX_BUNDLE_BUNDLE_VERSION}</string>
+    <!-- iOS 必需键：缺了会出现「装上了但打不开 / 一直转圈等下载」这类状态 -->
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+    <key>MinimumOSVersion</key>
+    <string>$(IPHONEOS_DEPLOYMENT_TARGET)</string>
+    <!-- CFBundleSupportedPlatforms / DTPlatformName / DT* 这些由 Xcode 的
+         builtin-infoPlistUtility -expandbuildsettings 自动注入。
+         自己写反而会把它覆盖成空串（空 CFBundleSupportedPlatforms 会让 iOS
+         把 app 当成"平台不支持"，装上去就是图标在、点不开的占位状态）。 -->
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+    <!-- 图标：没有 asset catalog，按传统 CFBundleIconFiles 声明（iOS 13+ 仍支持） -->
+    <key>CFBundleIcons</key>
+    <dict>
+        <key>CFBundlePrimaryIcon</key>
+        <dict>
+            <key>CFBundleIconFiles</key>
+            <array>
+                <string>AppIcon60x60</string>
+            </array>
+        </dict>
+    </dict>
+    <key>CFBundleIcons~ipad</key>
+    <dict>
+        <key>CFBundlePrimaryIcon</key>
+        <dict>
+            <key>CFBundleIconFiles</key>
+            <array>
+                <string>AppIcon60x60</string>
+                <string>AppIcon76x76</string>
+                <string>AppIcon83.5x83.5</string>
+            </array>
+        </dict>
+    </dict>
     <!-- SDL2 的 iOS 入口：UIApplicationMain + SDL_uikitappdelegate，不需要 storyboard -->
     <key>UILaunchScreen</key>
     <dict/>

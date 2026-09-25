@@ -43,6 +43,12 @@ add_compile_definitions(
     GUI_DEV_PLATFORM_${GUI_DEV_PLATFORM}
     GUI_DEV_VERSION="${PROJECT_VERSION}")
 
+# iOS 用 Xcode 生成器：生成 shared scheme，scripts/build_ios_ipa.sh 的
+# xcodebuild -scheme / archive 才能按目标名工作。
+if(GUI_DEV_PLATFORM STREQUAL "ios")
+    set(CMAKE_XCODE_GENERATE_SCHEME ON)
+endif()
+
 message(STATUS "gui_dev: platform=${GUI_DEV_PLATFORM} backend=${GUI_DEV_BACKEND}")
 
 # ------------------------------------------------------------------- imgui ----
@@ -163,18 +169,38 @@ function(gui_dev_add_demo target)
     add_executable(${target} ${ARGN})
     target_link_libraries(${target} PRIVATE gui_dev_components)
     if(GUI_DEV_PLATFORM STREQUAL "ios")
+        if(GUI_DEV_SDL2_MAIN)
+            target_link_libraries(${target} PRIVATE ${GUI_DEV_SDL2_MAIN})
+        endif()
+        # CFBundleIdentifier 只允许字母数字 / 连字符 / 点（下划线非法），
+        # 而且必须和 PRODUCT_BUNDLE_IDENTIFIER 一致，否则 Xcode 会告警。
+        string(REPLACE "_" "-" GUI_DEV_BUNDLE_ID "com.beiklive.gui-dev.${target}")
         set_target_properties(${target} PROPERTIES
             MACOSX_BUNDLE TRUE
             MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in"
             MACOSX_BUNDLE_BUNDLE_NAME "${target}"
-            MACOSX_BUNDLE_GUI_IDENTIFIER "com.beiklive.gui_dev.${target}"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "${GUI_DEV_BUNDLE_ID}"
             MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
             MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+            XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${GUI_DEV_BUNDLE_ID}"
             XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2")
+        # iOS 的 bundle 是平铺结构（<app>/Info.plist、<app>/<exe>、<app>/assets/…），
+        # TARGET_BUNDLE_CONTENT_DIR 在 iOS 上就是 .app 根目录。
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_CURRENT_SOURCE_DIR}/assets"
-                "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/Resources/assets")
+                "${CMAKE_CURRENT_SOURCE_DIR}/assets/font"
+                "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/assets/font"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/assets/img"
+                "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/assets/img")
+        # 图标（传统 CFBundleIconFiles 方式，直接放 bundle 根）
+        foreach(gui_dev_icon IN ITEMS "AppIcon60x60@2x.png" "AppIcon60x60@3x.png"
+                                     "AppIcon76x76@2x~ipad.png" "AppIcon83.5x83.5@2x~ipad.png")
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${CMAKE_CURRENT_SOURCE_DIR}/assets/ios/${gui_dev_icon}"
+                    "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/${gui_dev_icon}")
+        endforeach()
     endif()
 endfunction()
 

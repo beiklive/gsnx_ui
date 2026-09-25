@@ -66,10 +66,16 @@ inline const char* platform_name = "Desktop";
 
 // ---- 鼠标 ----------------------------------------------------------------
 inline ImVec2 mouse{-FLT_MAX, -FLT_MAX};
+inline ImVec2 mouse_delta{0.0f, 0.0f};
 inline bool mouse_down[3]{false, false, false};
 inline bool mouse_pressed[3]{false, false, false};
 inline bool mouse_released[3]{false, false, false};
 inline bool mouse_available = false;
+inline bool pointer_touch = false;
+inline bool pointer_activity = false;
+inline bool pointer_dragging = false;
+inline ImVec2 pointer_drag_origin{-FLT_MAX, -FLT_MAX};
+inline Widget* pointer_drag_host = nullptr;
 
 // ---- 手柄 / 键盘（后端抽象后的动作） --------------------------------------
 inline PadState pad;

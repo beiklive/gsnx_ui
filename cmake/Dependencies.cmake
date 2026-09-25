@@ -112,6 +112,18 @@ else()
     set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
 
     # ---- zlib：优先用 SDK 自带的（macOS / iOS SDK / Android NDK 都有 libz），没有再拉源码 ----
+    # The CMake shipped by MSYS2 adds its MinGW prefix to the default search
+    # path.  Do not let an MSVC build silently consume that incompatible zlib.
+    if(MSVC)
+        foreach(_gui_dev_prefix IN LISTS CMAKE_SYSTEM_PREFIX_PATH CMAKE_PREFIX_PATH)
+            if(_gui_dev_prefix MATCHES "[Mm][Ss][Yy][Ss]|[Mm][Ii][Nn][Gg][Ww]")
+                list(APPEND CMAKE_IGNORE_PATH
+                    "${_gui_dev_prefix}"
+                    "${_gui_dev_prefix}/include"
+                    "${_gui_dev_prefix}/lib")
+            endif()
+        endforeach()
+    endif()
     find_package(ZLIB QUIET)
     if(NOT ZLIB_FOUND)
         FetchContent_Declare(zlib
@@ -120,6 +132,24 @@ else()
             GIT_SHALLOW TRUE)
         set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
         FetchContent_MakeAvailable(zlib)
+
+        # libpng's CMakeLists calls find_package(ZLIB REQUIRED).  When the
+        # host has an unrelated MSYS2/MinGW zlib in its search path, that
+        # lookup can either select the wrong ABI (MSVC) or fail because the
+        # freshly fetched zlib is not installed yet.  Reuse the in-tree
+        # target and expose the minimal variables FindZLIB needs; the alias
+        # preserves zlib's generated include directory (zconf.h) as well.
+        if(TARGET zlibstatic)
+            add_library(ZLIB::ZLIB ALIAS zlibstatic)
+            set(ZLIB_INCLUDE_DIR "${zlib_SOURCE_DIR}")
+            if(MSVC)
+                set(ZLIB_LIBRARY
+                    "${CMAKE_CURRENT_BINARY_DIR}/_deps/zlib-build/$<CONFIG>/zlibstatic.lib")
+            else()
+                set(ZLIB_LIBRARY
+                    "${CMAKE_CURRENT_BINARY_DIR}/_deps/zlib-build/libz.a")
+            endif()
+        endif()
     endif()
 
     # ---- libpng ----

@@ -9,6 +9,30 @@ set(GUI_DEV_IOS_SIMULATOR OFF CACHE BOOL "iOS 模拟器构建（不签名）")
 set(GUI_DEV_IOS_DEPLOYMENT_TARGET "13.0" CACHE STRING "最低 iOS 版本")
 
 set(CMAKE_SYSTEM_NAME iOS)
+
+# 先确认真的有 iOS SDK —— 只有 Command Line Tools 时 xcrun 找不到 iphoneos，
+# 这里提前给出可执行的提示，而不是让 CMake 在后面报一堆编译器错误。
+if(GUI_DEV_IOS_SIMULATOR)
+    set(GUI_DEV_IOS_SDK_NAME "iphonesimulator")
+else()
+    set(GUI_DEV_IOS_SDK_NAME "iphoneos")
+endif()
+execute_process(
+    COMMAND xcrun --sdk ${GUI_DEV_IOS_SDK_NAME} --show-sdk-path
+    OUTPUT_VARIABLE GUI_DEV_IOS_SDK_PATH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET RESULT_VARIABLE GUI_DEV_IOS_SDK_RESULT)
+if(NOT GUI_DEV_IOS_SDK_RESULT EQUAL 0 OR NOT EXISTS "${GUI_DEV_IOS_SDK_PATH}")
+    message(FATAL_ERROR
+        "找不到 iOS SDK（${GUI_DEV_IOS_SDK_NAME}）。Command Line Tools 不带 iOS SDK，需要完整 Xcode：\n"
+        "  1) 装 Xcode（App Store，或 brew install --cask xcodes && xcodes install --latest）\n"
+        "  2) sudo xcode-select -s /Applications/Xcode.app/Contents/Developer\n"
+        "  3) xcodebuild -runFirstLaunch && sudo xcodebuild -license accept\n"
+        "如果 Xcode 装在别处，也可以不改 xcode-select，直接：\n"
+        "  DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cmake --preset ios\n"
+        "（打包成 .ipa 用 scripts/build_ios_ipa.sh）")
+endif()
+
 set(CMAKE_OSX_DEPLOYMENT_TARGET "${GUI_DEV_IOS_DEPLOYMENT_TARGET}" CACHE STRING "" FORCE)
 
 if(GUI_DEV_IOS_SIMULATOR)

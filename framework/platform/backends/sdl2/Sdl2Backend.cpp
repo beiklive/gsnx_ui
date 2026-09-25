@@ -100,6 +100,15 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
     Uint32 flags = SDL_WINDOW_FULLSCREEN;
     const int w = 1920;
     const int h = 1080;
+#elif defined(GUI_DEV_PLATFORM_android)
+    // SDL Android Activity 默认按非全屏样式启动；SDL_WINDOW_FULLSCREEN 会切换到
+    // 沉浸模式并移除状态栏/导航栏，保证 native 画布与触摸坐标覆盖完整屏幕。
+    Uint32 flags = SDL_WINDOW_FULLSCREEN | SDL_WINDOW_ALLOW_HIGHDPI;
+    if (cfg_.resizable) {
+        flags |= SDL_WINDOW_RESIZABLE;
+    }
+    const int w = cfg_.width;
+    const int h = cfg_.height;
 #else
     Uint32 flags = SDL_WINDOW_ALLOW_HIGHDPI;
     if (cfg_.resizable) {
@@ -198,6 +207,31 @@ float Sdl2Backend::ComputeUiScale(bool with_zoom) const {
         scale = 6.0f;
     }
     return scale;
+}
+
+ImVec2 Sdl2Backend::LogicalSizeNow() const {
+    int drawable_w = 0;
+    int drawable_h = 0;
+    GetDrawableSize(drawable_w, drawable_h);
+    const float scale = ui_scale_ > 0.0f ? ui_scale_ : 1.0f;
+    return ImVec2(static_cast<float>(drawable_w) / scale, static_cast<float>(drawable_h) / scale);
+}
+
+ImVec2 Sdl2Backend::WindowToLogical(const ImVec2& window_point) const {
+    int window_w = 0;
+    int window_h = 0;
+    if (window_ != nullptr) {
+        SDL_GetWindowSize(window_, &window_w, &window_h);
+    }
+    const ImVec2 logical = LogicalSizeNow();
+    const auto clamp = [](float value, float lo, float hi) {
+        return value < lo ? lo : (value > hi ? hi : value);
+    };
+    if (window_w <= 0 || window_h <= 0) {
+        return ImVec2(clamp(window_point.x, 0.0f, logical.x), clamp(window_point.y, 0.0f, logical.y));
+    }
+    return ImVec2(clamp(window_point.x * logical.x / static_cast<float>(window_w), 0.0f, logical.x),
+                  clamp(window_point.y * logical.y / static_cast<float>(window_h), 0.0f, logical.y));
 }
 
 // 注意：运行期改渲染缩放会让 SDL 的几何/视口状态错乱（mac 的 sdl2-compat + Metal 实测
@@ -300,7 +334,15 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
     }
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
-        ImGui_ImplSDL2_ProcessEvent(&e);
+        // 触摸统一由 SDL_FINGER* 路径翻译一次。SDL 默认还可能为同一手势
+        // 合成 SDL_TOUCH_MOUSEID 鼠标事件；若也交给 ImGui SDL 后端，会造成一次
+        // 手势同时走 native mouse 与自定义 touch 两条输入队列。
+        const bool synthesized_touch_mouse =
+            (e.type == SDL_MOUSEMOTION && e.motion.which == SDL_TOUCH_MOUSEID) ||
+            ((e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) && e.button.which == SDL_TOUCH_MOUSEID);
+        if (!synthesized_touch_mouse) {
+            ImGui_ImplSDL2_ProcessEvent(&e);
+        }
 
         switch (e.type) {
         case SDL_QUIT:
@@ -357,11 +399,14 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
         case SDL_FINGERDOWN:
         case SDL_FINGERMOTION:
         case SDL_FINGERUP: {
-            // 触摸坐标是归一化的，换算到「逻辑显示空间」（= io.DisplaySize，720p 设计空间）。
-            // 以前这里换算成 drawable 像素、而且根本没喂给 ImGui，所以 Switch 掌机上完全不能触控。
-            ImGuiIO& io = ImGui::GetIO();
-            const float x = e.tfinger.x * io.DisplaySize.x;
-            const float y = e.tfinger.y * io.DisplaySize.y;
+            // SDL finger 坐标相对于窗口归一化；先还原窗口点数，再映射到当前逻辑画布。
+            int window_w = 0;
+            int window_h = 0;
+            SDL_GetWindowSize(window_, &window_w, &window_h);
+            const ImVec2 logical = WindowToLogical(
+                ImVec2(e.tfinger.x * static_cast<float>(window_w), e.tfinger.y * static_cast<float>(window_h)));
+            const float x = logical.x;
+            const float y = logical.y;
             in.touch.x = x;
             in.touch.y = y;
             in.touch.down = (e.type != SDL_FINGERUP);
@@ -370,6 +415,7 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
             if (e.type == SDL_FINGERDOWN && !touch_engaged_) {
                 touch_engaged_ = true;
                 touch_finger_ = e.tfinger.fingerId;
+                touch_release_pending_ = false;
             }
             if (touch_engaged_ && e.tfinger.fingerId == touch_finger_) {
                 touch_pos_ = ImVec2(x, y);
@@ -382,11 +428,6 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
         case SDL_MOUSEMOTION:
         case SDL_MOUSEBUTTONDOWN:
         case SDL_MOUSEBUTTONUP:
-            // 如果平台仍然把触摸合成成鼠标事件（SDL_TOUCH_MOUSEID），标记一下，
-            // 说明这个平台不需要我们手动翻译手指事件。
-            if (e.motion.which == SDL_TOUCH_MOUSEID) {
-                touch_synthesizes_mouse_ = true;
-            }
             break;
         default:
             break;
@@ -476,13 +517,9 @@ void Sdl2Backend::NewImGuiFrame() {
     const float scale = ui_scale_ > 0.0f ? ui_scale_ : 1.0f;
     SDL_RenderSetScale(renderer_, scale, scale);
     io.DisplaySize = ImVec2(static_cast<float>(w) / scale, static_cast<float>(h) / scale);
-    // 此值在 SDL 后端里只作为「字体光栅化密度」使用：imgui 1.92 会用它把字形
-    // 光栅化到物理像素密度（imgui.cpp: g.FontRasterizerDensity = DisplayFramebufferScale.x），
-    // 这样放大后文字依然锐利。
-    // 字体光栅化密度只跟分辨率走（不含用户缩放）：缩放只放大几何，
-    // 字形仍在同一密度下烘焙，运行期不会重排/重建设备图集。
-    const float density = auto_scale_ > 0.0f ? auto_scale_ : scale;
-    io.DisplayFramebufferScale = ImVec2(density, density);
+    // FramebufferScale 是 drawable / 逻辑画布的完整比例（包含用户缩放）。
+    // 这样高分屏字形按最终物理像素密度光栅化，避免先按 2x 烘焙、再被 2.4x 放大而发糊。
+    io.DisplayFramebufferScale = ImVec2(scale, scale);
     // 字号已经在设计空间里定死，这里不能再乘一次（否则会双重放大）。
     ImGui::GetStyle().FontScaleMain = 1.0f;
     io.DeltaTime = delta_time_ > 0.0f ? delta_time_ : (1.0f / 60.0f);
@@ -491,20 +528,16 @@ void Sdl2Backend::NewImGuiFrame() {
     // io.DisplaySize（720p 逻辑空间）。窗口不是 1280x720 时两者差一个比例
     // （例如 640x360 窗口下 mouse=(98,203) 实际对应逻辑 (196,406)），
     // 不修正的话小窗口/异形窗口里点击位置会整体偏移。
-    int window_w = 0;
-    int window_h = 0;
-    SDL_GetWindowSize(window_, &window_w, &window_h);
-    if (window_w > 0 && window_h > 0 &&
-        (static_cast<int>(io.DisplaySize.x) != window_w || static_cast<int>(io.DisplaySize.y) != window_h) &&
-        ImGui::IsMousePosValid(&io.MousePos)) {
-        io.AddMousePosEvent(io.MousePos.x * io.DisplaySize.x / static_cast<float>(window_w),
-                            io.MousePos.y * io.DisplaySize.y / static_cast<float>(window_h));
+    if (ImGui::IsMousePosValid(&io.MousePos)) {
+        const ImVec2 logical_mouse = WindowToLogical(io.MousePos);
+        io.AddMousePosEvent(logical_mouse.x, logical_mouse.y);
     }
 
     // 触摸 → 鼠标：必须在这里喂（ImGui_ImplSDL2_NewFrame 之后、ImGui::NewFrame 之前）。
     // 放在 PollEvents 里喂会被 imgui_impl_sdl2 的 UpdateMouseData 覆盖（窗口没被真鼠标悬停时
     // 它会用全局鼠标位置或 -FLT_MAX 覆盖 io.MousePos）。
-    if (touch_engaged_ && !touch_synthesizes_mouse_) {
+    if (touch_engaged_) {
+        io.AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
         io.AddMousePosEvent(touch_pos_.x, touch_pos_.y);
         io.AddMouseButtonEvent(0, !touch_release_pending_);
         if (touch_release_pending_) {

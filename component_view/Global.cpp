@@ -10,6 +10,8 @@ namespace gui_dev::cv::Global {
 namespace {
 
 bool prev_mouse_down[3] = {false, false, false};
+ImVec2 prev_mouse{-FLT_MAX, -FLT_MAX};
+bool prev_mouse_valid = false;
 
 } // namespace
 
@@ -56,6 +58,7 @@ void BeginFrame(UiContext& ui) {
     const bool finite = io.MousePos.x > -FLT_MAX * 0.5f && io.MousePos.y > -FLT_MAX * 0.5f;
     mouse_available = finite;
     mouse = finite ? io.MousePos : ImVec2(-FLT_MAX, -FLT_MAX);
+    pointer_touch = io.MouseSource == ImGuiMouseSource_TouchScreen;
 
     for (int button = 0; button < 3; ++button) {
         const bool down = io.MouseDown[button];
@@ -64,6 +67,18 @@ void BeginFrame(UiContext& ui) {
         mouse_down[button] = down;
         prev_mouse_down[button] = down;
     }
+
+    mouse_delta = (finite && prev_mouse_valid && !mouse_pressed[0])
+                      ? ImVec2(mouse.x - prev_mouse.x, mouse.y - prev_mouse.y)
+                      : ImVec2(0.0f, 0.0f);
+    pointer_activity = mouse_pressed[0] || mouse_down[0] || mouse_released[0];
+    if (mouse_pressed[0]) {
+        pointer_drag_origin = mouse;
+        pointer_drag_host = nullptr;
+        pointer_dragging = false;
+    }
+    prev_mouse = mouse;
+    prev_mouse_valid = finite;
 
     hovered = nullptr;
     for (std::size_t i = 0; i < kInputActionCount; ++i) {
@@ -120,7 +135,7 @@ void NavigateFocus(const std::vector<Widget*>& focusables) {
             break;
         }
     }
-    if (!valid) {
+    if (!valid && !pointer_activity) {
         SetFocus(focusables.front());
         current = focused;
     }

@@ -29,6 +29,7 @@ GUI_DEV/
 │   ├── Info.plist.in            # iOS bundle 的 Info.plist
 │   └── toolchains/              # Switch.cmake / Android.cmake / iOS.cmake
 ├── android/                     # Android gradle 打包骨架（app 模块 + MainActivity + assets）
+├── scripts/build_ios_ipa.sh     # iOS 一键打 IPA（未签名 / ad-hoc / 团队签名）
 ├── framework/                   # ★ 引擎层
 │   ├── core/                    # App 基类 + AppRunner 主循环（帧率上限在这里）
 │   ├── ui/                      # UiContext / Theme / Icons / Fonts / Texture / Scene
@@ -148,16 +149,30 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
   字体由 `AndroidPlatform.cpp` 用 `SDL_RWFromFile` 读进内存给 ImGui（纹理暂不支持，见文档）。
 - 只配了 `arm64-v8a`，其它 ABI 改 `-DGUI_DEV_ANDROID_ABI=armeabi-v7a|x86_64`。
 
-### iOS（真机 / 模拟器）
+### iOS（构建 + 打 IPA）
 
 ```bash
-# 需要完整 Xcode（只有 Command Line Tools 不行）
-cmake --preset ios-sim && cmake --build --preset ios-sim    # 模拟器，默认不签名
-cmake --preset ios && cmake --build --preset ios            # 真机（要自己补签名团队）
-# 产物：build/ios-sim/Release-iphonesimulator/*.app（Xcode 的产物目录）
+# 需要完整 Xcode（Command Line Tools 不带 iOS SDK）；xcode-select 还指着 CLT 的话：
+#   sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+# 或   export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+
+scripts/build_ios_ipa.sh                # 未签名 IPA（不需要开发者账号）→ dist/ios/gui_dev_demo.ipa
+scripts/build_ios_ipa.sh --adhoc        # ad-hoc 签名（越狱 / TrollStore 设备可直接装）
+scripts/build_ios_ipa.sh --team ABCDE12345 --method development   # 团队签名，可真机安装
+scripts/build_ios_ipa.sh --sim          # 只构建模拟器版
 xcrun simctl install booted build/ios-sim/Release-iphonesimulator/gui_dev_demo.app
 xcrun simctl launch booted com.beiklive.gui_dev.gui_dev_demo
 ```
+
+未签名 IPA 的结构就是 `Payload/gui_dev_demo.app/…`；**未签名包不能直接装** —— 必须用你自己的
+Apple ID 重签（Sideloadly / AltStore / Xcode 的 Devices 窗口），装完还要在「设置 → 通用 → VPN与设备管理」
+信任证书，否则会出现"图标在、点了打不开、名字旁边有下载角标"这种占位状态。`--package-only <app>` 可以跳过 Xcode 只做打包（CI 用）；
+没装 Xcode 时脚本会直接告诉你缺什么，而不是丢一堆 CMake 报错。
+
+**本机没装 Xcode 也能出包**：[.github/workflows/ios-ipa.yml](.github/workflows/ios-ipa.yml) 在 GitHub 的
+macOS runner（自带 Xcode 16.4 + iPhoneOS 18.5 SDK）上跑同一条脚本，手动 *Run workflow* 或推 iOS 相关
+文件到 main 即触发，产物在 run 页面的 Artifacts（`ios-ipa-*`）。细节与额度说明见
+[docs/platform-builds.md](docs/platform-builds.md)。
 
 要点：`GUI_DEV_PLATFORM=ios` 时每个示例都编成 `.app`，`assets/` 被拷进
 `Contents/Resources/assets`（运行时靠 `SDL_GetBasePath()` 找到）；入口是 `SDL_main`

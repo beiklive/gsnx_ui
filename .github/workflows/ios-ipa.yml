@@ -1,0 +1,164 @@
+# 用 GitHub 的 macOS runner 打 iOS 的 .ipa（runner 自带 Xcode，本机没装 Xcode 也能出包）。
+#
+# 触发方式：
+#   * 手动：Actions → 左侧 “iOS IPA” → Run workflow（可填目标名 / 配置 / 是否 ad-hoc 签名）
+#   * 自动：往 main 推 iOS 相关文件（本 workflow、scripts/build_ios_ipa.sh、iOS 工具链 / Info.plist）
+#
+# 产物：Actions 页面该次运行的 Artifacts → ios-ipa-<目标>/<目标>.ipa（未签名，安装前需重签：
+#       AltStore / Sideloadly / TrollStore / zsign；选 adhoc 的话可直接装到越狱/TrollStore 设备）。
+name: iOS IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "要打包的目标（gui_dev_demo / gui_dev_min_demo / ...）"
+        default: "gui_dev_demo"
+        required: true
+      config:
+        description: "构建配置"
+        type: choice
+        options: ["Release", "Debug"]
+        default: "Release"
+      sign:
+        description: "签名方式（adhoc = codesign -s -，越狱/TrollStore 可直接装）"
+        type: choice
+        options: ["none", "adhoc"]
+        default: "none"
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/ios-ipa.yml"
+      - "scripts/build_ios_ipa.sh"
+      - "scripts/verify_ios_app.sh"
+      - "cmake/toolchains/iOS.cmake"
+      - "cmake/Info.plist.in"
+
+jobs:
+  ipa:
+    name: 构建 .ipa
+    runs-on: macos-15
+    timeout-minutes: 60
+    # 失败时把构建日志推到 ci-logs 分支（这样不用权限也能看到日志，方便无人值守排查）
+    permissions:
+      contents: write
+    steps:
+      - name: 取代码（含 imgui 子模块）
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 环境信息（Xcode / SDK / CMake）
+        run: |
+          set -x
+          xcode-select -p
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+          cmake --version | head -1
+
+      - name: 构建并打包 IPA
+        env:
+          TARGET: ${{ inputs.target || 'gui_dev_demo' }}
+          CONFIG_NAME: ${{ inputs.config || 'Release' }}
+          SIGN_KIND: ${{ inputs.sign || 'none' }}
+        run: |
+          set -uo pipefail
+          chmod +x scripts/build_ios_ipa.sh
+          args=(--target "${TARGET}" --config "${CONFIG_NAME}" --out dist/ios)
+          if [ "${SIGN_KIND}" = "adhoc" ]; then args+=(--adhoc); fi
+          scripts/build_ios_ipa.sh "${args[@]}" 2>&1 | tee /tmp/build.log
+          rc=${PIPESTATUS[0]}
+          if [ "${rc}" -ne 0 ]; then
+            # 把关键行发成 action 注解（注解匿名可读），并且日志会在最后一步推到 ci-logs 分支
+            echo "::error title=iOS 构建失败::脚本退出码 ${rc}"
+            grep -i -E "error|failed|失败|找不到|cannot|undefined reference|no such file" /tmp/build.log \
+              | tail -20 | while IFS= read -r line; do echo "::error title=ios-build::${line}"; done
+            echo "=== 日志尾部 ==="
+            tail -40 /tmp/build.log
+            exit "${rc}"
+          fi
+          echo "--- dist/ios ---"
+          ls -la dist/ios || true
+
+      - name: 校验 IPA（可安装性硬性检查）
+        id: verify
+        run: |
+          set -uo pipefail
+          chmod +x scripts/verify_ios_app.sh
+          mkdir -p verify-report
+          status=0
+          shopt -s nullglob
+          ipas=(dist/ios/*.ipa)
+          if [ "${#ipas[@]}" -eq 0 ]; then
+            echo "::error::没有找到 IPA 产物"
+            exit 1
+          fi
+          for ipa in "${ipas[@]}"; do
+            scripts/verify_ios_app.sh "${ipa}" --github 2>&1 | tee -a verify-report/report.txt
+            rc=${PIPESTATUS[0]}
+            [ "${rc}" -ne 0 ] && status="${rc}"
+          done
+          exit "${status}"
+
+      - name: 上传 IPA
+        # 校验不过就不交付产物（坏包装上去只会是"只有图标、点不开"）
+        if: always() && steps.verify.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa-${{ inputs.target || 'gui_dev_demo' }}
+          path: dist/ios/*.ipa
+          if-no-files-found: warn
+
+      - name: 归档到 ci-logs 分支（产物诊断 + 日志尾部，无需 API 权限即可查看）
+        if: always()
+        run: |
+          set -uo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p ci-log
+          APP="$(find build/ios -maxdepth 4 -name "${{ inputs.target || 'gui_dev_demo' }}.app" -type d 2>/dev/null | head -1)"
+          EXE=""
+          if [ -n "${APP}" ]; then
+            EXE="$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "${APP}/Info.plist" 2>/dev/null || true)"
+          fi
+          {
+            echo "# iOS 产物诊断（run ${GITHUB_RUN_NUMBER}，${{ job.status }}）"
+            echo
+            echo "- commit: ${GITHUB_SHA}"
+            echo "- app: ${APP:-<没找到>}"
+            echo
+            echo "## .app 目录（bundle 根）"
+            ls -la "${APP}" 2>/dev/null || echo "（无）"
+            echo
+            echo "## Info.plist"
+            plutil -p "${APP}/Info.plist" 2>/dev/null || echo "（读不到）"
+            echo
+            echo "## 可执行文件"
+            echo "CFBundleExecutable=${EXE}"
+            ls -l "${APP}/${EXE}" 2>/dev/null || echo "（找不到可执行文件！）"
+            file "${APP}/${EXE}" 2>/dev/null || true
+            vtool -show-build "${APP}/${EXE}" 2>/dev/null | head -15 || true
+            echo
+            echo "## 签名"
+            codesign -dv --verbose=4 "${APP}" 2>&1 | head -20 || true
+            echo
+            echo "## IPA 结构（前 25 项）"
+            unzip -l dist/ios/*.ipa 2>/dev/null | head -25 || echo "（没有 ipa）"
+          } > "ci-log/build-run${GITHUB_RUN_NUMBER}-diag.md"
+          if [ -f verify-report/report.txt ]; then
+            cp verify-report/report.txt "ci-log/build-run${GITHUB_RUN_NUMBER}-verify.txt"
+          fi
+          if [ -f /tmp/build.log ]; then
+            tail -c 200000 /tmp/build.log > "ci-log/build-run${GITHUB_RUN_NUMBER}.log"
+          fi
+          if [ -s dist/ios/*.ipa ] 2>/dev/null; then
+            echo "# iOS 打包成功" > ci-log/last-success.md
+            echo >> ci-log/last-success.md
+            echo "- run: #${GITHUB_RUN_NUMBER}" >> ci-log/last-success.md
+            echo "- commit: ${GITHUB_SHA}" >> ci-log/last-success.md
+            echo "- 产物:" >> ci-log/last-success.md
+            ls -lh dist/ios/*.ipa 2>/dev/null | sed 's/^/  /' >> ci-log/last-success.md
+          fi
+          git add -f ci-log
+          git commit -m "CI: iOS 产物归档 run #${GITHUB_RUN_NUMBER}（${{ job.status }}）" || true
+          git push -f origin HEAD:ci-logs

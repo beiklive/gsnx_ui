@@ -56,10 +56,37 @@ void Page::Update(float dt) {
     // 鼠标/触摸命中（控件在 UpdateTree 里读 Global::hovered）
     Global::hovered = Global::mouse_available ? root_->HitTest(Global::mouse) : nullptr;
 
+    // 触摸/鼠标拖动滚动：从命中控件向上寻找最近的滚动容器，超过阈值后才开始
+    // 改变 scroll_target。阈值以内仍然是普通点击，避免轻微抖动误触。
+    if (Global::mouse_pressed[0]) {
+        Global::pointer_drag_host = Global::hovered != nullptr ? Global::hovered->ScrollHost() : nullptr;
+    }
+    if (Global::mouse_down[0] && Global::pointer_drag_host != nullptr && Global::mouse_available) {
+        const ImVec2 from_start(Global::mouse.x - Global::pointer_drag_origin.x,
+                                Global::mouse.y - Global::pointer_drag_origin.y);
+        const float distance_sq = from_start.x * from_start.x + from_start.y * from_start.y;
+        constexpr float kDragThreshold = 8.0f;
+        if (!Global::pointer_dragging && distance_sq >= kDragThreshold * kDragThreshold) {
+            Global::pointer_dragging = true;
+        }
+        if (Global::pointer_dragging) {
+            Widget* host = Global::pointer_drag_host;
+            host->scroll_target.x = Clampf(host->scroll_target.x - Global::mouse_delta.x, 0.0f, host->scroll_max.x);
+            host->scroll_target.y = Clampf(host->scroll_target.y - Global::mouse_delta.y, 0.0f, host->scroll_max.y);
+        }
+    }
+
     // 手柄/键盘焦点导航（自己消费方向键的控件会被跳过）
     Global::NavigateFocus(focusables_);
 
     root_->UpdateTree(dt);
+
+    // 释放帧要让 Widget::UpdateInteraction 先看到 pointer_dragging，以便取消点击，
+    // 然后再结束本次手势。
+    if (Global::mouse_released[0]) {
+        Global::pointer_drag_host = nullptr;
+        Global::pointer_dragging = false;
+    }
 
     // 焦点自动滚动：焦点变了就把它滚进所在的滚动容器（面板/列表都能用）。
     // 之前 EnsureVisible 全库没有调用点，滚动容器只能靠控件自己滚。

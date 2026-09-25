@@ -470,12 +470,17 @@ void Widget::UpdateInteraction(float dt) {
     const float focus_target = (focused && enabled) ? 1.0f : 0.0f;
     focus_mix = SmoothTo(focus_mix, focus_target, focus_animation_speed, dt);
 
-    if (hovered && focus_on_hover && focusable && enabled && Global::focused != this) {
+    // 触摸没有真实的 hover：手指滑过控件时不能像鼠标指针那样连续抢焦点。
+    // 触摸焦点在下面的按下分支中只落到手势起点的控件上。
+    if (hovered && focus_on_hover && !Global::pointer_touch && focusable && enabled && Global::focused != this) {
         RequestFocus();
         focused = true;
     }
 
     if (hovered && enabled && Global::mouse_pressed[0]) {
+        if (Global::pointer_touch && focusable) {
+            RequestFocus();
+        }
         Global::pressed = this;
         Global::active = this;
         emitWidgetPressed();
@@ -483,10 +488,11 @@ void Widget::UpdateInteraction(float dt) {
     down = (Global::pressed == this) && Global::mouse_down[0];
 
     if (Global::pressed == this && Global::mouse_released[0]) {
+        const bool cancel_click = Global::pointer_dragging;
         Global::pressed = nullptr;
         Global::active = nullptr;
         down = false;
-        if (hovered && enabled) {
+        if (hovered && enabled && !cancel_click) {
             if (!OnPadAction(InputAction::Confirm)) {
                 Activate();
                 emit clicked();
