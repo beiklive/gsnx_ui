@@ -62,6 +62,9 @@ void Page::Update(float dt) {
     root_->UpdateTree(dt);
     OnInput();
     OnUpdate(dt);
+
+    // Toast：生命周期 + 动画每帧推进（不参与焦点/输入）
+    toasts_.Update(dt);
 }
 
 void Page::Render() {
@@ -76,6 +79,10 @@ void Page::Render() {
         root_->DrawTree(dl);
     }
     OnOverlay(dl);
+
+    // Toast 画在页面内容（含 overlay）之上：Global::draw_list 是 ImGui 的前景 draw list，
+    // 所以这一层已经高于所有 ImGui 窗口，不会被普通控件遮挡。
+    toasts_.Draw(dl);
 }
 
 } // namespace gui_dev::cv

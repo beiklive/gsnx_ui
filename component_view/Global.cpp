@@ -13,6 +13,18 @@ bool prev_mouse_down[3] = {false, false, false};
 
 } // namespace
 
+BoxVisual ComponentBoxVisual() {
+    BoxVisual visual;
+    visual.border.width = component_style.border_width;
+    visual.border.color = Theme::U32(component_style.border_color);
+    visual.shadow.enabled = true;
+    visual.shadow.offset = component_style.shadow_offset;
+    visual.shadow.blur = component_style.shadow_blur;
+    visual.shadow.color = Theme::U32(component_style.shadow_color);
+    visual.tl = visual.tr = visual.bl = visual.br = component_style.corner_radius;
+    return visual;
+}
+
 void ApplyTheme() {
     // 深色主题用灰白边框 + 浓一点的阴影；浅色主题边框更浅、阴影更淡
     component_style.border_color = Theme::kControlBorder;

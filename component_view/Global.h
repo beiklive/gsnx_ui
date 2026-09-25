@@ -88,6 +88,10 @@ inline bool consumed[kInputActionCount] = {};
 bool Available(InputAction action);
 void MarkConsumed(InputAction action);
 
+// 用全局约定样式（Global::component_style）造一份「组件框」参数：
+// Widget 走自己的字段，非 Widget 的（比如 Toast）直接用这个，保证框长得一模一样。
+BoxVisual ComponentBoxVisual();
+
 // 让「约定样式」跟随当前主题（边框色 / 阴影浓淡）。切完主题调一次，
 // 再对页面根节点调 Widget::RefreshThemeTree() 让组件重新取色。
 void ApplyTheme();

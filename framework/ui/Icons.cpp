@@ -106,6 +106,9 @@ constexpr MaterialEntry kMaterialTable[] = {
     {Material::DarkMode, "dark_mode", 0xE51C},
     {Material::ZoomIn, "zoom_in", 0xE8FF},
     {Material::ZoomOut, "zoom_out", 0xE900},
+    {Material::CheckCircle, "check_circle", 0xE86C},
+    {Material::ErrorOutline, "error_outline", 0xE001},
+    {Material::Info, "info", 0xE88E},
 };
 
 static_assert(sizeof(kMaterialTable) / sizeof(kMaterialTable[0]) == kMaterialCount,

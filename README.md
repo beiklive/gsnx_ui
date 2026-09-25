@@ -28,6 +28,7 @@ GUI_DEV/
 │   ├── Types.h                 # Rect / EdgeInsets / BorderStyle / ShadowStyle / Transform2D / 枚举
 │   ├── Draw.{h,cpp}            # 绘制原语：圆角矩形 / 软阴影 / 描边文字 / 省略号 / 流光框 / 跑马灯
 │   ├── Widget.{h,cpp}          # ★ 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 溢出滚动 / 焦点动画 / 事件
+│   ├── Toast.{h,cpp}           # ★ 通用通知：生命周期 / 队列 / 滑入滑出 / 多 Toast 自动补位
 │   ├── components/             # 组件：Box（容器/可聚焦控件）、Button（7 种形态）、Badge（机种徽标）
 │   └── pages/                  # Page 基类（Demo 宿主）
 ├── examples/                   # 框架示例（与组件库互不依赖）
@@ -328,6 +329,48 @@ demo 里 3 列 × 5 行把 14 个机种 + 一个「其它」（手动给了文�
 
 > 图片徽标层（`resources/img/LogoLayer/*.png`，跟封面同一个贴合矩形 + 圆角 8、盖在填充后描边前）
 > 是和文字徽标**两套东西**，现网也还没在画，这里没有实现。
+
+### Toast 通知
+
+「一个从右边滑进来的 Button Box」：底色 / 圆角 / 边框 / 阴影 / 字体 / 间距**全部复用**
+`Global::component_style`，和 Button 走同一个画法函数 `Draw::ComponentBox()`；
+Toast 只额外画左侧状态色条 + Material 图标 + 文本。
+
+```cpp
+Toasts().ShowSuccess("保存状态成功");   // Page 里的入口
+Toasts().ShowError("读取状态失败");
+Toasts().ShowInfo("正在加载游戏...");
+Toasts().Show(ToastType::Info, "任意文案"); // 通用入口
+```
+
+业务代码只碰这三个函数，坐标 / 动画 / 生命周期 / 排列 / 图标 / 颜色都在 ToastManager 里。
+
+| 项 | 值（`ToastStyle`，可改） |
+|---|---|
+| 类型 → 颜色 | Success 绿 `Theme::kSuccess`、Error 红 `Theme::kError`、Info 蓝 `Theme::kAccent`（**只用于色条和图标**） |
+| 图标 | `check_circle` / `error_outline` / `info`（现成 Material Icons，没引第二套图标库） |
+| 尺寸 | min 宽 200、max 宽 320、min 高 44；短消息按内容宽，长消息撑到 320 后**自动换行**并按行数增高 |
+| 时长 | 入场 0.25s（EaseOutCubic）→ 停留 **3s**（从入场完成开始算）→ 出场 0.25s → 删除 |
+| 位置 | 右上角：右 margin 20（demo 里设成 92 让开控制列）、上 margin 20；按 `io.DisplaySize` 动态算 |
+| 多 Toast | 垂直排列、间距 10；每帧重算 `targetY`，`currentY` 用指数趋近平滑跟上 |
+
+关键机制（也是没有「删除元素后坐标错乱」的原因）：
+
+```text
+X 轴：Entering 时 slide 0 → 1，Exiting 时 1 → 0（定时长 + EaseOutCubic）
+Y 轴：每帧 targetY = 上一条的 y + 上一条的 height + spacing；
+      currentY = SmoothTo(currentY, targetY, reflow_speed, dt)
+```
+
+两个轴完全独立，所以「A 正在向右退出 / B、C 正在向上补位 / D 正在从右边进入」可以同时发生；
+顶部 Toast 消失后，后面的自动向上补位 —— 不需要 Toast 之间互相知道坐标。
+
+- 去重：同类型 + 同文案在 0.5s 内重复出现时**不新建**，只刷新停留时间（正在退出的会被拉回来重新滑入）。
+- 不接管输入：Toast 不在 Widget 树里，不参与命中测试 / 焦点导航 / 手柄分发（`Page::Update` 里只推进动画）。
+- 绘制层级：`Page::Render` 里画在页面内容与 overlay **之后**，而 `Global::draw_list` 是 ImGui 前景 draw list → 高于所有 ImGui 窗口。
+- 线程：Toast 是 UI 层服务，`Show*` / `Update` / `Draw` 都在 UI 线程（本项目 UI 单线程）。以后真有后台线程要发通知，再在 `Show*` 前面挂一个线程安全队列由 UI 线程排空即可。
+
+demo 的右侧控制列加了四个触发按钮（成功 / 失败 / 信息 / 长文本），长文本那条用来验证换行和后续补位。
 
 ### 主题：浅色 / 深色（运行时整套切换）
 
@@ -912,6 +955,21 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   关掉说明行后主文字就停在偏上 8px 的位置；现在按文字块自己的高度居中。
   实测（说明行关）：无线网络主文字墨迹中心 169.5 / 存储路径 231.5 vs 按钮中心 170 / 232；
   普通按钮（无说明行）主文字墨迹中心 y=45.5、x=217 vs 按钮中心 (46, 218)。
+- 已确认（Toast 通知系统）：新增 `component_view/Toast.{h,cpp}`（ToastManager + Toast + ToastStyle），
+  Page 持有并在每帧 `Update` / `Draw`。**视觉完全复用 Button 的 Box**：把 `Widget::DrawBackground` 的
+  画法抽成 `Draw::ComponentBox()`（Box / Button / Toast 共用），样式参数统一从 `Global::component_style`
+  取（`Widget::ApplyComponentBoxStyle()` + `Global::ComponentBoxVisual()`），没有第二套样式；
+  重构前后同一帧抓帧逐像素比对 918636/921600 相同（= 同二进制两次运行的噪声水平 918649/921600），
+  按钮/Box 视觉零变化。
+  逐帧验证（临时打点，已移除）：
+  ① 单条：Entering 15 帧（slide 用 EaseOutCubic 0.19→1.00）→ Visible 3.0s → Exiting 0.25s → 删除；
+  ② 3 条不同消息：y = 20 / 74 / 128，高 44、间距 10、宽 200（短消息取 min 宽）；
+  ③ 顶部消失后两条上移：(target−current) 差 −20.9 → −10.6 → −5.2 → −2.5 → −1.3 → −0.6 → −0.1（平滑，不瞬移）；
+  ④ 快速创建 4 条全部入队并排列；⑤ 同一帧里 A 在退出（slide 1.00→0.82→0.66→0.52）同时 B 在进入
+  （slide 0.61→0.70→0.79→0.85），X/Y 两套动画互不影响；⑥ 长文本换行：宽撑到 320、高 44→50（2 行）；
+  ⑦ 720p 抓帧：右边缘 1188（=1280−92，让开控制列）、上边缘 20；色条 (78,201,176)/(241,76,76)/(0,95,184)
+  （蓝跟着主题走）、Toast 底色 (232,232,235) 与 Button 默认底色完全一致；Toast 显示期间焦点导航照常工作。
+  另外新增 Material 图标 `check_circle` / `error_outline` / `info`（自检 16 + 42 全部就绪）。
 - 已确认（机种徽标 Badge）：按现网 NanoVG 实现的几何做了 `component_view/components/Badge.{h,cpp}`，
   文字与颜色走 `PlatformBadgeInfoOf()` 查表（1..14 + 其它），四种变体（GridListDetail / IisuCover /
   GameDataView / GridItem）用 `setStyle()` 选。demo 里 3×5 摆出全部 14 个机种 + 「其它」，另加一行

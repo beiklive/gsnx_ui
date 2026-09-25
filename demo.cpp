@@ -36,6 +36,7 @@ using gui_dev::cv::IconTextButton;
 using gui_dev::cv::OptionButton;
 using gui_dev::cv::Page;
 using gui_dev::cv::TextButton;
+using gui_dev::cv::ToastType;
 using gui_dev::cv::ToggleButton;
 using gui_dev::cv::ValueButton;
 namespace Theme = gui_dev::cv::Theme;
@@ -54,6 +55,9 @@ public:
     const char* Title() const override { return "component_view"; }
 
     void OnBuild() override {
+        // Toast 停靠位置：让开右边的控制列（56 + 20 + 16 = 92）
+        Toasts().Style().right_margin = 92.0f;
+
         // 所有按钮都用全局约定样式（Global::component_style）：1px 灰白边框 / 5px 圆角 /
         // 右下角阴影 / 流光聚焦框（与按钮留 2px 边距）。单个按钮可以用 setBorder() 等覆盖。
         const float x = 20.0f;
@@ -163,6 +167,22 @@ public:
 
         zoom_out_ = AddControl(Icons::Material::ZoomOut, "btn_zoom_out", "缩小");
         connect(zoom_out_, &IconButton::clicked, this, [this] { StepZoom(-1); });
+
+        // Toast 触发按钮（业务代码就这一行：Toasts().ShowSuccess(...)）
+        toast_ok_ = AddControl(Icons::Material::CheckCircle, "btn_toast_ok", "成功");
+        connect(toast_ok_, &IconButton::clicked, this, [this] { Toasts().ShowSuccess("保存状态成功"); });
+
+        toast_error_ = AddControl(Icons::Material::ErrorOutline, "btn_toast_error", "失败");
+        connect(toast_error_, &IconButton::clicked, this, [this] { Toasts().ShowError("读取状态失败"); });
+
+        toast_info_ = AddControl(Icons::Material::Info, "btn_toast_info", "信息");
+        connect(toast_info_, &IconButton::clicked, this, [this] { Toasts().ShowInfo("正在加载游戏..."); });
+
+        toast_long_ = AddControl(Icons::Material::Description, "btn_toast_long", "长文本");
+        connect(toast_long_, &IconButton::clicked, this, [this] {
+            // 长文本会自动换行，高度变化会让后面的 Toast 重新排位
+            Toasts().ShowInfo("正在加载游戏资源，正在校验存档完整性，请稍候，不要关闭主机电源。");
+        });
 
         theme_button_->setIcon(Icons::Glyph(ThemeIcon()));
         LayoutControls();
@@ -284,7 +304,7 @@ private:
 
     // 徽标墙几何
     static constexpr float kPanelX = 640.0f;
-    static constexpr float kPanelY = 12.0f;
+    static constexpr float kPanelY = 300.0f;
     static constexpr float kBadgeX = kPanelX + 14.0f; // 第一个徽标的绝对坐标
     static constexpr float kBadgeY = kPanelY + 12.0f;
     static constexpr float kBadgeCellW = 150.0f;
@@ -301,6 +321,10 @@ private:
     std::vector<Button*> buttons_;
     Box* box_ = nullptr;
     IconButton* theme_button_ = nullptr;
+    IconButton* toast_ok_ = nullptr;
+    IconButton* toast_error_ = nullptr;
+    IconButton* toast_info_ = nullptr;
+    IconButton* toast_long_ = nullptr;
     IconButton* zoom_in_ = nullptr;
     IconButton* zoom_out_ = nullptr;
     IconButton* controls_[kControlMax] = {};

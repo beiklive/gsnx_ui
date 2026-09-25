@@ -85,6 +85,18 @@ struct ShadowStyle {
     }
 };
 
+// ---- 组件「框」的全部视觉参数 --------------------------------------------
+// Box / Button / Toast 共用同一套画法（Draw::ComponentBox）：阴影 + 底色 + 边框。
+struct BoxVisual {
+    ImU32 background = 0; // 0 / alpha=0 = 不填充
+    BorderStyle border;
+    ShadowStyle shadow;
+    float tl = 0.0f;
+    float tr = 0.0f;
+    float bl = 0.0f;
+    float br = 0.0f;
+};
+
 // ---- 布局 ----------------------------------------------------------------
 enum class LayoutMode {
     Free,      // 子节点用自身 position/anchor/pivot 定位

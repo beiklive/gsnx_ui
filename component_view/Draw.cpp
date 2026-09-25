@@ -74,6 +74,26 @@ void RoundedRectFilled(ImDrawList* dl, const Rect& r, ImU32 color, float tl, flo
     dl->AddRectFilled(r.min, r.max, color, radius, flags);
 }
 
+void ComponentBox(ImDrawList* dl, const Rect& rect, const BoxVisual& visual) {
+    if (dl == nullptr || !rect.Valid()) {
+        return;
+    }
+    const float tl = visual.tl;
+    const float tr = visual.tr;
+    const float bl = visual.bl;
+    const float br = visual.br;
+    if (visual.shadow.enabled) {
+        SoftShadow(dl, rect, visual.shadow, tl, tr, bl, br);
+    }
+    if (((visual.background >> IM_COL32_A_SHIFT) & 0xFF) != 0) {
+        RoundedRectFilled(dl, rect, visual.background, tl, tr, bl, br);
+    }
+    if (visual.border.Visible()) {
+        const Rect outline = rect.Expanded(-visual.border.inset);
+        RoundedRectOutline(dl, outline, visual.border.color, visual.border.width, tl, tr, bl, br);
+    }
+}
+
 void RoundedRectOutline(ImDrawList* dl, const Rect& r, ImU32 color, float thickness, float tl, float tr, float bl,
                         float br) {
     if (dl == nullptr || !r.Valid() || thickness <= 0.0f || ((color >> IM_COL32_A_SHIFT) & 0xFF) == 0) {

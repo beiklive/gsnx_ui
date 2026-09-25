@@ -606,26 +606,35 @@ ImU32 Widget::Tint(ImU32 color) const {
     return Theme::Alpha(color, EffectiveOpacity());
 }
 
-void Widget::DrawBackground(ImDrawList* dl) {
-    const float radius_scale = draw_transform_.AverageScale();
-    const float tl = CornerTL() * radius_scale;
-    const float tr = CornerTR() * radius_scale;
-    const float bl = CornerBL() * radius_scale;
-    const float br = CornerBR() * radius_scale;
+void Widget::ApplyComponentBoxStyle() {
+    // Box / Button 共用：把 Global::component_style 的「框」套到自己身上
+    const Global::ComponentStyle& style = Global::component_style;
+    border.width = style.border_width;
+    border.color = Theme::U32(style.border_color);
+    corner_radius = style.corner_radius;
+    shadow.enabled = true;
+    shadow.offset = style.shadow_offset;
+    shadow.blur = style.shadow_blur;
+    shadow.color = Theme::U32(style.shadow_color);
+}
 
-    if (shadow.enabled) {
-        ShadowStyle scaled = shadow;
-        scaled.blur *= radius_scale;
-        scaled.offset = ImVec2(shadow.offset.x * radius_scale, shadow.offset.y * radius_scale);
-        Draw::SoftShadow(dl, draw_rect_, scaled, tl, tr, bl, br);
-    }
-    if (((background >> IM_COL32_A_SHIFT) & 0xFF) != 0) {
-        Draw::RoundedRectFilled(dl, draw_rect_, Tint(background), tl, tr, bl, br);
-    }
-    if (border.Visible()) {
-        const Rect outline = draw_rect_.Expanded(-border.inset * radius_scale);
-        Draw::RoundedRectOutline(dl, outline, Tint(border.color), border.width * radius_scale, tl, tr, bl, br);
-    }
+void Widget::DrawBackground(ImDrawList* dl) {
+    // 尺寸按当前变换缩放，然后交给共用的组件框画法（Toast 用的是同一个函数）
+    const float radius_scale = draw_transform_.AverageScale();
+    BoxVisual visual;
+    visual.background = Tint(background);
+    visual.border = border;
+    visual.border.width = border.width * radius_scale;
+    visual.border.inset = border.inset * radius_scale;
+    visual.border.color = Tint(border.color);
+    visual.shadow = shadow;
+    visual.shadow.blur = shadow.blur * radius_scale;
+    visual.shadow.offset = ImVec2(shadow.offset.x * radius_scale, shadow.offset.y * radius_scale);
+    visual.tl = CornerTL() * radius_scale;
+    visual.tr = CornerTR() * radius_scale;
+    visual.bl = CornerBL() * radius_scale;
+    visual.br = CornerBR() * radius_scale;
+    Draw::ComponentBox(dl, draw_rect_, visual);
 }
 
 void Widget::DrawFocusFrame(ImDrawList* dl) {

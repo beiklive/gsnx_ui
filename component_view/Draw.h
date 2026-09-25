@@ -17,6 +17,10 @@ void RoundedRectOutline(ImDrawList* dl, const Rect& r, ImU32 color, float thickn
 // 软阴影：用多层递减 alpha 的圆角矩形逼近高斯模糊（不依赖后处理）
 void SoftShadow(ImDrawList* dl, const Rect& r, const ShadowStyle& style, float tl, float tr, float bl, float br);
 
+// 组件「框」：阴影 + 底色 + 边框，一次画完。Box / Button / Toast 走的都是这一个函数，
+// 所以改 Button 的框样式（Global::component_style）Toast 会自动跟着变。
+void ComponentBox(ImDrawList* dl, const Rect& rect, const BoxVisual& visual);
+
 // 文本尺寸测量（font 为 nullptr 时用当前字体）
 ImVec2 MeasureText(ImFont* font, float font_size, const char* text, float wrap_width = 0.0f);
 // 单个字形（图标通常就是一个码位）的「墨迹」上下边界，相对行盒顶的偏移（已是 font_size 尺度）。

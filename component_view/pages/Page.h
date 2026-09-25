@@ -8,6 +8,8 @@
 #include <memory>
 #include <vector>
 
+#include "component_view/Toast.h"
+
 #include "component_view/Widget.h"
 
 namespace gui_dev {
@@ -41,6 +43,11 @@ public:
 
     // 页面根节点：位置相对页面左上角，铺满整个画布
     Box& Root();
+
+    // Toast 通知：业务代码只调 Toasts().ShowSuccess("...") 之类，
+    // 生命周期/动画/排列/绘制都由 Page 每帧驱动（画在页面内容之上）
+    ToastManager& Toasts() { return toasts_; }
+    const ToastManager& Toasts() const { return toasts_; }
     // 切主题后调一次：重置根节点装饰（整页容器本来就不画底/边框/阴影），
     // 再让整棵组件树重新取色。Global::ApplyTheme() 也一起做了。
     void RefreshTheme();
@@ -50,6 +57,7 @@ private:
     std::unique_ptr<Box> root_;
     UiContext* ui_ = nullptr;
     std::vector<Widget*> focusables_;
+    ToastManager toasts_;
     bool built_ = false;
 };
 

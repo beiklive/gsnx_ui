@@ -35,13 +35,7 @@ Button::Button(std::string value) : Button() {
 
 Button& Button::applyComponentStyle() {
     const Global::ComponentStyle& style = Global::component_style;
-    border.width = style.border_width;
-    border.color = Theme::U32(style.border_color);
-    corner_radius = style.corner_radius;
-    shadow.enabled = true;
-    shadow.offset = style.shadow_offset;
-    shadow.blur = style.shadow_blur;
-    shadow.color = Theme::U32(style.shadow_color);
+    ApplyComponentBoxStyle();
     padding = EdgeInsets::All(style.content_padding);
     if (background == 0) {
         background = Theme::U32(Theme::kBgWidget);

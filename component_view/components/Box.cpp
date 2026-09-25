@@ -15,14 +15,7 @@ Box::Box() : Widget("box") {
 
 Box& Box::applyComponentStyle() {
     // 约定样式来自全局变量，改 Global::component_style 后调这个（或重建）即可生效
-    const Global::ComponentStyle& style = Global::component_style;
-    border.width = style.border_width;
-    border.color = Theme::U32(style.border_color);
-    corner_radius = style.corner_radius;
-    shadow.enabled = true;
-    shadow.offset = style.shadow_offset;
-    shadow.blur = style.shadow_blur;
-    shadow.color = Theme::U32(style.shadow_color);
+    ApplyComponentBoxStyle();
     return *this;
 }
 

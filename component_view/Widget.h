@@ -366,6 +366,9 @@ signals:
     }
 
 protected:
+    // 套用 Global::component_style 的「框」：边框 / 圆角 / 阴影（Box / Button / Toast 共用）
+    void ApplyComponentBoxStyle();
+
     // ---- 子类接口 ----------------------------------------------------------
     // 内容自身需要的尺寸（不含 padding/border/margin）。默认 0。
     virtual ImVec2 MeasureContent(const ImVec2& available);
