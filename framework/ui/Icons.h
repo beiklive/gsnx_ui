@@ -94,6 +94,8 @@ enum class Material : std::uint8_t {
     HelpOutline,
     LightMode,
     DarkMode,
+    ZoomIn,
+    ZoomOut,
     Count,
 };
 

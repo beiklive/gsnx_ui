@@ -148,7 +148,7 @@ cmake --preset mac && cmake --build --preset mac
 ### 现在的 demo 长什么样
 
 左列 6 个行内按钮 + 右上角一个可聚焦 Box + 右下角两个纯图标按钮（圆角正方形 / 圆形）
-+ **窗口最右侧的控制列**（从上往下排控制按钮，现在只有一个「浅色 / 深色主题」）：
++ **窗口最右侧的控制列**（从上往下排控制按钮：主题 / 放大 / 缩小）：
 
 ```cpp
 // demo.cpp
@@ -166,13 +166,32 @@ void OnBuild() override {
     box_ = Root().Emplace<Box>("box");               // 可聚焦容器
     box_->moveTo(440.0f, 20.0f);
 
-    // 右侧控制列：贴右边缘 20px，从上往下排；第一个是主题切换
-    theme_button_ = Root().Emplace<IconButton>(Icons::Glyph(ThemeIcon()));
-    theme_button_->setSide(56.0f);
-    theme_button_->setSubtitle(ThemeName());         // 说明行在按钮外面显示当前主题
+    // 右侧控制列：贴右边缘 20px，从上往下排（主题 / 放大 / 缩小）
+    theme_button_ = AddControl(Icons::Material::DarkMode, "btn_theme", ThemeName());
     connect(theme_button_, &IconButton::clicked, this, [this] { ToggleTheme(); });
+
+    zoom_in_ = AddControl(Icons::Material::ZoomIn, "btn_zoom_in", "放大");
+    connect(zoom_in_, &IconButton::clicked, this, [this] { StepZoom(+1); });
+
+    zoom_out_ = AddControl(Icons::Material::ZoomOut, "btn_zoom_out", "缩小");
+    connect(zoom_out_, &IconButton::clicked, this, [this] { StepZoom(-1); });
 }
 ```
+
+### UI 缩放（放大 / 缩小按钮）
+
+界面的物理缩放 = 后端自动缩放 × 用户倍率。自动缩放由分辨率算（`min(h/720, w/1280)`），
+用户倍率由右侧控制列的「放大 / 缩小」按钮调，逻辑画布 = `drawable / (自动缩放 × 倍率)`，
+所以倍率变大 = 画布变小 = 界面变大。倍率改变后会递增 `DisplayGeneration`，
+字体按新密度重建（放大后文字依然锐利）。
+
+```cpp
+ui.SetUiZoom(1.25f);          // 0.5..3.0，1.0 = 不额外缩放
+ui.UiZoom();                  // 当前倍率
+GUI_DEV_ZOOM=1.25 ./build/mac/gui_dev_demo   # 调试：以指定倍率启动
+```
+
+台阶表在 `demo.cpp`：`0.8 / 0.9 / 1.0 / 1.1 / 1.25 / 1.4 / 1.6 / 1.8 / 2.0`，默认 1.0。
 
 `Box` 提供的链式设置：`moveTo / resize / fillWith / roundCorners / outline / dropShadow`
 （名字不能叫 `border` / `shadow` —— 那是 `Widget` 的成员变量）。
@@ -846,6 +865,18 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   关掉说明行后主文字就停在偏上 8px 的位置；现在按文字块自己的高度居中。
   实测（说明行关）：无线网络主文字墨迹中心 169.5 / 存储路径 231.5 vs 按钮中心 170 / 232；
   普通按钮（无说明行）主文字墨迹中心 y=45.5、x=217 vs 按钮中心 (46, 218)。
+- 已确认（右侧控制列扩到三个 + UI 缩放）：控制列现在是「浅色/深色主题 / 放大 / 缩小」（56px 一列、
+  间距 12px，贴右边缘 20px，每帧按画布宽度重排）。缩放实现：`Backend::SetUiZoom()`（0.5~3.0）
+  把用户倍率乘进自动缩放，逻辑画布 = drawable / (自动缩放 × 倍率)，倍率变化时递增 `DisplayGeneration`
+  让字体按新密度重建；`UiContext::SetUiZoom/UiZoom` 转发，demo 里是 0.8~2.0 的台阶表。
+  验证：以 `GUI_DEV_ZOOM=0.8 / 1.0 / 1.25` 启动抓帧，第二个按钮的物理高度 89 / 112 / 140 px，
+  比值 1 : 1.258 : 1.573 与 scale 1.6 : 2.0 : 2.5 的比值 1 : 1.25 : 1.5625 一致；
+  运行时点按钮的路径逐帧核对（缩小 ×2 → 倍率 0.9 / 0.8，ui_scale 2.0 → 1.8 → 1.6；
+  放大 → 1.1 / ui_scale 2.2），大量连续缩放脚本跑 3 次退出码 0。
+- 顺带修掉一个潜伏的框架 bug：`RefreshIfDisplayChanged()`（字体重建）原来在
+  `backend_.NewImGuiFrame()` **之后**调用，等于在 `ImGui::NewFrame()` 之后 `ClearFonts()` 换掉图集，
+  这不符合 imgui 1.92 的约束（分辨率变化/手持↔底座切换时会走到这条路）。现在它挪到
+  `PollEvents()` 之后、`NewImGuiFrame()` 之前。
 - 已确认（主题切换 + 右侧控制列）：调色板改成运行时可切的角色色，`Theme::SetMode(Light/Dark)` +
   `Theme::ApplyToImGui()` + `Page::RefreshTheme()`（递归 `Widget::OnThemeChanged()`）；组件默认色跟随主题，
   用 setter 显式设过的颜色固定。窗口最右侧加了从上往下排的控制列，第一个是「浅色 / 深色主题」图标按钮

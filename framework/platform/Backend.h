@@ -135,6 +135,12 @@ public:
     // 逻辑尺寸 = 设计基准分辨率，UI 布局按它排版，实现负责缩放。
     virtual float UiScale() const = 0;
 
+    // 用户缩放倍率：在自动缩放之上再乘一次，给 UI 里的「放大 / 缩小」按钮用。
+    // 1.0 = 不额外缩放；实现要让逻辑画布 = drawable / (自动缩放 * zoom)，
+    // 并按新密度重建字体，否则放大后文字会糊。
+    virtual void SetUiZoom(float zoom) { (void)zoom; }
+    virtual float UiZoom() const { return 1.0f; }
+
     // 驱动/后端描述，例如 "SDL 2.32.72 + metal"。用于诊断与课程展示。
     // 返回的是后端内部持有的字符串（Init 时构建一次），调用方不需要释放、也不产生分配。
     virtual const char* DriverName() const = 0;

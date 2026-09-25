@@ -52,6 +52,9 @@ public:
     const PadState& Pad() const { return input_.pad; }
     float DeltaTime() const { return backend_.DeltaTime(); }
     std::uint32_t DisplayGeneration() const { return backend_.DisplayGeneration(); }
+    // 用户缩放（放大 / 缩小按钮）：转给后端，切换后字体密度会跟着重建
+    void SetUiZoom(float zoom) { backend_.SetUiZoom(zoom); }
+    float UiZoom() const { return backend_.UiZoom(); }
 
     // ---- 上一帧的渲染统计（在 ImGui::Render() 之后采集，供 demo/性能面板用）----
     int LastDrawCalls() const { return last_draw_calls_; }

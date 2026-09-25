@@ -174,13 +174,27 @@ float Sdl2Backend::ComputeUiScale() const {
     const float by_height = static_cast<float>(h) / kDesignHeight;
     const float by_width = static_cast<float>(w) / kDesignWidth;
     float scale = by_height < by_width ? by_height : by_width;
-    if (scale < 0.4f) {
-        scale = 0.4f;
+    // 用户缩放（「放大 / 缩小」按钮）乘在这里：逻辑画布 = drawable / scale，
+    // 所以 zoom 变大 = 逻辑画布变小 = 界面变大。
+    scale *= ui_zoom_;
+    if (scale < 0.3f) {
+        scale = 0.3f;
     }
-    if (scale > 4.0f) {
-        scale = 4.0f;
+    if (scale > 6.0f) {
+        scale = 6.0f;
     }
     return scale;
+}
+
+void Sdl2Backend::SetUiZoom(float zoom) {
+    const float next = zoom < 0.5f ? 0.5f : (zoom > 3.0f ? 3.0f : zoom);
+    if (next == ui_zoom_) {
+        return;
+    }
+    ui_zoom_ = next;
+    ui_scale_ = ComputeUiScale();
+    // 逻辑画布和字体光栅化密度都变了：递增 generation 让上层重建字体
+    ++display_generation_;
 }
 
 void Sdl2Backend::Shutdown() {

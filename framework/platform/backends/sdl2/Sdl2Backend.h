@@ -37,6 +37,8 @@ public:
     void GetDrawableSize(int& w, int& h) const override;
     std::uint32_t DisplayGeneration() const override { return display_generation_; }
     float UiScale() const override { return ui_scale_; }
+    void SetUiZoom(float zoom) override;
+    float UiZoom() const override { return ui_zoom_; }
     const char* DriverName() const override { return driver_name_.c_str(); }
 
     std::string ResolveAssetPath(const char* relative_path) const override;
@@ -71,6 +73,7 @@ private:
     int last_drawable_w_ = 0;
     int last_drawable_h_ = 0;
     float ui_scale_ = 1.0f;
+    float ui_zoom_ = 1.0f; // 用户缩放（放大/缩小按钮），乘在自动缩放之上
 
     BackendConfig cfg_{};
     // Init 时构建一次（避免每帧分配）

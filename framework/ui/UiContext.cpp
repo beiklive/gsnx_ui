@@ -133,7 +133,10 @@ UiContext::~UiContext() = default;
 
 void UiContext::BeginFrame() {
     input_ = InputFrame{};
-    backend_.PollEvents(input_);
+    backend_.PollEvents(input_); // 分辨率/缩放变化在这里检测出来
+    // 字体必须在 ImGui::NewFrame() 之前重建：1.92 的动态字形在这一帧里正被使用，
+    // 帧中途 ClearFonts() 会把渲染器手里的图集换掉（表现为随机崩溃/花屏）。
+    RefreshIfDisplayChanged();
     backend_.NewImGuiFrame();
 }
 

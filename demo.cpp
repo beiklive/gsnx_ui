@@ -147,23 +147,24 @@ public:
             box_->fillWith(box_->hasFocus() ? Theme::kAccent : Theme::kBgWidget); // 显式设色后就不再跟随主题
         });
 
-        // 右侧控制列：从上往下排控制按钮，现在只有「浅色 / 深色主题」这一个
-        theme_button_ = Root().Emplace<IconButton>(Icons::Glyph(ThemeIcon()));
-        theme_button_->SetName("btn_theme");
-        theme_button_->setSide(kControlSize);
-        theme_button_->setShape(IconButtonShape::RoundedSquare);
-        theme_button_->setSubtitle(ThemeName());
-        theme_button_->moveTo(ControlX(), kControlTop);
-        buttons_.push_back(theme_button_); // 蹭一下「+ 键开关说明行」的逻辑
+        // 右侧控制列：从上往下排控制按钮（主题 / 放大 / 缩小）
+        theme_button_ = AddControl(Icons::Material::DarkMode, "btn_theme", ThemeName());
         connect(theme_button_, &IconButton::clicked, this, [this] { ToggleTheme(); });
+
+        zoom_in_ = AddControl(Icons::Material::ZoomIn, "btn_zoom_in", "放大");
+        connect(zoom_in_, &IconButton::clicked, this, [this] { StepZoom(+1); });
+
+        zoom_out_ = AddControl(Icons::Material::ZoomOut, "btn_zoom_out", "缩小");
+        connect(zoom_out_, &IconButton::clicked, this, [this] { StepZoom(-1); });
+
+        theme_button_->setIcon(Icons::Glyph(ThemeIcon()));
+        LayoutControls();
     }
 
-    // 右侧控制列贴着画布右边缘（窗口尺寸可变，所以每帧算一次 x）
+    // 右侧控制列贴着画布右边缘、从上往下排（窗口尺寸可变，所以每帧重排一次）
     void OnUpdate(float dt) override {
         (void)dt;
-        if (theme_button_ != nullptr) {
-            theme_button_->moveTo(ControlX(), kControlTop);
-        }
+        LayoutControls();
     }
 
     // 一键切浅色 / 深色：换调色板 + 约定样式，再让整棵组件树重新取色
@@ -173,6 +174,47 @@ public:
         RefreshTheme(); // 内部：Global::ApplyTheme() + 根节点装饰复位 + 整棵树重新取色
         theme_button_->setIcon(Icons::Glyph(ThemeIcon()));
         theme_button_->setSubtitle(ThemeName());
+    }
+
+    // 控制列里的按钮：图标 + 按钮外侧说明行，边长统一
+    IconButton* AddControl(gui_dev::Icons::Material icon, const char* name, const char* caption) {
+        IconButton* button = Root().Emplace<IconButton>(Icons::Glyph(icon));
+        button->SetName(name);
+        button->setSide(kControlSize);
+        button->setShape(IconButtonShape::RoundedSquare);
+        button->setSubtitle(caption);
+        controls_[control_count_++] = button;
+        buttons_.push_back(button); // 蹭一下「+ 键开关说明行」的逻辑
+        return button;
+    }
+
+    void LayoutControls() {
+        float y = kControlTop;
+        for (int i = 0; i < control_count_; ++i) {
+            controls_[i]->moveTo(ControlX(), y);
+            y += kControlSize + kControlGap;
+        }
+    }
+
+    // 放大 / 缩小：按台阶表调整 UI 缩放（后端的用户倍率，乘在自动缩放之上）
+    void StepZoom(int direction) {
+        int index = ZoomIndex() + direction;
+        index = index < 0 ? 0 : (index >= kZoomCount ? kZoomCount - 1 : index);
+        ui().SetUiZoom(kZoomSteps[index]); // 逻辑画布 = drawable / (自动缩放 * zoom) → 界面随之变大变小
+    }
+
+    int ZoomIndex() const {
+        const float current = ui().UiZoom();
+        int best = 0;
+        float best_delta = 1e9f;
+        for (int i = 0; i < kZoomCount; ++i) {
+            const float delta = kZoomSteps[i] > current ? kZoomSteps[i] - current : current - kZoomSteps[i];
+            if (delta < best_delta) {
+                best_delta = delta;
+                best = i;
+            }
+        }
+        return best;
     }
 
     // + 键：一键开关所有按钮的说明行（验证「是否显示说明」接口，开关都保持文字块垂直居中）
@@ -199,9 +241,19 @@ private:
     }
     static const char* ThemeName() { return Theme::IsLight() ? "浅色" : "深色"; }
 
+    // UI 缩放台阶：0.8 起步到 2.0，中间 1.0 是「不额外缩放」
+    static constexpr int kZoomCount = 9;
+    static constexpr float kZoomSteps[kZoomCount] = {0.8f, 0.9f, 1.0f, 1.1f, 1.25f, 1.4f, 1.6f, 1.8f, 2.0f};
+    static constexpr int kControlMax = 8;
+    static constexpr float kControlGap = 12.0f;
+
     std::vector<Button*> buttons_;
     Box* box_ = nullptr;
     IconButton* theme_button_ = nullptr;
+    IconButton* zoom_in_ = nullptr;
+    IconButton* zoom_out_ = nullptr;
+    IconButton* controls_[kControlMax] = {};
+    int control_count_ = 0;
     bool subtitle_on_ = true;
 };
 
@@ -252,6 +304,13 @@ public:
 
         if (const char* value = std::getenv("GUI_DEV_EXIT_AFTER")) {
             exit_after_ = std::atoi(value);
+        }
+        // 调试：GUI_DEV_ZOOM=1.25 直接以指定缩放启动（右侧控制列的放大/缩小按钮也能改）
+        if (const char* zoom = std::getenv("GUI_DEV_ZOOM")) {
+            const float value = static_cast<float>(std::atof(zoom));
+            if (value > 0.0f) {
+                ui.SetUiZoom(value);
+            }
         }
     }
 
