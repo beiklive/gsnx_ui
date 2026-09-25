@@ -32,6 +32,22 @@
 
 namespace gui_dev::cv {
 
+// 焦点框的「描述」：控件只说自己要什么样的焦点框（矩形 / 圆角 / 粗细 / 强度 …），
+// 真正画在哪儿由页面级的 FocusRing 图层决定（见 component_view/FocusRing.h）。
+// 这样焦点框与控件解耦，一帧只画一个，也不用每个控件都在自己的 OnDrawOverlay 里画。
+struct FocusVisual {
+    bool enabled = false;   // 不需要画（没焦点 / 组件不做焦点框）
+    bool flowing = false;   // true = 流光闭合框，false = 单色圆角框
+    Rect rect{};            // 已经是绘制坐标（外扩后的）
+    float radius = 0.0f;
+    float width = 2.0f;
+    float alpha = 0.0f;     // 0..1（焦点强度 × 控件不透明度）
+    ImU32 color = 0;        // 单色框颜色
+    float phase = 0.0f;     // 流光相位
+    float saturation = 0.75f;
+    float brightness = 1.0f;
+};
+
 class Widget : public Object {
 public:
     Widget();
@@ -189,6 +205,10 @@ signals:
     float CornerTR() const { return corner_tr >= 0.0f ? corner_tr : corner_radius; }
     float CornerBL() const { return corner_bl >= 0.0f ? corner_bl : corner_radius; }
     float CornerBR() const { return corner_br >= 0.0f ? corner_br : corner_radius; }
+
+    // 焦点框描述：默认按 focus_frame / focus_mix 给出单色框；用流光框的控件（Button）会重写。
+    // 由页面级 FocusRing 图层读取并绘制（见 component_view/FocusRing.h）。
+    virtual FocusVisual BuildFocusVisual() const;
 
     // ---- 绘制期变换（子类绘制时用；保证焦点缩放能作用于整棵子树） ---------
     Rect DrawRect() const { return draw_rect_; }
@@ -398,7 +418,6 @@ private:
     ImVec2 FlowChildrenSize(const ImVec2& content_available);
     void UpdateScroll(float dt);
     void DrawBackground(ImDrawList* dl);
-    void DrawFocusFrame(ImDrawList* dl);
     void DrawScrollBar(ImDrawList* dl);
     void UpdateInteraction(float dt);
     void emitWidgetPressed();

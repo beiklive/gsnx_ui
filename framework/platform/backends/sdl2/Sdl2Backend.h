@@ -49,6 +49,12 @@ private:
     void ApplyAction(InputFrame& in, SDL_Keycode key, InputAction action, bool down);
     // with_zoom=false 时只按分辨率算（字体密度用这个，不含用户缩放）
     float ComputeUiScale(bool with_zoom = true) const;
+    // 当前逻辑画布尺寸 = drawable / 渲染缩放。用当前值算，不依赖上一帧的 io.DisplaySize
+    // （窗口尺寸/缩放刚变的那一帧，io.DisplaySize 还是旧值，触摸就会偏）。
+    ImVec2 LogicalSizeNow() const;
+    // 窗口点（SDL 事件坐标，Retina 上是「点」）-> 逻辑画布坐标。
+    // 鼠标和触摸都走这一个换算，避免两条路径各算一套导致对不上。
+    ImVec2 WindowToLogical(const ImVec2& window_point) const;
 
     SDL_Window* window_ = nullptr;
     SDL_Renderer* renderer_ = nullptr;

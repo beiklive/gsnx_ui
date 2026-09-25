@@ -1,0 +1,91 @@
+#include "component_view/FocusRing.h"
+
+#include "component_view/Anim.h"
+#include "component_view/Draw.h"
+#include "component_view/Global.h"
+#include "component_view/Widget.h"
+
+namespace gui_dev::cv {
+namespace {
+
+// 跟随速度（1/s）：和 gamemenu 焦点框的 follow_smoothing 同一量级
+constexpr float kFollowSpeed = 26.0f;
+// 目标中心跳得比这个远就直接对齐（不横穿屏幕）
+constexpr float kSnapDistance = 180.0f;
+constexpr float kFadeSpeed = 22.0f;
+
+} // namespace
+
+void FocusRing::Reset() {
+    rect_ = Rect{};
+    has_rect_ = false;
+    alpha_ = 0.0f;
+}
+
+void FocusRing::Draw(ImDrawList* dl, Widget* target) {
+    if (dl == nullptr) {
+        return;
+    }
+    const float dt = Global::delta_time;
+    FocusVisual visual = target != nullptr ? target->BuildFocusVisual() : FocusVisual{};
+
+    if (visual.enabled) {
+        if (!has_rect_) {
+            rect_ = visual.rect;
+            radius_ = visual.radius;
+            has_rect_ = true;
+        } else {
+            const float jump = Absf(visual.rect.Center().x - rect_.Center().x) +
+                               Absf(visual.rect.Center().y - rect_.Center().y);
+            if (jump > kSnapDistance) {
+                rect_ = visual.rect;
+                radius_ = visual.radius;
+            } else {
+                rect_.min.x = Anim::SmoothTo(rect_.min.x, visual.rect.min.x, kFollowSpeed, dt);
+                rect_.min.y = Anim::SmoothTo(rect_.min.y, visual.rect.min.y, kFollowSpeed, dt);
+                rect_.max.x = Anim::SmoothTo(rect_.max.x, visual.rect.max.x, kFollowSpeed, dt);
+                rect_.max.y = Anim::SmoothTo(rect_.max.y, visual.rect.max.y, kFollowSpeed, dt);
+                radius_ = Anim::SmoothTo(radius_, visual.radius, kFollowSpeed, dt);
+            }
+        }
+        flowing_ = visual.flowing;
+        width_ = visual.width;
+        color_ = visual.color;
+        phase_ = visual.phase;
+        saturation_ = visual.saturation;
+        brightness_ = visual.brightness;
+        alpha_ = Anim::SmoothTo(alpha_, visual.alpha, kFadeSpeed, dt);
+    } else {
+        // 没有目标：原地淡出，并把基准矩形清掉（下次换目标直接对齐）
+        alpha_ = Anim::SmoothTo(alpha_, 0.0f, kFadeSpeed, dt);
+        has_rect_ = false;
+        if (alpha_ <= 0.02f) {
+            return;
+        }
+    }
+
+    if (alpha_ <= 0.02f || !rect_.Valid()) {
+        return;
+    }
+
+    // 焦点框现在画在最上层，不跟着控件被裁剪；但控件如果在滚动容器里，
+    // 框仍然要裁到那个容器，否则会画到面板外面。
+    Widget* host = target != nullptr ? target->ScrollHost() : nullptr;
+    const bool clip = host != nullptr && host->overflow == Overflow::Scroll;
+    if (clip) {
+        const Rect view = host->DrawRect();
+        dl->PushClipRect(view.min, view.max, true);
+    }
+
+    if (flowing_) {
+        Draw::FlowingRing(dl, rect_, width_, phase_, saturation_, brightness_, alpha_, 3.0f, radius_);
+    } else {
+        Draw::RoundedRectOutline(dl, rect_, Theme::Alpha(color_, alpha_), width_, radius_, radius_, radius_, radius_);
+    }
+
+    if (clip) {
+        dl->PopClipRect();
+    }
+}
+
+} // namespace gui_dev::cv

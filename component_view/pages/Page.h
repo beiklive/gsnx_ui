@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "component_view/FocusRing.h"
 #include "component_view/Toast.h"
 
 #include "component_view/Widget.h"
@@ -57,6 +58,7 @@ private:
     std::unique_ptr<Box> root_;
     UiContext* ui_ = nullptr;
     std::vector<Widget*> focusables_;
+    FocusRing focus_ring_; // 焦点框图层：画在页面内容之上、Toast 之下
     ToastManager toasts_;
     Widget* last_focused_ = nullptr; // 焦点自动滚动用：焦点变化时把控件滚进它所在的滚动容器
     bool built_ = false;

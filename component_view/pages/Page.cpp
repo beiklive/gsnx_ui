@@ -90,6 +90,10 @@ void Page::Render() {
     }
     OnOverlay(dl);
 
+    // 焦点框图层：页面内容之上、Toast 之下。一帧只画一个（CurrentFocus），
+    // 与具体控件解耦；控件只需要 Widget::BuildFocusVisual() 描述自己想要的框。
+    focus_ring_.Draw(dl, Global::focused);
+
     // Toast 画在页面内容（含 overlay）之上：Global::draw_list 是 ImGui 的前景 draw list，
     // 所以这一层已经高于所有 ImGui 窗口，不会被普通控件遮挡。
     toasts_.Draw(dl);

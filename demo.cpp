@@ -54,11 +54,11 @@ namespace Theme = gui_dev::cv::Theme;
 namespace Global = gui_dev::cv::Global;
 namespace Anim = gui_dev::cv::Anim;
 
-// 启动缩放：1.5 = 整套 UI（含字体与控件几何）放大 1.5 倍。
-// 后端把 drawable 除以 (auto_scale * zoom) 得到逻辑画布，所以放大后逻辑画布变成 853x480，
+// 启动缩放：1.2 = 整套 UI（含字体与控件几何）放大 1.2 倍。
+// 后端把 drawable 除以 (auto_scale * zoom) 得到逻辑画布，所以放大后逻辑画布变成 1067x600，
 // 布局全部按画布尺寸自适应（面板/内容区尺寸都从 Global::canvas_size 推）。
 // 想回到 1:1 用 GUI_DEV_ZOOM=1，或直接改这里。
-constexpr float kDefaultZoom = 1.5f;
+constexpr float kDefaultZoom = 1.2f;
 
 // 验收用开关：GUI_DEV_TRACE_SIGNAL=1 时把按钮状态变化打到终端，方便脚本化测试
 bool TraceSignal() {
@@ -89,7 +89,7 @@ public:
         BuildNavPage();    // tab 3 导航
 
         // 主题开关是「应用级」的：钉在内容面板右下角，任何 tab 下都能切，不放进 tab 页面
-        theme_button_ = content_panel_->Emplace<IconButton>(Icons::Glyph(ThemeIcon()));
+        theme_button_ = tab_panel_->Emplace<IconButton>(Icons::Glyph(ThemeIcon()));
         theme_button_->SetName("btn_theme");
         theme_button_->setSide(kControlSize);
         theme_button_->setShape(IconButtonShape::RoundedSquare);
@@ -458,9 +458,10 @@ public:
         content_panel_->moveTo(kMargin + tab_w + kPanelGap, kMargin);
         content_panel_->resize(page_w, content_h);
 
-        // TabColumn 撑满面板内容区（位置是相对面板内容区的）
+        // TabColumn 撑满面板内容区，底部留一格给主题开关（位置都相对面板内容区）
         tab_column_->position = ImVec2(0.0f, 0.0f);
-        tab_column_->size = ImVec2(Theme::kTabColumnWidth, TabInnerHeight());
+        tab_column_->size = ImVec2(Theme::kTabColumnWidth, TabInnerHeight() - kControlSize - kRowGap);
+        theme_button_->moveTo(0.0f, TabInnerHeight() - kControlSize);
     }
 
     void LayoutContent() {
@@ -468,30 +469,30 @@ public:
         const float top = 0.0f;
         const float header_w = ContentWidth();
 
-        // ---- 按钮页：左列 = 6 个变体 + 全局开关，右列 = 可聚焦 Box + 图标按钮 ----
-        // （全局开关必须落在左列的上下键路径上，否则手柄导航够不着）
-        // 右列起点：正常是左列右边 24px；画布窄（UI 放大）时贴右边缘，别戳出面板
-        const float right_x = gui_dev::cv::Minf(left + kStackWidth + 24.0f,
-                                                left + gui_dev::cv::Maxf(ContentWidth() - 124.0f, kStackWidth + 8.0f));
+        // ---- 按钮页：从上到下一条竖列，所有行按钮宽度自适应内容区 ----
         float y = top;
         header_buttons_->position = ImVec2(left, y);
-        header_buttons_->size.x = kStackWidth;
+        header_buttons_->size.x = header_w;
         y += kHeaderHeight + kHeaderGap;
-        for (std::size_t i = 0; i < stack_buttons_.size(); ++i) {
-            stack_buttons_[i]->moveTo(left, y + static_cast<float>(i) * (Theme::kControlHeight + 10.0f));
-        }
-        y += static_cast<float>(stack_buttons_.size()) * (Theme::kControlHeight + 10.0f) - 10.0f + kSectionGap;
-        disable_toggle_->moveTo(left, y);
 
-        // 右列
-        const float box_y = top + kHeaderHeight + kHeaderGap;
-        box_->moveTo(right_x, box_y);
-        const float icons_header_y = box_y + 124.0f + kSectionGap;
-        header_icons_->position = ImVec2(right_x, icons_header_y);
-        header_icons_->size.x = gui_dev::cv::Maxf(header_w - right_x, 0.0f);
-        const float icon_y = icons_header_y + kHeaderHeight + kHeaderGap;
-        icon_square_->moveTo(right_x, icon_y);
-        icon_circle_->moveTo(right_x + kControlSize + 12.0f, icon_y);
+        for (std::size_t i = 0; i < stack_buttons_.size(); ++i) {
+            stack_buttons_[i]->resize(header_w, Theme::kControlHeight); // 宽度跟着内容区
+            stack_buttons_[i]->moveTo(left, y + static_cast<float>(i) * (Theme::kControlHeight + kRowGap));
+        }
+        float after = y + static_cast<float>(stack_buttons_.size()) * (Theme::kControlHeight + kRowGap);
+        disable_toggle_->resize(header_w, Theme::kControlHeight); // 全局开关也撑满
+        disable_toggle_->moveTo(left, after);
+        after += Theme::kControlHeight + kSectionGap;
+
+        header_icons_->position = ImVec2(left, after);
+        header_icons_->size.x = header_w;
+        after += kHeaderHeight + kHeaderGap;
+
+        // 最后一行：两个方形 / 圆形图标按钮 + 一个可聚焦 Box（这三个保持各自形状，不做自适应）
+        icon_square_->moveTo(left, after);
+        icon_circle_->moveTo(left + kControlSize + kRowGap, after);
+        box_->resize(124.0f, 124.0f);
+        box_->moveTo(left + (kControlSize + kRowGap) * 2.0f, after);
 
         // ---- 徽标页：标题下面、内容区里居中 ----
         header_badges_->position = ImVec2(left, top);
@@ -526,8 +527,6 @@ public:
             capsule_->size.x = kCapsuleWidth;
         }
 
-        // 主题开关：钉内容面板右下角
-        theme_button_->moveTo(ContentWidth() - kControlSize, ContentHeight() - kControlSize);
     }
 
     // 一键切浅色 / 深色：换调色板 + 约定样式，再让整棵组件树重新取色
@@ -571,6 +570,7 @@ private:
     static constexpr float kCapsuleWidth = 440.0f;
     static constexpr float kHeaderHeight = 58.0f;
     static constexpr float kHeaderGap = 8.0f;   // 标题到本区块内容
+    static constexpr float kRowGap = 8.0f;      // 行间距
     static constexpr float kSectionGap = 16.0f; // 上一块内容到下一个标题
     static constexpr float kPageEnterDuration = 0.22f; // 子页入场时长（快速弹入）
     static constexpr float kPageExitDuration = 0.12f;  // 子页退场时长
@@ -579,16 +579,22 @@ private:
     static constexpr float kPageEnterOffset = 52.0f;   // 入场时从右边弹进来的距离
     static constexpr float kPageExitOffset = 18.0f;    // 退场时往左滑出
 
-    // 内容面板的内容区（位置都相对它，所以从 0 开始）
-    static float ContentWidth() {
-        return Global::canvas_size.x - kMargin * 2.0f - (Theme::kTabColumnWidth + kTabPanelPadding * 2.0f) -
-               kPanelGap - kContentPanelPadding * 2.0f;
+    // 面板的内容区尺寸（= 面板尺寸 - padding*2 - 边框*2）。位置都相对它，所以从 0 开始。
+    // 注意边框也要减：Box 走 Global::component_style 有 1px 边框，不减的话内容会超出 2px
+    // （表现为面板底部多出一条横向滚动条）。
+    static float PanelInner(float panel_size, float padding) {
+        return panel_size - (padding + Global::component_style.border_width) * 2.0f;
     }
+    static float TabPanelWidth() { return Theme::kTabColumnWidth + kTabPanelPadding * 2.0f; }
+    static float ContentPanelWidth() {
+        return Global::canvas_size.x - kMargin * 2.0f - TabPanelWidth() - kPanelGap;
+    }
+    static float ContentWidth() { return PanelInner(ContentPanelWidth(), kContentPanelPadding); }
     static float ContentHeight() {
-        return Global::canvas_size.y - kMargin * 2.0f - kContentPanelPadding * 2.0f;
+        return PanelInner(Global::canvas_size.y - kMargin * 2.0f, kContentPanelPadding);
     }
     static float TabInnerHeight() {
-        return Global::canvas_size.y - kMargin * 2.0f - kTabPanelPadding * 2.0f;
+        return PanelInner(Global::canvas_size.y - kMargin * 2.0f, kTabPanelPadding);
     }
 
     static gui_dev::Icons::Material ThemeIcon() {

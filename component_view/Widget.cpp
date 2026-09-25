@@ -637,16 +637,22 @@ void Widget::DrawBackground(ImDrawList* dl) {
     Draw::ComponentBox(dl, draw_rect_, visual);
 }
 
-void Widget::DrawFocusFrame(ImDrawList* dl) {
+FocusVisual Widget::BuildFocusVisual() const {
+    FocusVisual visual;
     if (!focus_frame || focus_mix <= 0.02f) {
-        return;
+        return visual;
     }
+    // 单色圆角框：外扩量随焦点动画一起长出来（和原来 DrawFocusFrame 的算法一致）
     const float scale = draw_transform_.AverageScale();
     const float ring_offset = focus_frame_offset * scale * (0.6f + 0.4f * focus_mix);
-    const Rect ring = draw_rect_.Expanded(ring_offset);
-    const float radius = (Maxf(Maxf(CornerTL(), CornerTR()), Maxf(CornerBL(), CornerBR())) * scale) + ring_offset;
-    Draw::RoundedRectOutline(dl, ring, Theme::Alpha(focus_frame_color, focus_mix), focus_frame_width * scale, radius,
-                             radius, radius, radius);
+    visual.enabled = true;
+    visual.flowing = false;
+    visual.rect = draw_rect_.Expanded(ring_offset);
+    visual.radius = Maxf(Maxf(CornerTL(), CornerTR()), Maxf(CornerBL(), CornerBR())) * scale + ring_offset;
+    visual.width = Maxf(focus_frame_width * scale, 1.0f);
+    visual.alpha = focus_mix * EffectiveOpacity();
+    visual.color = focus_frame_color;
+    return visual;
 }
 
 void Widget::DrawScrollBar(ImDrawList* dl) {
@@ -731,7 +737,6 @@ void Widget::DrawTree(ImDrawList* dl, const Transform2D& parent_transform) {
     OnDrawContent(dl, draw_transform_.Apply(content_rect));
     DrawChildren(dl);
     OnDrawOverlay(dl, draw_transform_.Apply(content_rect));
-    DrawFocusFrame(dl);
     if (clip) {
         dl->PopClipRect();
     }

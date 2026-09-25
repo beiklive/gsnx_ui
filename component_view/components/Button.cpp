@@ -301,24 +301,25 @@ void Button::OnDrawContent(ImDrawList* dl, const Rect& content) {
     }
 }
 
-void Button::OnDrawOverlay(ImDrawList* dl, const Rect& content) {
-    (void)content;
+FocusVisual Button::BuildFocusVisual() const {
+    FocusVisual visual;
     if (!flowing_focus || focus_mix <= 0.01f) {
-        return;
+        return visual;
     }
     // 完整闭合的流光框：四边都在，颜色沿边框流动，与按钮留 margin（默认 2px）
+    const Global::ComponentStyle& style = Global::component_style;
     const float margin = ResolvedFocusMargin();
-    const float width = ResolvedFocusWidth();
-    const Rect ring = DrawRect().Expanded(margin);
-    const float phase = Global::time * Global::component_style.focus_flow_speed + focus_phase_offset;
-    const float saturation =
-        focus_saturation >= 0.0f ? focus_saturation : Global::component_style.focus_saturation;
-    const float brightness =
-        focus_brightness >= 0.0f ? focus_brightness : Global::component_style.focus_brightness;
+    visual.enabled = true;
+    visual.flowing = true;
+    visual.rect = DrawRect().Expanded(margin);
     // 外扩后的圆角 = 按钮圆角 + 外扩量，这样流光框的圆角跟按钮轮廓平行
-    // 焦点框也跟着 Widget::opacity 淡入淡出（入场/禁用时和按钮本体一致）
-    Draw::FlowingRing(dl, ring, width, phase, saturation, brightness, focus_mix * EffectiveOpacity(), 3.0f,
-                      corner_radius + margin);
+    visual.radius = corner_radius + margin;
+    visual.width = ResolvedFocusWidth();
+    visual.alpha = focus_mix * EffectiveOpacity(); // 入场/禁用时和按钮本体一起淡
+    visual.phase = Global::time * style.focus_flow_speed + focus_phase_offset;
+    visual.saturation = focus_saturation >= 0.0f ? focus_saturation : style.focus_saturation;
+    visual.brightness = focus_brightness >= 0.0f ? focus_brightness : style.focus_brightness;
+    return visual;
 }
 
 bool Button::OnPadAction(InputAction action) {
@@ -440,7 +441,7 @@ void IconButton::drawCaption(ImDrawList* dl) const {
 }
 
 void IconButton::OnDrawOverlay(ImDrawList* dl, const Rect& content) {
-    Button::OnDrawOverlay(dl, content); // 流光聚焦框
+    (void)content; // 焦点框由 FocusRing 图层画
     drawCaption(dl);
 }
 

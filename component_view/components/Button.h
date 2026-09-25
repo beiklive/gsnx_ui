@@ -100,7 +100,8 @@ protected:
 
     ImVec2 MeasureContent(const ImVec2& available) override;
     void OnDrawContent(ImDrawList* dl, const Rect& content) override;
-    void OnDrawOverlay(ImDrawList* dl, const Rect& content) override;
+    // 焦点框改成页面级图层统一画：这里只描述「流光框长什么样」
+    cv::FocusVisual BuildFocusVisual() const override;
     bool OnPadAction(InputAction action) override;
 
     float mainFontSize() const { return font_size > 0.0f ? font_size : Theme::kFontBody; }
