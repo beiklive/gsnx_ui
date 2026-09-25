@@ -40,6 +40,7 @@ using gui_dev::cv::EdgeInsets;
 using gui_dev::cv::CustomButton;
 using gui_dev::cv::IconButton;
 using gui_dev::cv::Header;
+using gui_dev::cv::Overflow;
 using gui_dev::cv::IconButtonShape;
 using gui_dev::cv::IconTextButton;
 using gui_dev::cv::OptionButton;
@@ -53,11 +54,11 @@ namespace Theme = gui_dev::cv::Theme;
 namespace Global = gui_dev::cv::Global;
 namespace Anim = gui_dev::cv::Anim;
 
-// 启动缩放：1.0 = 不额外缩放（验过的那版行为）。
-// 之前默认 1.25 会让逻辑画布从 1280x720 变成 1024x576，进而让后端那段「鼠标坐标修正」开始生效
-// （缩放 1.0 时它正好是空操作），怀疑因此把 Switch 上的触摸落点带偏了 —— 先回到 1.0。
-// 需要放大时用 GUI_DEV_ZOOM=<倍率> 或直接改这里。
-constexpr float kDefaultZoom = 1.0f;
+// 启动缩放：1.5 = 整套 UI（含字体与控件几何）放大 1.5 倍。
+// 后端把 drawable 除以 (auto_scale * zoom) 得到逻辑画布，所以放大后逻辑画布变成 853x480，
+// 布局全部按画布尺寸自适应（面板/内容区尺寸都从 Global::canvas_size 推）。
+// 想回到 1:1 用 GUI_DEV_ZOOM=1，或直接改这里。
+constexpr float kDefaultZoom = 1.5f;
 
 // 验收用开关：GUI_DEV_TRACE_SIGNAL=1 时把按钮状态变化打到终端，方便脚本化测试
 bool TraceSignal() {
@@ -116,6 +117,11 @@ public:
         content_panel_ = Root().Emplace<Box>("content_panel");
         content_panel_->roundCorners(Global::component_style.corner_radius);
         content_panel_->padding = EdgeInsets::All(kContentPanelPadding);
+        // 内容装不下时可以滚（UI 放大到 1.5 倍后逻辑画布只有 853x480，按钮页会超出来）；
+        // 装得下时滚动条自动隐藏，所以 1.0 倍下看不出区别。
+        content_panel_->overflow = Overflow::Scroll;
+        content_panel_->scroll_bar_auto_hide = true;
+        content_panel_->scroll_overscroll = true;
 
         ApplyPanelColors();
     }
@@ -464,7 +470,9 @@ public:
 
         // ---- 按钮页：左列 = 6 个变体 + 全局开关，右列 = 可聚焦 Box + 图标按钮 ----
         // （全局开关必须落在左列的上下键路径上，否则手柄导航够不着）
-        const float right_x = left + kStackWidth + 24.0f;
+        // 右列起点：正常是左列右边 24px；画布窄（UI 放大）时贴右边缘，别戳出面板
+        const float right_x = gui_dev::cv::Minf(left + kStackWidth + 24.0f,
+                                                left + gui_dev::cv::Maxf(ContentWidth() - 124.0f, kStackWidth + 8.0f));
         float y = top;
         header_buttons_->position = ImVec2(left, y);
         header_buttons_->size.x = kStackWidth;

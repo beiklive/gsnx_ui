@@ -60,6 +60,16 @@ void Page::Update(float dt) {
     Global::NavigateFocus(focusables_);
 
     root_->UpdateTree(dt);
+
+    // 焦点自动滚动：焦点变了就把它滚进所在的滚动容器（面板/列表都能用）。
+    // 之前 EnsureVisible 全库没有调用点，滚动容器只能靠控件自己滚。
+    if (Global::focused != last_focused_) {
+        if (Global::focused != nullptr) {
+            root_->EnsureVisible(Global::focused);
+        }
+        last_focused_ = Global::focused;
+    }
+
     OnInput();
     OnUpdate(dt);
 

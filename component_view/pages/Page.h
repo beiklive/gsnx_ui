@@ -58,6 +58,7 @@ private:
     UiContext* ui_ = nullptr;
     std::vector<Widget*> focusables_;
     ToastManager toasts_;
+    Widget* last_focused_ = nullptr; // 焦点自动滚动用：焦点变化时把控件滚进它所在的滚动容器
     bool built_ = false;
 };
 
