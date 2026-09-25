@@ -11,6 +11,7 @@
 
 #include "component_view/Global.h"
 #include "component_view/Theme.h"
+#include "component_view/components/Badge.h"
 #include "component_view/components/Box.h"
 #include "component_view/components/Button.h"
 #include "component_view/pages/Page.h"
@@ -23,7 +24,10 @@ namespace {
 
 using gui_dev::InputAction;
 namespace Icons = gui_dev::Icons;
+using gui_dev::cv::Badge;
+using gui_dev::cv::BadgeStyle;
 using gui_dev::cv::Box;
+using gui_dev::cv::EmuPlatform;
 using gui_dev::cv::Button;
 using gui_dev::cv::CustomButton;
 using gui_dev::cv::IconButton;
@@ -147,6 +151,9 @@ public:
             box_->fillWith(box_->hasFocus() ? Theme::kAccent : Theme::kBgWidget); // 显式设色后就不再跟随主题
         });
 
+        // 机种徽标墙：14 个机种 + 一个「其它」兜底，放在网格视图那种容器里
+        BuildBadgeWall();
+
         // 右侧控制列：从上往下排控制按钮（主题 / 放大 / 缩小）
         theme_button_ = AddControl(Icons::Material::DarkMode, "btn_theme", ThemeName());
         connect(theme_button_, &IconButton::clicked, this, [this] { ToggleTheme(); });
@@ -174,6 +181,40 @@ public:
         RefreshTheme(); // 内部：Global::ApplyTheme() + 根节点装饰复位 + 整棵树重新取色
         theme_button_->setIcon(Icons::Glyph(ThemeIcon()));
         theme_button_->setSubtitle(ThemeName());
+    }
+
+    // 徽标墙：3 列 × 5 行（14 个机种 + 其它），底下一个容器 Box 当网格视图那层底
+    void BuildBadgeWall() {
+        Box* panel = Root().Emplace<Box>("badge_panel"); // 先 Emplace：画在徽标下面
+        panel->moveTo(kPanelX, kPanelY);
+        panel->resize(kPanelW, kPanelH);
+
+        constexpr int kBadgeCount = 15; // 14 个机种 + 其它
+        for (int i = 0; i < kBadgeCount; ++i) {
+            const EmuPlatform platform = i < 14 ? static_cast<EmuPlatform>(i + 1) : EmuPlatform::Unknown;
+            // 徽标直接挂根节点：position 就是规格里的绝对 (x, y)
+            Badge* badge = Root().Emplace<Badge>(platform);
+            badge->SetName("badge");
+            if (platform == EmuPlatform::Unknown) {
+                badge->setText("其它"); // 表里兜底那条文字是空的，这里手动给一个看颜色
+            }
+            badge->moveTo(kBadgeX + static_cast<float>(i % 3) * kBadgeCellW,
+                          kBadgeY + static_cast<float>(i / 3) * kBadgeCellH);
+        }
+
+        // 变体演示：iisu 封面卡（胶囊 + 白字）、GameDataView（宽固定 62 的固定蓝）、GridItem（白字）
+        const float variants_y = kBadgeY + 5.0f * kBadgeCellH + 6.0f;
+        Badge* iisu = Root().Emplace<Badge>(EmuPlatform::NDS);
+        iisu->setStyle(BadgeStyle::IisuCover);
+        iisu->moveTo(kBadgeX, variants_y);
+
+        Badge* data_view = Root().Emplace<Badge>(EmuPlatform::PSP);
+        data_view->setStyle(BadgeStyle::GameDataView);
+        data_view->moveTo(kBadgeX + 110.0f, variants_y - 3.0f);
+
+        Badge* grid_item = Root().Emplace<Badge>(EmuPlatform::Arcade);
+        grid_item->setStyle(BadgeStyle::GridItem);
+        grid_item->moveTo(kBadgeX + 220.0f, variants_y);
     }
 
     // 控制列里的按钮：图标 + 按钮外侧说明行，边长统一
@@ -240,6 +281,16 @@ private:
         return Theme::IsLight() ? Icons::Material::LightMode : Icons::Material::DarkMode;
     }
     static const char* ThemeName() { return Theme::IsLight() ? "浅色" : "深色"; }
+
+    // 徽标墙几何
+    static constexpr float kPanelX = 640.0f;
+    static constexpr float kPanelY = 12.0f;
+    static constexpr float kBadgeX = kPanelX + 14.0f; // 第一个徽标的绝对坐标
+    static constexpr float kBadgeY = kPanelY + 12.0f;
+    static constexpr float kBadgeCellW = 150.0f;
+    static constexpr float kBadgeCellH = 34.0f;
+    static constexpr float kPanelW = kBadgeCellW * 3.0f + 22.0f;
+    static constexpr float kPanelH = kBadgeCellH * 5.0f + 48.0f;
 
     // UI 缩放台阶：0.8 起步到 2.0，中间 1.0 是「不额外缩放」
     static constexpr int kZoomCount = 9;

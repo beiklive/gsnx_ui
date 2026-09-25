@@ -28,7 +28,7 @@ GUI_DEV/
 │   ├── Types.h                 # Rect / EdgeInsets / BorderStyle / ShadowStyle / Transform2D / 枚举
 │   ├── Draw.{h,cpp}            # 绘制原语：圆角矩形 / 软阴影 / 描边文字 / 省略号 / 流光框 / 跑马灯
 │   ├── Widget.{h,cpp}          # ★ 父类：坐标 / 尺寸 / 圆角 / 边框 / 阴影 / 溢出滚动 / 焦点动画 / 事件
-│   ├── components/             # 组件：Box（容器/可聚焦控件）、Button（7 种形态）
+│   ├── components/             # 组件：Box（容器/可聚焦控件）、Button（7 种形态）、Badge（机种徽标）
 │   └── pages/                  # Page 基类（Demo 宿主）
 ├── examples/                   # 框架示例（与组件库互不依赖）
 │   ├── imgui_tour/             # ★ ImGui 自身能力导览（8 个 Tab，页面不滚动）
@@ -281,6 +281,53 @@ inline constexpr ImVec4 kScrim  = rgba(8, 8, 10, 200);   // #08080AC8（带 alph
 
 `Theme.h` 末尾有一组 `static_assert`，只校验**写法**（`rgb()`/`rgba()`/`U32()`/夹取/带 alpha 的
 `U32` 都能精确还原成 `IM_COL32(...)`）。调色板的具体数值故意不锁死——那几个值是随时可以调的。
+
+### 机种徽标（Badge）
+
+从现网 NanoVG 实现提取的绘制方法：**运行时画一个圆角矩形 + 居中短文本**，没有图片、没有九宫格。
+
+```text
+textW  = 文本宽度(text)
+badgeW = fixed_width ? min_width : max(min_width, textW + 2 * pad_x)
+badgeH = height
+圆角   = radius（<0 = 胶囊 = height/2）
+绘制   = 圆角矩形填底色 + 文本居中落在 (x + badgeW/2, y + badgeH/2)
+返回   = badgeWidth()   → 调用方接右侧元素（间距 10）
+```
+
+```cpp
+Badge* badge = panel->Emplace<Badge>(EmuPlatform::GBA); // 查表注入文字 + 平台色
+badge->moveTo(x, y);
+const float w = badge->badgeWidth();                    // 右侧元素 = x + w + 10
+```
+
+| 变体（`setStyle`） | fontSize | 高 | minWidth | padX | 圆角 | 底色 | 文字色 |
+|---|---|---|---|---|---|---|---|
+| `GridListDetail`（默认） | 12 | 20 | 36 | 8 | 4 | 平台色 α220 | 主题正文色（浅色主题=深字） |
+| `IisuCover` | 12 | 17 | 30 | 14 | 胶囊 | 平台色 α220 ×`alpha` | 白 α255 ×`alpha` |
+| `GameDataView` | 14 | 26 | 62（**宽固定**） | 8 | 5 | **固定** rgba(79,153,222,205) | 白 α245 |
+| `GridItem` | 12 | 20 | 36（文本 >3 字符时 58） | 8 | 4 | 平台色 | 白 α255 |
+
+`alpha` 是给宿主喂动画进度用的倍率（iisu 封面卡那种淡入）。文字与颜色**不在控件里硬编码**：
+`setPlatform()` 走 `PlatformBadgeInfoOf()` 查表（`EmuPlatform` = 1..14，与现网枚举、Web 端顺序一致），
+需要自定义就 `setText()` / `setColors()`。
+
+| id | 文字 | 底色 RGB（α220） | id | 文字 | 底色 RGB（α220） |
+|---|---|---|---|---|---|
+| 1 | GBA | 108,77,191 | 8 | MD | 23,55,139 |
+| 2 | GBC | 0,112,221 | 9 | Arcade | 236,134,44 |
+| 3 | GB | 0,168,107 | 10 | DC | 0,142,180 |
+| 4 | FC | 218,41,28 | 11 | PSP | 67,118,226 |
+| 5 | SFC | 160,100,180 | 12 | PS1 | 74,74,82 |
+| 6 | NDS | 54,150,190 | 13 | Saturn | 68,82,150 |
+| 7 | 3DS | 230,79,91 | 14 | GC / Wii | 54,102,196 |
+| 其它 | （空文字，规格里不画） | 100,100,100,200 | | | |
+
+demo 里 3 列 × 5 行把 14 个机种 + 一个「其它」（手动给了文字才看得见颜色）全摆出来了，
+底下再放三个变体（胶囊 / 固定宽蓝 / GridItem 白字）供对照。
+
+> 图片徽标层（`resources/img/LogoLayer/*.png`，跟封面同一个贴合矩形 + 圆角 8、盖在填充后描边前）
+> 是和文字徽标**两套东西**，现网也还没在画，这里没有实现。
 
 ### 主题：浅色 / 深色（运行时整套切换）
 
@@ -865,6 +912,16 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   关掉说明行后主文字就停在偏上 8px 的位置；现在按文字块自己的高度居中。
   实测（说明行关）：无线网络主文字墨迹中心 169.5 / 存储路径 231.5 vs 按钮中心 170 / 232；
   普通按钮（无说明行）主文字墨迹中心 y=45.5、x=217 vs 按钮中心 (46, 218)。
+- 已确认（机种徽标 Badge）：按现网 NanoVG 实现的几何做了 `component_view/components/Badge.{h,cpp}`，
+  文字与颜色走 `PlatformBadgeInfoOf()` 查表（1..14 + 其它），四种变体（GridListDetail / IisuCover /
+  GameDataView / GridItem）用 `setStyle()` 选。demo 里 3×5 摆出全部 14 个机种 + 「其它」，另加一行
+  变体对照。
+  抓帧核对（浅色主题、面板底色 232,232,235）：GBA 徽标 x 654.5~689（宽 36 = minWidth）、
+  y 24.5~43（高 20），与规格的 `(654,24,36,20)` 一致；填充色 (125,98,197) 正好等于
+  平台色 α220 叠在面板上（0.863×(108,77,191) + 0.137×面板）；文本墨迹中心 34.8 vs 徽标中心 34。
+  变体：iisu 胶囊 46×17、GameDataView 宽 62 高 26 且底色 α205 固定蓝 (109,168,225)、
+  GridItem「Arcade」宽 58（文本 >3 字符触发长文本 minWidth）；墙内同机种默认样式宽 42
+  （= textW 26 + 2×padX 16 > minWidth 36，符合公式）。
 - 已确认（右侧控制列扩到三个 + UI 缩放）：控制列现在是「浅色/深色主题 / 放大 / 缩小」（56px 一列、
   间距 12px，贴右边缘 20px，每帧按画布宽度重排）。缩放实现：`Backend::SetUiZoom()`（0.5~3.0）
   把用户倍率乘进自动缩放，逻辑画布 = drawable / (自动缩放 × 倍率)，倍率变化时递增 `DisplayGeneration`
