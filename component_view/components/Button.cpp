@@ -608,6 +608,12 @@ void CustomButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
 FileButton::FileButton() {
     name = "file_button";
     text_align = TextAlign::Left; // 左：图标 + 文件名
+    ApplyFontSizes();             // 文件名走自己的 name_font_size，右侧信息继续用说明行字号
+}
+
+// 左文件名用 name_font_size，说明行（右侧信息复用 subFontSize()）保持 kFontSmall
+void FileButton::ApplyFontSizes() {
+    setFontSize(name_font_size > 0.0f ? name_font_size : Theme::kFontBody, Theme::kFontSmall);
 }
 
 FileButton::FileButton(FileKind value, std::string file_name, long long size) : FileButton() {
@@ -646,6 +652,12 @@ FileButton& FileButton::setFileKind(FileKind value) {
 
 FileButton& FileButton::setFileSize(long long value) {
     size_bytes = value;
+    return *this;
+}
+
+FileButton& FileButton::setNameFontSize(float value) {
+    name_font_size = value;
+    ApplyFontSizes();
     return *this;
 }
 

@@ -192,7 +192,7 @@ panel->focusVisual(1.04f);            // 聚焦时的缩放/位移/焦点框
 | `CustomButton` | 自定义右侧文字/颜色（`setRightText`） | 文字 |
 | `OptionButton` | LR 选项选择器：`[L] 选项 [R]`，L/R 切换 | `[L] 值 [R]`，超长跑马灯 |
 | `ValueButton` | LR 数值选择器：长按加速，松开才发 `valueChanged` | `[L] 值 [R]` |
-| `FileButton` | 文件列表行：图标按类型（文件夹/文件/图片/压缩包/文本），行高 `kRowHeight = 70`（= GBAStation FileListPage 的 `m_itemHeight`） | 文件夹 → 「文件夹」；文件 → 大小（1024 进制、单位自动换算；未知则留空） |
+| `FileButton` | 文件列表行：图标按类型（文件夹/文件/图片/压缩包/文本），行高 `kRowHeight = 70`（= GBAStation FileListPage 的 `m_itemHeight`）；左侧文件名由**独立变量** `name_font_size` 控制（默认 `Theme::kFontHeader` = 20，`setNameFontSize()` 可改，0 = 回落正文 16） | 文件夹 → 「文件夹」；文件 → 大小（1024 进制、单位自动换算；未知则留空；始终用说明行字号 14） |
 
 通用能力：`setIcon/setText/setSubtitle/showSubtitle/setTextAlign/setFontSize/setTextColors/setBorder/
 setCornerRadius/setShadow/setFlowingFocus/setContentPadding/resize/moveTo`；
@@ -799,5 +799,5 @@ Section Title（Header）
 | 卡牌行 | CardCarousel（学习 GBAStation SwitchLayout 的游戏卡片行）：封面 = `Image(Cover)`、平台徽标查 `PlatformBadgeInfoOf()`、选中卡居中放大 + 全局流光框、空位占位卡；←/→ 相邻切（长按 0.30s 后 0.085s 连发）、L/R 整屏；触摸点选 / 再点启动 / **横向拖动时选中跟着手指走、松手吸附（不再弹回原焦点）** / 滚轮；封面走 `Global::image_source` |
 | 功能按钮行 | FunctionBar（学习 GBAStation SwitchLayout 的功能按钮行）：胶囊容器（左右半圆、上下直线）+ 等距排开的**无边框圆形 IconButton**；←/→ 移焦点、A/点击触发并汇总成 `activated(index)`；**名字只在聚焦时显示在容器下方**（淡入淡出、常驻行高不推布局）；分区随 `Rebuild()` 同步给子项 |
 | 拖动惯性 | 滚动容器拖动松手后继续滑一段（速度 = 手指速度、指数衰减、到边即停）：实测拖 210px 后惯性再滑 100px（`scroll_target` 210 → 310.7）平滑收尾；卡牌行自己的横向拖动同样带甩动（拖 300px 停在 2，甩动后到 4/5） |
-| 文件列表行 | `FileButton`：左图标（类型字形：folder / insert_drive_file / image / archive / description）+ 文件名，右侧文件夹显示「文件夹」、文件显示大小；实测 512 B / 4.71 KB / 1.25 MB / 3.40 GB 四档单位自动换算；行高 70（GBAStation FileListPage 同值）。字形自检从 42 项升到 43 项（新增 `insert_drive_file`，字体覆盖通过） |
+| 文件列表行 | `FileButton`：左图标（类型字形：folder / insert_drive_file / image / archive / description）+ 文件名（独立 `name_font_size`，默认 20），右侧文件夹显示「文件夹」、文件显示大小（14）；实测 512 B / 4.71 KB / 1.25 MB / 3.40 GB 四档单位自动换算；行高 70（GBAStation FileListPage 同值）。字形自检从 42 项升到 43 项（新增 `insert_drive_file`，字体覆盖通过） |
 | 视觉特效 | 未引入 Glass / Neon / Glow / 渐变 / 粒子 |

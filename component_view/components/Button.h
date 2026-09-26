@@ -248,7 +248,7 @@ public:
     };
 
     // GBAStation FileListPage 的行高（FileListView.hpp: m_itemHeight = 70）
-    static constexpr float kRowHeight = 70.0f;
+    static constexpr float kRowHeight = 50.0f;
 
     FileButton();
     // 一行 = 类型 + 文件名 + 大小（bytes < 0 = 未知；文件夹不用给）
@@ -259,9 +259,15 @@ public:
     ImVec4 right_color = Theme::kTextMuted; // 右侧信息默认用次级文字色
     bool right_color_follows_theme = true;
 
+    // 左侧文件名的字号：**独立变量**，不跟着普通 Button 的正文走（文件名要更醒目）。
+    // 0 表示回落到 Theme::kFontBody；右侧「文件夹 / 大小」始终用说明行字号（kFontSmall）。
+    float name_font_size = Theme::kFontHeader; // 默认 20（比正文 16 大一档）
+
     FileButton& setFile(FileKind value, std::string file_name, long long size = -1);
     FileButton& setFileKind(FileKind value);
     FileButton& setFileSize(long long value);
+    // 只改左侧文件名的大小（传 0 = 用 Theme::kFontBody）
+    FileButton& setNameFontSize(float value);
     FileButton& setRightColor(ImVec4 color);
     // 右侧那行字：文件夹 → 「文件夹」；文件 → 大小（未知/0 之外都按 1024 进制换算）
     std::string rightText() const;
@@ -273,6 +279,9 @@ protected:
     float rightSideWidth() const override;
     void drawRightSide(ImDrawList* dl, const Rect& right_rect) override;
     void OnThemeChanged() override;
+
+private:
+    void ApplyFontSizes(); // name_font_size -> Button::font_size（右侧仍用 kFontSmall）
 };
 
 // -------------------------------------------------------------- 6 LR 选项选择 --
