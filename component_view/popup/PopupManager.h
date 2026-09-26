@@ -43,6 +43,9 @@ public:
     Popup* ShowProgress(std::string title, std::string message, bool indeterminate = false);
     Popup* ShowRichText(std::string title, std::vector<RichText::Run> runs, float view_height = 0.0f,
                         PopupKind kind = PopupKind::Info);
+    // Markdown 弹窗：正文支持标题/粗体/列表/链接/代码块/图片（图片先由宿主解析成纹理再传 lookup）
+    Popup* ShowMarkdown(std::string title, std::string markdown, Markdown::ImageLookup lookup = {},
+                        float view_height = 0.0f, PopupKind kind = PopupKind::Info);
     Popup* ShowImage(std::string title, ImTextureRef texture, float width, float height);
     Popup* ShowCustom(std::string title, std::function<void(Widget& content)> builder,
                       PopupKind kind = PopupKind::Custom);

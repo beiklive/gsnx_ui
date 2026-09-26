@@ -425,8 +425,13 @@ Ellipsize / MarqueeText / FlowingRing / Hsv / CheckMark / TriangleRight / Rounde
 
 ### 9.2 还没有的（别的项目若需要，要补）
 
-`Label`（纯文本/多行）、`Image`、`ImageButton`、`Checkbox`、`RadioGroup`、`Slider`、`Progress`、
-`List`（列表/列表行）、`ScrollBox`（独立滚动容器）、`Menu`、`InputField`、`VirtualKeyboard`、`Dialog`。
+`ImageButton`、`List`（列表/列表行）、`Menu`、`InputField`、`VirtualKeyboard`。
+
+已补齐：`Label` / `Separator` / `ProgressBar` / `Image` / `RichText` / `Markdown`（见 12.5）、
+`Popup` + `PopupManager`（见 12.3/12.4）；`Slider` = `ValueButton`，`Selector` = `OptionButton`。
+
+按当前规范**不打算补**：`Checkbox` / `RadioGroup`（用 Switch / Selector / Tab 表达）、
+独立 `ScrollBox`（页面整体滚动 + `Box + Overflow::Scroll` 已够用）。
 
 这些在**历史提交 `35ec70d`**（"回调改为 Qt 风格信号槽"）里有实现，且当时的 `Widget` API 与现在基本一致
 （`component_view/components/` 下 16 个组件 + `pages/` 下的展示页）。所以是**移植适配**（过一次编译 + 视觉对齐
@@ -550,11 +555,13 @@ IsOpening() / IsOpen() / IsClosing() / IsClosed()      openProgress() 取 0..1
 
 ```cpp
 popup->setText("单行或多行文本（自动换行）");
-popup->setRichText(runs, 240.0f);                  // 可滚动富文本：颜色/粗体/图标/自动换行
+popup->setRichText(runs, 240.0f);                  // 可滚动富文本：颜色/粗体/图标/图片块/自动换行
+popup->setMarkdown(md, image_lookup, 300.0f);      // Markdown：标题/粗体/列表/链接/代码块/图片
 popup->setImage(tex.ImGuiRef(), w, h);             // 等比缩放 + 居中 + 限高
 popup->setProgressContent("说明文字", false);       // 进度条 + 说明
-popup->setContentBuilder([](Widget& content) {     // 自定义页面：Tab/Checkbox/Radio/Slider/滚动列表…
-    content.Emplace<Checkbox>("启用多线程渲染");
+popup->setContentBuilder([](Widget& content) {     // 自定义页面：Tab / Selector / Switch / Slider / Button
+    auto* now = content.Emplace<OptionButton>("画面缩放");
+    now->setOptions({"整数缩放", "线性过滤", "CRT 扫描线"});
 });
 popup->setContentBuilder([](Widget& content) { /* 也可以直接什么都不放，纯按钮弹窗 */ });
 ```
@@ -624,14 +631,16 @@ if (p != nullptr) {
 | `Separator` | 分隔线（水平/垂直 + 缩进） | `setThickness()` `setInset()` |
 | `ProgressBar` | 确定 / 不确定进度 | `setValue()` `setIndeterminate()` `setLabel()` |
 | `Image` | 图片，等比缩放 / 居中 / 限高，缺资源画占位 | `setTexture(tex.ImGuiRef(), w, h)` `setFit(Image::Fit::Contain)` |
-| `RichText` | 富文本（颜色 / 粗体 / 图标 / 换行），配合 `Overflow::Scroll` 的 Box 使用 | `setRuns({{"文本", Theme::kError, true}})` |
-| `Checkbox` | 复选框（方框 + 勾选动画 + 文字） | `setChecked()` / `toggled` 信号 |
-| `RadioGroup` | 单选组（组内自己导航） | `setOptions()` / `selectionChanged` 信号 |
+| `RichText` | 富文本（颜色 / 粗体 / 字号 / 图标 / 图片块 / 换行） | `setRuns({{"文本", Theme::kError, true}})` |
+| `Markdown`（`Markdown.h`） | 把 Markdown 解析成 RichText 的 runs：标题 / 粗体 / 斜体 / 列表 / 链接 / 行内代码 / 代码块 / 图片 | `Markdown::ImagePaths()` + `Markdown::Parse()` |
+
+**当前不提供 Checkbox / Radio**（规范约定）：需要状态选择时用 `Switch`（`ToggleButton`）、
+`Selector`（`OptionButton`）或 `Tab`（`CapsuleTabs`），保持整库只有一套选择语义。
 
 **ScrollView 不需要新类型**：`Box + overflow = Overflow::Scroll` 就是滚动容器，
 焦点自动滚动由 `Page::Update()` 里的 `EnsureVisible` 负责（页面与弹窗内的滚动容器都覆盖）。
 
-复合控件（`RadioGroup` / `ValueButton` / `RichText`…）会吃掉它用的那根轴（`capture_vertical/horizontal`），
+复合控件（`ValueButton` / `CapsuleTabs` / `RichText`…）会吃掉它用的那根轴（`capture_vertical/horizontal`），
 离开它用**另一根轴或 B**；弹窗关闭始终有明确路径（B / 关闭按钮 / 遮罩，按弹窗类型配置）。
 
 ### 12.6 输入自动重复
@@ -652,7 +661,7 @@ if (repeat.Tick(pad, InputAction::Down, dt)) { /* 移动一格 */ }
 
 | 场景 | 脚本动作 | 实测结果 |
 |---|---|---|
-| 基础控件页 | 直接截图 | Label/Separator/ProgressBar/Image/Checkbox/Switch/Radio/Selector/Slider/CapsuleTabs/滚动列表全部正常渲染 |
+| 基础控件页 | 直接截图 | Box/Label/Button/Image(4 种能力)/ProgressBar/Separator/Selector/Switch/Slider/Tab 单栏渲染正常 |
 | 弹窗打开 + 焦点接管 | Tab→按钮页→打开信息弹窗 | 焦点 `popup_demo_1` → `popup_button_0`（焦点自动进入弹窗） |
 | 弹窗内导航（Focus Trap） | 弹窗内按 ←/→ | 焦点只在弹窗按钮间移动，Tab 列/背景控件不动 |
 | 确认弹窗默认焦点 | 打开确认弹窗 | 落在「取消」按钮 |
@@ -664,3 +673,93 @@ if (repeat.Tick(pad, InputAction::Down, dt)) { /* 移动一格 */ }
 | 响应式尺寸 | 4 种画布（1080×600 / 1067×1067 / 1067×645 / 1067×698） | 弹窗始终 640×178 并居中，受 max/min 与画布比例约束 |
 | 弹窗栈（嵌套） | 选择弹窗里选核心 → 再叠一个确认弹窗 | depth 1 → 2；焦点进入顶层；左右只在顶层内移动；确认后顶层关闭，焦点回到下面那层的选项（depth 1） |
 | 层级 | 截图核对 | 遮罩在页面之上、弹窗之上是焦点框、Toast 最顶层（弹窗打开时发通知，Toast 仍压在最上面） |
+
+
+---
+
+## 14. 视觉与布局规范（新增控件必须遵守）
+
+> 新增组件必须**融入**现有 UI 体系，而不是重新创造一套视觉风格。
+
+### 14.1 视觉基准是 Button / Box，不是新控件
+
+所有视觉属性都来自一个地方 —— `Global::component_style`（`Global.h`）：
+
+| 参数 | 用途 |
+|---|---|
+| `border_color` / `border_width` | 所有带框控件的边框（Button、Box、弹窗窗口） |
+| `corner_radius` | 所有圆角：Button、Box、弹窗窗口、`ProgressBar`、`Image`、Markdown 图片 |
+| `shadow_offset` / `shadow_blur` / `shadow_color` | 所有阴影：Button、Box、弹窗窗口 |
+| `content_padding` / `focus_*` / `lr_slot_width` / `marquee_speed` | 内容留白与焦点框 |
+| `popup_padding` / `popup_bar_height` / `popup_gap` / `popup_min_width` / `popup_max_*_ratio` / `popup_backdrop_alpha` / `popup_button_min_width` | 弹窗特有尺寸（圆角/边框/阴影仍然复用上面的） |
+
+新控件不要在自己的实现里写 `popupRadius` / `dialogRadius` / 另一套 shadow；需要覆盖时
+用链式接口在**实例**上覆盖（`setRadius()` / `setShadow()`），默认值永远来自全局。
+
+### 14.2 Popup 的视觉约束
+
+```text
+Popup Box（圆角/边框/阴影 = 全局 Box 样式）
+┌──────────────────────────────┐
+│  ██████████████████████████  │  ← 类型条在 Padding 之内，左右留白完全相等
+│                              │
+│  Title                       │
+│                              │
+│  Content（纵向布局）          │
+│                              │
+│        [取消]   [确认]        │
+└──────────────────────────────┘
+```
+
+* 类型条**属于弹窗内容**：宽度 = 弹窗宽 - 左右 padding，所以左右间距天然相等
+  （实测：左 24.2 / 右 25.4 逻辑 px，差值来自 1px 边框与抗锯齿）；
+* 类型条**不改变弹窗外部尺寸**、不压圆角、不影响阴影；
+* 不使用 Glass / Neon / Glow / 多层阴影 / 大范围模糊 —— 弹窗看起来就是"一个 Box + 一组 Button"。
+
+### 14.3 Demo 布局：Switch 设置页风格
+
+* 整体：左侧导航列 + 右侧内容区（保持现有结构）；
+* **右侧子页面一律「单栏 + 纵向排列」**，不并排多个 Column、不做 Dashboard / 卡片墙 / 三栏；
+* 每个区块的排版固定为：
+
+```text
+Section Title（Header）
+说明文字（小号浅色 Label）
+控件预览（Button / Image / ProgressBar / Selector / Switch / Slider / Tab / Separator）
+```
+
+* 页面内容超出屏幕时**由整页纵向滚动**（`content_panel_` 是那个滚动容器），
+  不为某个区块单独做滚动容器，也避免嵌套滚动；
+* 窄控件（Box、图标按钮）在单栏里水平居中，否则空间导航会「跳过」它们（宽行永远更近）。
+
+### 14.4 交互规范（手柄优先 + 触摸共享）
+
+* 每个交互元素都要能 `Focus → A → Activate` 走通；触摸则直接点（同一套 `Widget` / 焦点 /
+  命中 / Style，不做第二套移动端 UI）；
+* 手柄与触摸共享同一个焦点系统：触摸按下 = `HitTest → FocusTarget → Focus → Activate`；
+  页面上下滑动 = 在滚动容器上拖动（实测可用）；
+* 复合控件（`Selector` / `Slider` / `Radio` 式的组 / 富文本）会吃掉它使用的那根轴，
+  离开它用**另一根轴或 B**；弹窗始终保留明确关闭路径（B / 关闭按钮 / 遮罩，按类型配置）。
+
+### 14.5 Markdown 富文本的范围
+
+* 只支持：普通文字、标题（#/##/###）、粗体、斜体、列表（-/1.）、链接文本、行内代码、
+  代码块、换行、图片（`![alt](path)`）；
+* 图片走「宿主加载纹理 → `Markdown::ImageLookup` → 解析成图片块」这条路，控件层不碰平台接口；
+* **不做**：图表、数据可视化、Mermaid、数学公式、复杂 HTML、WebView、网页排版；
+* 斜体：当前字体没有斜体字重，解析结果里保留 `italic` 语义，视觉上暂按正文渲染
+  （以后换带斜体的字体即可直接生效，不需要改解析）。
+
+### 14.6 本轮规范对齐后的实测
+
+| 项目 | 结果 |
+|---|---|
+| 类型条位置 | 在弹窗 Padding 之内，左右边距 24.2 / 25.4 逻辑 px（相等） |
+| 圆角 / 阴影 | 与 Button 同一套（`component_style.corner_radius` / `shadow_*`），无自定义阴影 |
+| 单栏布局 | 基础控件页 / 按钮·弹窗页全部改为「Section Title → 说明 → 预览」纵向排列 |
+| 页面滚动 | 整页纵向滚动；触摸拖动可上下滑动（已实测） |
+| 独立滚动容器 | 未新增；弹窗内的富文本滚动仍是 `Box + Overflow::Scroll` |
+| Checkbox / Radio | 已从代码与 Demo 移除，改用 Switch / Selector / Tab |
+| Image | 用 `assets/img/test.png` 演示 Contain / Cover / None(裁剪) / 限高+居中 四种能力 |
+| Markdown | 标题 / 粗体 / 列表 / 链接 / 代码块 / 图片全部渲染；长文可上下键滚动 |
+| 视觉特效 | 未引入 Glass / Neon / Glow / 渐变 / 粒子 |

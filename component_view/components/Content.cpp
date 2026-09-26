@@ -359,6 +359,7 @@ void Separator::OnThemeChanged() {
 
 ProgressBar::ProgressBar() : Widget("progress_bar") {
     text_color = Theme::kTextMuted;
+    radius = Global::component_style.corner_radius; // 圆角跟全局 Box/Button 一致
 }
 
 ProgressBar& ProgressBar::setValue(float next) {
@@ -462,12 +463,14 @@ void ProgressBar::OnThemeChanged() {
     if (text_color_follows_theme) {
         text_color = Theme::kTextMuted;
     }
+    radius = Global::component_style.corner_radius;
 }
 
 // ================================================================ Image =====
 
 Image::Image() : Widget("image") {
     tint = Theme::kWhite;
+    radius = Global::component_style.corner_radius; // 与 Box / Button 同一套圆角
 }
 
 Image& Image::setTexture(ImTextureRef ref, float width, float height) {
@@ -553,14 +556,24 @@ void Image::OnDrawContent(ImDrawList* dl, const Rect& content) {
     if (!target.Valid()) {
         return;
     }
+    // 基本裁剪：Cover / 原尺寸时贴图会超出内容区，超出的部分裁掉（不外溢到别的控件上）
+    const bool needs_clip = target.min.x < content.min.x - 0.5f || target.min.y < content.min.y - 0.5f ||
+                            target.max.x > content.max.x + 0.5f || target.max.y > content.max.y + 0.5f;
+    if (needs_clip) {
+        dl->PushClipRect(content.min, content.max, true);
+    }
     dl->AddImageRounded(texture, target.min, target.max, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f),
                         Theme::Alpha(Theme::U32(tint), opacity), radius, ImDrawFlags_None);
+    if (needs_clip) {
+        dl->PopClipRect();
+    }
 }
 
 void Image::OnThemeChanged() {
     if (tint_follows_theme) {
         tint = Theme::kWhite;
     }
+    radius = Global::component_style.corner_radius;
 }
 
 // ============================================================= RichText =====
@@ -635,23 +648,59 @@ void RichText::BuildLines(float wrap_width) const {
     lines_.clear();
     lines_.push_back(Line{});
 
+    auto glyph_height = [&](const Glyph& glyph) {
+        const float size = glyph.font_size > 0.0f ? glyph.font_size : font_size;
+        return Maxf(Draw::MeasureText(font, size, "Ag", 0.0f).y, LineHeight());
+    };
     auto push_glyph = [&](Glyph glyph) {
         if (lines_.back().width + glyph.width > limit && !lines_.back().glyphs.empty()) {
             lines_.push_back(Line{});
         }
         Line& line = lines_.back();
         line.width += glyph.width + glyph.space_after;
+        line.height = Maxf(line.height, glyph_height(glyph));
         line.glyphs.push_back(std::move(glyph));
     };
 
     for (const Run& run : runs) {
         const ImVec4 run_color = run.color.w <= 0.0f ? Theme::kTextPrimary : run.color;
+
+        // 图片块：独占一行（按最大宽度等比缩放，必要时居中）
+        if (run.texture.GetTexID() != ImTextureID_Invalid && run.image_width > 0.0f && run.image_height > 0.0f) {
+            const float max_width = Maxf(max_image_width > 0.0f ? max_image_width : wrap_width, 40.0f);
+            float scale = Minf(1.0f, max_width / run.image_width);
+            if (max_image_height > 0.0f) {
+                scale = Minf(scale, max_image_height / run.image_height); // 长图按高度再收一次
+            }
+            const float draw_width = run.image_width * scale;
+            const float draw_height = run.image_height * scale;
+            if (!lines_.back().glyphs.empty()) {
+                lines_.push_back(Line{});
+            }
+            Glyph glyph;
+            glyph.image = true;
+            glyph.texture = run.texture;
+            glyph.width = draw_width;
+            glyph.image_height = draw_height;
+            glyph.color = run_color;
+            glyph.font_size = font_size;
+            Line image_line;
+            image_line.width = draw_width;
+            image_line.height = draw_height;
+            image_line.glyphs.push_back(std::move(glyph));
+            lines_.push_back(image_line);
+            lines_.push_back(Line{}); // 图片后另起一行
+            continue;
+        }
+
         if (!run.icon.empty()) {
             Glyph glyph;
             glyph.text = run.icon;
             glyph.color = run_color;
             glyph.icon = true;
-            glyph.width = Draw::MeasureText(font, font_size, run.icon.c_str(), 0.0f).x;
+            glyph.font_size = run.font_size;
+            const float size = run.font_size > 0.0f ? run.font_size : font_size;
+            glyph.width = Draw::MeasureText(font, size, run.icon.c_str(), 0.0f).x;
             glyph.space_after = icon_gap;
             push_glyph(std::move(glyph));
         }
@@ -665,7 +714,11 @@ void RichText::BuildLines(float wrap_width) const {
             glyph.text = word;
             glyph.color = run_color;
             glyph.bold = run.bold;
-            glyph.width = Draw::MeasureText(font, font_size, word.c_str(), 0.0f).x;
+            glyph.italic = run.italic;
+            glyph.code = run.code;
+            glyph.font_size = run.font_size;
+            const float size = run.font_size > 0.0f ? run.font_size : font_size;
+            glyph.width = Draw::MeasureText(font, size, word.c_str(), 0.0f).x;
             push_glyph(std::move(glyph));
             word.clear();
         };
@@ -685,7 +738,10 @@ void RichText::BuildLines(float wrap_width) const {
                     Glyph space;
                     space.text = " ";
                     space.color = run_color;
-                    space.width = Draw::MeasureText(font, font_size, " ", 0.0f).x;
+                    space.code = run.code;
+                    space.font_size = run.font_size;
+                    const float size = run.font_size > 0.0f ? run.font_size : font_size;
+                    space.width = Draw::MeasureText(font, size, " ", 0.0f).x;
                     push_glyph(std::move(space));
                 }
                 ++index;
@@ -698,7 +754,11 @@ void RichText::BuildLines(float wrap_width) const {
                 glyph.text = run.text.substr(index, length);
                 glyph.color = run_color;
                 glyph.bold = run.bold;
-                glyph.width = Draw::MeasureText(font, font_size, glyph.text.c_str(), 0.0f).x;
+                glyph.italic = run.italic;
+                glyph.code = run.code;
+                glyph.font_size = run.font_size;
+                const float size = run.font_size > 0.0f ? run.font_size : font_size;
+                glyph.width = Draw::MeasureText(font, size, glyph.text.c_str(), 0.0f).x;
                 push_glyph(std::move(glyph));
                 index += length;
                 continue;
@@ -752,12 +812,34 @@ void RichText::OnDrawContent(ImDrawList* dl, const Rect& content) {
     BuildLines(content.Width());
     const float opacity = EffectiveOpacity();
     dl->PushClipRect(content.min, content.max, true);
+    const float code_radius = Minf(Global::component_style.corner_radius, 4.0f);
     float y = content.min.y;
     for (const Line& line : lines_) {
+        // 代码行：先铺一条与全局风格一致的底色带
+        bool code_line = !line.glyphs.empty();
+        for (const Glyph& glyph : line.glyphs) {
+            if (!glyph.code) {
+                code_line = false;
+                break;
+            }
+        }
+        if (code_line) {
+            Draw::RoundedRectFilled(dl, Rect{ImVec2(content.min.x, y), ImVec2(content.max.x, y + line.height)},
+                                    Theme::Alpha(Theme::U32(Theme::kBgInput), opacity * 0.75f), code_radius,
+                                    code_radius, code_radius, code_radius);
+        }
+
         float x = content.min.x;
         for (const Glyph& glyph : line.glyphs) {
-            if (!glyph.text.empty()) {
-                DrawGlyphText(dl, font, font_size, ImVec2(x, y), Theme::Alpha(Theme::U32(glyph.color), opacity),
+            const float size = glyph.font_size > 0.0f ? glyph.font_size : font_size;
+            if (glyph.image) {
+                const float offset = center_images ? Maxf((content.Width() - glyph.width) * 0.5f, 0.0f) : 0.0f;
+                const Rect target{ImVec2(x + offset, y), ImVec2(x + offset + glyph.width, y + glyph.image_height)};
+                dl->AddImageRounded(glyph.texture, target.min, target.max, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f),
+                                    Theme::Alpha(Theme::U32(Theme::kWhite), opacity),
+                                    Global::component_style.corner_radius, ImDrawFlags_None);
+            } else if (!glyph.text.empty()) {
+                DrawGlyphText(dl, font, size, ImVec2(x, y), Theme::Alpha(Theme::U32(glyph.color), opacity),
                               glyph.text.c_str(), glyph.text.c_str() + glyph.text.size(), glyph.bold);
             }
             x += glyph.width + glyph.space_after;

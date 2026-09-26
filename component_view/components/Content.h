@@ -167,7 +167,7 @@ public:
     Fit fit = Fit::Contain;
     ImVec4 tint = Theme::kWhite;
     bool tint_follows_theme = true;
-    float radius = 0.0f;
+    float radius = 5.0f;            // 默认 = Global::component_style.corner_radius
     bool show_placeholder = true;   // 无纹理时画占位
 
     Image& setTexture(ImTextureRef ref, float width, float height);
@@ -184,7 +184,8 @@ protected:
 };
 
 // --------------------------------------------------------------- RichText ----
-// 富文本：一段一段（run）带颜色 / 粗体 / 图标的文本，支持自动换行。
+// 富文本：一段一段（run）带颜色 / 粗体 / 字号 / 图标的文本，支持自动换行与内嵌图片。
+// Markdown 由 component_view/Markdown.h 解析成这里的 runs（文字 + 图片），本控件只负责排版与绘制。
 //
 // 滚动怎么做？—— **不在这里做**。把它放进一个可滚动容器即可复用现有机制：
 //
@@ -203,7 +204,14 @@ public:
         std::string text;
         ImVec4 color{0.0f, 0.0f, 0.0f, 0.0f};
         bool bold = false;
-        std::string icon; // 这段前面画一个 Material 字形
+        bool italic = false;         // 语义保留：当前字体没有斜体字重，视觉上按正文渲染
+        std::string icon;            // 这段前面画一个 Material 字形
+        float font_size = 0.0f;      // 0 = 用 RichText::font_size（Markdown 标题靠它放大）
+        bool code = false;           // 行内代码 / 代码块：加一条统一样式的底色带
+        // 图片块（Markdown 的 ![alt](path)）：非空纹理时这段独占一行，按最大宽度等比缩放
+        ImTextureRef texture{};
+        float image_width = 0.0f;
+        float image_height = 0.0f;
     };
 
     RichText();
@@ -214,6 +222,9 @@ public:
     float paragraph_gap = 10.0f; // 段落间距（空行）
     float icon_gap = 6.0f;
     bool color_follows_theme = true; // 未显式指定颜色的 run 跟随主题
+    float max_image_width = 0.0f;    // 图片块最大宽度（0 = 用内容宽度）
+    float max_image_height = 0.0f;   // 图片块最大高度（0 = 不限，Markdown 长图建议给个上限）
+    bool center_images = true;       // 图片块居中
     // 手柄上下键滚一行 / 左右键翻页（需要自己不是滚动容器时用）
     bool scroll_keys = true;
     float key_scroll_lines = 1.0f;
@@ -238,11 +249,15 @@ private:
         std::string text;   // 单个词（可能含中文单字）
         ImVec4 color;
         bool bold = false;
+        bool italic = false;
         bool icon = false;
+        bool code = false;
+        bool image = false;
+        float font_size = 0.0f;   // 0 = RichText::font_size
         float width = 0.0f;
         float space_after = 0.0f; // 词后是否需要空格
-        bool line_break = false;  // 段落结束
-        bool blank_line = false;  // 空行
+        ImTextureRef texture{};   // image = true 时有效
+        float image_height = 0.0f;
     };
     struct Line {
         std::vector<Glyph> glyphs;

@@ -162,6 +162,16 @@ Popup* PopupManager::ShowRichText(std::string title, std::vector<RichText::Run> 
     return Show(std::move(popup));
 }
 
+Popup* PopupManager::ShowMarkdown(std::string title, std::string markdown, Markdown::ImageLookup lookup,
+                                 float view_height, PopupKind kind) {
+    auto popup = std::make_unique<Popup>("markdown", kind);
+    popup->setStyle(defaults_);
+    popup->setTitle(std::move(title));
+    popup->setMarkdown(std::move(markdown), std::move(lookup), view_height);
+    popup->addButton("关闭");
+    return Show(std::move(popup));
+}
+
 Popup* PopupManager::ShowImage(std::string title, ImTextureRef texture, float width, float height) {
     auto popup = std::make_unique<Popup>("image", PopupKind::Info);
     popup->setStyle(defaults_);

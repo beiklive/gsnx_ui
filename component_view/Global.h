@@ -53,6 +53,17 @@ struct ComponentStyle {
     float lr_slot_width = 90.0f;
     // 上面那一格放不下时，文字横向滚动显示
     float marquee_speed = 26.0f; // px/s
+    // ---- 弹窗（Popup）----
+    // 弹窗不另立一套视觉：圆角/边框/阴影直接复用上面的 corner_radius / border_* / shadow_*，
+    // 这里只放「弹窗特有、但必须统一」的尺寸与遮罩参数。
+    float popup_padding = 24.0f;        // 弹窗内边距（类型条、标题、内容、按钮都在这条内边距之内）
+    float popup_bar_height = 4.0f;      // 顶部类型条高度（在 popup_padding 之内，左右留白相同）
+    float popup_gap = 16.0f;            // 弹窗内部各行间距
+    float popup_min_width = 380.0f;
+    float popup_max_width_ratio = 0.74f; // 相对画布宽度
+    float popup_max_height_ratio = 0.82f;
+    float popup_backdrop_alpha = 0.55f;
+    float popup_button_min_width = 132.0f;
 };
 inline ComponentStyle component_style;
 

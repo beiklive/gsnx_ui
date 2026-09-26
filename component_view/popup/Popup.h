@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "component_view/Object.h"
+#include "component_view/Markdown.h"
 #include "component_view/UILayer.h"
 #include "component_view/Widget.h"
 #include "component_view/components/Content.h"
@@ -70,45 +71,40 @@ enum class PopupButtonLayout {
     Vertical,   // 竖排（选项列表）
 };
 
-// 尺寸与节奏：每个弹窗持有一份（工厂创建的弹窗从 PopupManager 的默认值复制）
+// 弹窗的尺寸与节奏。
+//
+// 视觉参数（圆角 / 边框 / 阴影 / 内边距 / 类型条高度 / 遮罩透明度）**不在控件里写死**：
+// 构造时从 Global::component_style 同步（Popup::SyncVisualStyleFromGlobal），
+// 想整体调就改那一个地方；单个弹窗也可以用 setStyle() 显式覆盖。
 struct PopupStyle {
     // 尺寸（0 = 自适应；0<v<=1 = 画布比例；>1 = 像素）
     float width = 0.0f;
     float height = 0.0f;
     float max_width_ratio = 0.74f;
     float max_height_ratio = 0.82f;
-    float min_width = 360.0f;
+    float min_width = 380.0f;
     float max_width = 640.0f;
     float min_height = 0.0f;
-    float padding = 26.0f;
-    float gap = 16.0f;          // 标题 / 内容 / 按钮之间的间距
-    float content_padding = 16.0f;
+    float padding = 24.0f;      // 内边距：类型条/标题/内容/按钮都在它之内
+    float gap = 16.0f;          // 各行间距
 
-    // 外观
-    float type_bar_height = 5.0f;   // 顶部类型条
-    float corner_radius = Theme::kRadiusLarge;
-    float backdrop_alpha = 0.55f;   // 遮罩透明度（0 = 完全透明）
+    // 外观（默认跟随 Global::component_style）
+    float type_bar_height = 4.0f;    // 顶部类型条高度（在 padding 之内，左右留白相同）
+    float corner_radius = 5.0f;
+    float backdrop_alpha = 0.55f;
     bool backdrop = true;
-    ShadowStyle shadow = [] {
-        ShadowStyle s;
-        s.enabled = true;
-        s.offset = ImVec2(0.0f, 10.0f);
-        s.blur = 30.0f;
-        s.color = Theme::U32(Theme::kShadow);
-        return s;
-    }();
 
     // 标题 / 正文
     float title_size = Theme::kFontHeader;
     float body_size = Theme::kFontBody;
 
-    // 按钮
+    // 按钮：与普通 Button 完全同一套尺寸/样式，只是等宽排列
     float button_height = Theme::kControlHeight;
     float button_min_width = 132.0f;
     float button_gap = 12.0f;
     float button_row_gap = 10.0f;
 
-    // 动画
+    // 动画（时长与缓动属于节奏，不属于视觉风格，可以单独配）
     float open_duration = 0.20f;
     float close_duration = 0.14f;
     float open_scale_from = 0.96f;
@@ -184,6 +180,8 @@ public:
     Popup& setText(std::string text);
     // 可滚动富文本（Log / 错误详情 / 更新说明 / License）
     Popup& setRichText(std::vector<RichText::Run> runs, float view_height = 0.0f);
+    // Markdown（标题/粗体/列表/链接/代码块/图片）：内部就是 Markdown::Parse + setRichText
+    Popup& setMarkdown(std::string markdown, Markdown::ImageLookup lookup = {}, float view_height = 0.0f);
     // 图片（等比缩放 / 居中 / 最大尺寸）
     Popup& setImage(ImTextureRef texture, float width, float height);
     // 进度内容（标题下方一行说明 + 进度条）
@@ -209,6 +207,9 @@ public:
     void Open();      // Opening（无动画时直接 Visible）
     void Close();     // Closing（无动画时直接 Closed）
     void CloseNow();  // 立即 Closed
+
+    // 从 Global::component_style 同步视觉参数（构造时 + 切主题时；单独改过 setStyle 的会被覆盖）
+    void SyncVisualStyleFromGlobal();
 
     // ---- 由 PopupManager 驱动（宿主不要直接调） ---------------------------
     void SetLayerZ(int z) { layer_z_ = z; }
@@ -276,6 +277,7 @@ private:
     ProgressBar* progress_bar_ = nullptr;
     Image* image_ = nullptr;
     RichText* rich_text_ = nullptr;
+    Box* rich_scroll_ = nullptr;     // 富文本的滚动容器（Box + Overflow::Scroll）
     std::function<void(Widget&)> content_builder_;
 
     struct ButtonEntry {
