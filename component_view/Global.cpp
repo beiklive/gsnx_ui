@@ -48,7 +48,9 @@ void BeginFrame(UiContext& ui) {
     canvas_pos = ImVec2(0.0f, 0.0f);
     canvas_size = io.DisplaySize.x > 0.0f ? io.DisplaySize : canvas_size;
     ui_scale = io.DisplayFramebufferScale.x > 0.0f ? io.DisplayFramebufferScale.x : 1.0f;
-    draw_list = ImGui::GetForegroundDrawList();
+    // UI 主体画在 **背景** draw list：这样弹窗里的即时模式内容（imgui_markdown 的子窗口）
+    // 才能压在弹窗之上；焦点框与 Toast 由 Page::Render 单独画到前景层，仍然是最高层。
+    draw_list = ImGui::GetBackgroundDrawList();
 
     delta_time = ui.DeltaTime();
     time += delta_time;

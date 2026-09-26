@@ -7,6 +7,7 @@
 #include "component_view/Global.h"
 #include "component_view/components/Box.h"
 #include "component_view/components/Button.h"
+#include "ui/Icons.h"
 
 namespace gui_dev::cv {
 namespace {
@@ -57,6 +58,29 @@ ImU32 PopupAccentU32(PopupKind kind) {
     return Theme::U32(PopupAccentColor(kind));
 }
 
+// Header 默认图标：只在这里按语义取一次，调用方可以用 setHeaderIcon() 覆盖
+const char* PopupKindIcon(PopupKind kind) {
+    switch (kind) {
+    case PopupKind::Info:
+        return Icons::Glyph(Icons::Material::Info);
+    case PopupKind::Success:
+        return Icons::Glyph(Icons::Material::CheckCircle);
+    case PopupKind::Warning:
+        return Icons::Glyph(Icons::Material::ErrorOutline);
+    case PopupKind::Error:
+        return Icons::Glyph(Icons::Material::ErrorOutline);
+    case PopupKind::Confirm:
+        return Icons::Glyph(Icons::Material::HelpOutline);
+    case PopupKind::Selection:
+        return Icons::Glyph(Icons::Material::SelectAll);
+    case PopupKind::Progress:
+        return Icons::Glyph(Icons::Material::Update);
+    case PopupKind::Custom:
+    default:
+        return Icons::Glyph(Icons::Material::Edit);
+    }
+}
+
 // ================================================================= 构造 =====
 
 Popup::Popup(std::string name, PopupKind kind) : name_(std::move(name)), kind_(kind) {
@@ -69,7 +93,8 @@ Popup::Popup(std::string name, PopupKind kind) : name_(std::move(name)), kind_(k
 void Popup::SyncVisualStyleFromGlobal() {
     const Global::ComponentStyle& global = Global::component_style;
     style_.padding = global.popup_padding;
-    style_.type_bar_height = global.popup_bar_height;
+    style_.header_size = global.popup_header_size;
+    style_.header_gap = global.popup_header_gap;
     style_.gap = global.popup_gap;
     style_.min_width = global.popup_min_width;
     style_.max_width_ratio = global.popup_max_width_ratio;
@@ -82,14 +107,20 @@ void Popup::SyncVisualStyleFromGlobal() {
         window_->padding = EdgeInsets::All(style_.padding);
         window_->corner_radius = style_.corner_radius;
     }
-    if (type_bar_ != nullptr) {
-        // 类型条不覆盖圆角：圆角取「半高」和全局圆角里更小的那个（胶囊形但不出格）
-        const float radius = Minf(style_.type_bar_height * 0.5f, style_.corner_radius);
-        type_bar_->corner_tl = radius;
-        type_bar_->corner_tr = radius;
-        type_bar_->corner_bl = radius;
-        type_bar_->corner_br = radius;
-        type_bar_->corner_radius = radius;
+    if (header_badge_ != nullptr) {
+        // 方形图标 Box：圆角跟全局（Box/Button 同一套），不额外造一套视觉
+        const float radius = Minf(style_.header_size * 0.3f, style_.corner_radius + 1.0f);
+        header_badge_->corner_radius = radius;
+        header_badge_->background = PopupAccentU32(kind_);
+        header_badge_->background_follows_theme = false;
+        header_badge_->border.width = 0.0f;
+        header_badge_->shadow.enabled = false;
+        header_badge_->interactive = false;
+    }
+    if (header_icon_ != nullptr) {
+        header_icon_->font_size = Maxf(style_.header_size * 0.55f, 12.0f);
+        header_icon_->text_color = Theme::kWhite;
+        header_icon_->text_color_follows_theme = false;
     }
     if (backdrop_ != nullptr) {
         backdrop_->background = Theme::U32(ImVec4(0.03f, 0.03f, 0.04f, style_.backdrop_alpha));
@@ -134,17 +165,19 @@ void Popup::BuildChrome() {
     window_->padding = EdgeInsets::All(style_.padding);
     window_->corner_radius = style_.corner_radius;
 
-    // 类型条：在窗口内边距之内的第一个内容元素（左右留白 = style_.padding，左右完全相等），
-    // 不改变窗口外框尺寸、不压圆角、不影响阴影。
-    type_bar_ = window_->Emplace<Box>("popup_type_bar");
-    type_bar_->border.width = 0.0f;
-    type_bar_->shadow.enabled = false;
-    type_bar_->position = ImVec2(0.0f, 0.0f);
-    type_bar_->opacity = 0.0f;
+    // Header：方形图标 Box（语义色，放一个 Material 图标）+ 文字，整体在弹窗内边距之内。
+    header_badge_ = window_->Emplace<Box>("popup_header_badge");
+    header_badge_->position = ImVec2(0.0f, 0.0f);
+    header_icon_ = header_badge_->Emplace<Label>("popup_header_icon");
+    header_icon_->setAlign(TextAlign::Center);
+    header_icon_->setVerticalAlign(VerticalAlign::Middle);
+    header_icon_->position = ImVec2(0.0f, 0.0f);
+    header_icon_->size = ImVec2(style_.header_size, style_.header_size);
 
-    // 标题
+    // 标题（Header 的文字部分；例如 提示 / 警告 / 通知 / 情绪 / 请选择 / 功能名）
     title_ = window_->Emplace<Label>("popup_title");
     title_->setFontSize(style_.title_size);
+    title_->vertical_align = VerticalAlign::Middle;
     title_->visible = false;
 
     // 内容容器：纵向排列，宽度里塞什么就排什么（Checkbox / RadioGroup / Slider / 可滚动容器…）
@@ -171,8 +204,15 @@ void Popup::BuildChrome() {
 }
 
 void Popup::ApplyKindColors() {
-    if (type_bar_ != nullptr) {
-        type_bar_->fillWith(PopupAccentU32(kind_));
+    ApplyKindHeader();
+}
+
+void Popup::ApplyKindHeader() {
+    if (header_badge_ != nullptr) {
+        header_badge_->fillWith(PopupAccentU32(kind_));
+    }
+    if (header_icon_ != nullptr) {
+        header_icon_->setText(header_icon_glyph_.empty() ? PopupKindIcon(kind_) : header_icon_glyph_);
     }
 }
 
@@ -181,6 +221,12 @@ void Popup::ApplyKindColors() {
 Popup& Popup::setKind(PopupKind value) {
     kind_ = value;
     ApplyKindColors();
+    return *this;
+}
+
+Popup& Popup::setHeaderIcon(std::string glyph) {
+    header_icon_glyph_ = std::move(glyph);
+    ApplyKindHeader();
     return *this;
 }
 
@@ -291,8 +337,8 @@ void Popup::RebuildContent() {
     message_ = nullptr;
     progress_bar_ = nullptr;
     image_ = nullptr;
-    rich_text_ = nullptr;
-    rich_scroll_ = nullptr;
+    markdown_view_ = nullptr;
+    markdown_scroll_ = nullptr;
     if (content_builder_) {
         content_builder_(*content_host_);
     }
@@ -313,10 +359,12 @@ Popup& Popup::setText(std::string text) {
     return *this;
 }
 
-Popup& Popup::setRichText(std::vector<RichText::Run> runs, float view_height) {
-    // ScrollView 就是「带 Overflow::Scroll 的普通 Box」——不新造容器类型
-    content_builder_ = [runs = std::move(runs), view_height](Widget& host) {
-        Box* view = host.Emplace<Box>("rich_scroll");
+Popup& Popup::setMarkdown(std::string markdown, MarkdownView::ImageResolver resolver, float view_height) {
+    // 滚动容器仍然是普通 Box + Overflow::Scroll（不新造 ScrollView 类型）
+    const float image_max = style_.image_max_height;
+    content_builder_ = [markdown = std::move(markdown), resolver = std::move(resolver), view_height,
+                        image_max](Widget& host) {
+        Box* view = host.Emplace<Box>("markdown_scroll");
         view->overflow = Overflow::Scroll;
         view->scroll_bar_auto_hide = true;
         view->scroll_overscroll = true;
@@ -326,39 +374,34 @@ Popup& Popup::setRichText(std::vector<RichText::Run> runs, float view_height) {
         view->shadow.enabled = false;
         view->padding = EdgeInsets{};
         view->size.y = view_height;
-        RichText* text = view->Emplace<RichText>();
-        text->setRuns(runs);
-        // 富文本自己要能拿焦点：上下键 / L R 收缩滚动容器（RichText::OnPadAction），
-        // 焦点框也会框住整块文本区，手柄用户一眼能看出"现在能滚这里"。
+        MarkdownView* text = view->Emplace<MarkdownView>();
+        text->setText(markdown);
+        text->setImageResolver(resolver);
         text->focusable = true;
         text->focus_frame = true;
         text->focus_frame_offset = 3.0f;
-        text->max_image_height = 220.0f; // 弹窗里的长图别撑满整屏
+        text->max_image_height = image_max;
     };
     RebuildContent();
-    rich_scroll_ = nullptr;
-    rich_text_ = nullptr;
+    markdown_scroll_ = nullptr;
+    markdown_view_ = nullptr;
     if (content_host_ != nullptr && !content_host_->children.empty()) {
         if (Widget* view = content_host_->children.front().get()) {
-            rich_scroll_ = dynamic_cast<Box*>(view);
+            markdown_scroll_ = dynamic_cast<Box*>(view);
             if (!view->children.empty()) {
-                rich_text_ = dynamic_cast<RichText*>(view->children.front().get());
+                markdown_view_ = dynamic_cast<MarkdownView*>(view->children.front().get());
             }
         }
     }
     return *this;
 }
 
-Popup& Popup::setMarkdown(std::string markdown, Markdown::ImageLookup lookup, float view_height) {
-    return setRichText(Markdown::Parse(markdown, lookup), view_height);
-}
-
 Popup& Popup::setImage(ImTextureRef texture, float width, float height) {
     content_builder_ = [texture, width, height](Widget& host) {
         Image* image = host.Emplace<Image>();
         image->setTexture(texture, width, height);
-        image->setRadius(Theme::kRadius);
-        image->max_size = ImVec2(0.0f, 320.0f);
+        image->setRadius(Global::component_style.corner_radius);
+        image->max_size = ImVec2(0.0f, 320.0f); // 限高：弹窗不会因为图片反复变高变矮
     };
     RebuildContent();
     if (content_host_ != nullptr && !content_host_->children.empty()) {
@@ -554,18 +597,24 @@ float Popup::ResolveHeightLimit(float canvas_height) const {
 }
 
 void Popup::PositionChildren() {
-    // 第一行是类型条（在内边距之内），后面依次是标题 / 内容 / 按钮
-    float y = style_.type_bar_height;
-    if (type_bar_ != nullptr) {
-        type_bar_->position = ImVec2(0.0f, 0.0f);
+    // 第一行是 Header：方形图标 Box + 文字（标题），后面依次是内容 / 按钮
+    const float header_height =
+        Maxf(style_.header_size, (title_ != nullptr && title_->visible) ? title_->measured_size.y : 0.0f);
+    if (header_badge_ != nullptr) {
+        header_badge_->position = ImVec2(0.0f, (header_height - style_.header_size) * 0.5f);
+        header_badge_->size = ImVec2(style_.header_size, style_.header_size);
     }
-    y += style_.gap;
+    if (header_icon_ != nullptr) {
+        header_icon_->position = ImVec2(0.0f, 0.0f);
+        header_icon_->size = ImVec2(style_.header_size, style_.header_size);
+    }
+    float y = header_height + style_.gap;
     const float title_height = (title_ != nullptr && title_->visible) ? title_->measured_size.y : 0.0f;
     if (title_height > 0.0f) {
-        title_->position = ImVec2(0.0f, 0.0f);
-        y += title_height + style_.gap;
+        title_->position = ImVec2(style_.header_size + style_.header_gap, (header_height - title_height) * 0.5f);
+        title_->size.y = title_height;
     } else if (title_ != nullptr) {
-        title_->position = ImVec2(0.0f, 0.0f);
+        title_->position = ImVec2(style_.header_size + style_.header_gap, 0.0f);
     }
 
     const float content_height = content_host_->measured_size.y;
@@ -595,23 +644,23 @@ void Popup::Layout() {
     const float chrome = (style_.padding + window_->border.width) * 2.0f;
     const float inner_width = Maxf(width - chrome, 40.0f);
 
+    // 关键：测量阶段的窗口高度先钉在「高度上限」，不要用自适应高度去测自适应内容。
+    // 自适应高度本身依赖子节点测量结果，而 Image 这类控件又会按 available 反向撑满 →
+    // 高度会来回震荡（表现为弹窗里的图片和底部按钮上下抖）。
+    const float height_limit = ResolveHeightLimit(canvas.Height());
     window_->size.x = width;
-    window_->size.y = 0.0f;
+    window_->size.y = style_.height > 1.0f ? Minf(style_.height, height_limit) : height_limit;
 
     if (title_ != nullptr && title_->visible) {
-        title_->size.x = inner_width;
+        title_->size.x = Maxf(inner_width - style_.header_size - style_.header_gap, 40.0f);
     }
-    // 滚动容器里的内容必须是「显式高度」，否则 Widget::Measure 会把自适应高度夹到视口高度，
-    // content_extent 永远不大于视口 → scroll_max = 0，滚不动。这里按实际排版高度把它定下来。
-    if (rich_scroll_ != nullptr && rich_text_ != nullptr) {
-        const float wrap = Maxf(inner_width - rich_scroll_->padding.Horizontal() -
-                                    (rich_scroll_->border.width + rich_scroll_->border.inset) * 2.0f,
-                                40.0f);
-        const float content_height = Maxf(rich_text_->ContentHeight(wrap), 40.0f);
-        rich_text_->size.x = wrap;
-        rich_text_->size.y = content_height;
-        rich_scroll_->size.x = inner_width;
-        rich_scroll_->size.y = style_.rich_text_height > 1.0f ? style_.rich_text_height : content_height;
+    // Markdown 是即时模式渲染：高度要等这一帧渲染完才知道，所以用上一帧的高度显式定高
+    if (markdown_scroll_ != nullptr && markdown_view_ != nullptr) {
+        markdown_view_->size.x = inner_width;
+        markdown_view_->size.y = Maxf(markdown_view_->renderedHeight(), 40.0f);
+        markdown_scroll_->size.x = inner_width;
+        markdown_scroll_->size.y =
+            style_.markdown_height > 1.0f ? style_.markdown_height : markdown_view_->size.y;
     }
     content_host_->size.x = inner_width;
     if (!scrollable_) {
@@ -644,24 +693,34 @@ void Popup::Layout() {
         }
     }
 
-    // ---- 第一次布局：量出 标题 / 内容 / 按钮组 的高度 ----
+    // ---- 第一次布局（窗口固定为高度上限）：量出 Header / 内容 / 按钮组 的高度 ----
     root_->LayoutTree(canvas.min, canvas.Size());
     const float title_height = (title_ != nullptr && title_->visible) ? title_->measured_size.y : 0.0f;
     const float content_height = content_host_->measured_size.y;
     const float buttons_height = buttons_.empty() ? 0.0f : buttons_box_->measured_size.y;
-    const float gaps = (title_height > 0.0f ? style_.gap : 0.0f) + (buttons_.empty() ? 0.0f : style_.gap);
-    const float bar_block = style_.type_bar_height + style_.gap; // 类型条 + 它下面那一行间距
-    const float desired_height = chrome + bar_block + title_height + gaps + content_height + buttons_height;
-    const float height_limit = ResolveHeightLimit(canvas.Height());
+    const float header_height = Maxf(style_.header_size, title_height);
+    const float gaps = (buttons_.empty() ? 0.0f : style_.gap);
+    const float header_block = header_height + style_.gap; // Header 行 + 它下面那一行间距
+    const float desired_height = chrome + header_block + content_height + gaps + buttons_height;
 
     // ---- 定高决策：内容装不下就让内容容器自己滚（ScrollView），窗口不再长高 ----
-    scrollable_ = desired_height > height_limit;
+    // 用一点迟滞（±4px）：避免内容高度刚好压在上限上时，每帧在「滚动/不滚动」之间反复切换，
+    // 那同样会让底部按钮上下跳。
+    const bool wants_scroll = style_.height > 1.0f   ? desired_height > Minf(style_.height, height_limit)
+                              : style_.height > 0.0f ? desired_height > Minf(canvas.Height() * style_.height, height_limit)
+                                                     : desired_height > height_limit;
+    if (wants_scroll == scrollable_) {
+        // 保持上一帧判断
+    } else if (wants_scroll) {
+        scrollable_ = desired_height > height_limit + 4.0f;
+    } else {
+        scrollable_ = desired_height > height_limit - 4.0f;
+    }
+
     if (style_.height > 1.0f) {
         window_->size.y = Minf(style_.height, height_limit);
-        scrollable_ = desired_height > window_->size.y;
     } else if (style_.height > 0.0f) {
         window_->size.y = Minf(canvas.Height() * style_.height, height_limit);
-        scrollable_ = desired_height > window_->size.y;
     } else {
         window_->size.y = scrollable_ ? height_limit : desired_height;
     }
@@ -671,7 +730,7 @@ void Popup::Layout() {
 
     if (scrollable_) {
         const float free_for_content =
-            Maxf(window_->size.y - chrome - bar_block - title_height - gaps - buttons_height, 60.0f);
+            Maxf(window_->size.y - chrome - header_block - gaps - buttons_height, 60.0f);
         content_host_->size.y = free_for_content;
         content_host_->overflow = Overflow::Scroll;
     } else {
@@ -684,9 +743,6 @@ void Popup::Layout() {
     // ---- 第二次布局：用最终尺寸落位 ----
     root_->LayoutTree(canvas.min, canvas.Size());
 
-    // 类型条：宽度就是内容宽度（= 窗口宽 - 左右内边距），所以左右留白天然相等
-    type_bar_->position = ImVec2(0.0f, 0.0f);
-    type_bar_->size = ImVec2(inner_width, style_.type_bar_height);
 }
 
 // =============================================================== 每帧 =====

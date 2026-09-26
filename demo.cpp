@@ -7,6 +7,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <map>
 #include <cstdlib>
 #include <memory>
 #include <string>
@@ -19,10 +20,10 @@
 #include "component_view/components/Box.h"
 #include "component_view/components/Button.h"
 #include "component_view/Anim.h"
-#include "component_view/Markdown.h"
 #include "component_view/components/CapsuleTabs.h"
 #include "component_view/components/Content.h"
 #include "component_view/components/Header.h"
+#include "component_view/components/MarkdownView.h"
 #include "component_view/components/TabColumn.h"
 #include "component_view/pages/Page.h"
 #include "component_view/popup/Popup.h"
@@ -47,11 +48,11 @@ using gui_dev::cv::EdgeInsets;
 using gui_dev::cv::CustomButton;
 using gui_dev::cv::Image;
 using gui_dev::cv::Label;
+using gui_dev::cv::MarkdownView;
 using gui_dev::cv::Popup;
 using gui_dev::cv::PopupButtonLayout;
 using gui_dev::cv::PopupKind;
 using gui_dev::cv::ProgressBar;
-using gui_dev::cv::RichText;
 using gui_dev::cv::Separator;
 using gui_dev::cv::Align;
 using gui_dev::cv::LayoutMode;
@@ -68,7 +69,6 @@ using gui_dev::cv::TextButton;
 using gui_dev::cv::ToastType;
 using gui_dev::cv::ToggleButton;
 using gui_dev::cv::ValueButton;
-namespace Markdown = gui_dev::cv::Markdown;
 namespace Theme = gui_dev::cv::Theme;
 namespace Global = gui_dev::cv::Global;
 namespace Anim = gui_dev::cv::Anim;
@@ -151,6 +151,7 @@ public:
         // 弹窗页：后台扫描任务的进度回传（UI 线程只做读取 + 刷 UI）
         UpdateProgressDemo();
 
+        
         
     }
 
@@ -734,38 +735,26 @@ public:
             "详细说明见 [组件文档](docs/component-view.md)。\n";
     }
 
-    // 第一遍收集图片路径 → 宿主加载纹理；第二遍再解析成 runs（控件层不碰平台接口）
-    void PrepareMarkdownImages() {
-        if (!markdown_images_.empty()) {
-            return;
-        }
-        for (const std::string& path : Markdown::ImagePaths(MarkdownDemoText())) {
-            markdown_textures_.push_back(gui_dev::TextureRef(ui().GetBackend(), path.c_str()));
-            const gui_dev::TextureRef& texture = markdown_textures_.back();
-            Markdown::ImageAsset asset;
-            asset.path = path;
-            asset.texture = texture.ImGuiRef();
-            asset.width = static_cast<float>(texture.Width());
-            asset.height = static_cast<float>(texture.Height());
-            markdown_images_.push_back(std::move(asset));
-        }
-    }
-
-    Markdown::ImageLookup MarkdownLookup() {
-        return [this](const std::string& path) -> const Markdown::ImageAsset* {
-            for (const Markdown::ImageAsset& asset : markdown_images_) {
-                if (asset.path == path) {
-                    return &asset;
-                }
+    // Markdown 图片：![alt](path) 走这里拿纹理（懒加载 + 缓存；控件层不碰平台接口）
+    MarkdownView::ImageResolver MakeImageResolver() {
+        return [this](const std::string& path, ImTextureRef& texture, float& width, float& height) {
+            auto found = markdown_textures_.find(path);
+            if (found == markdown_textures_.end()) {
+                found = markdown_textures_.emplace(path, gui_dev::TextureRef(ui().GetBackend(), path.c_str())).first;
             }
-            return nullptr;
+            if (!found->second.Valid()) {
+                return false; // 没有这张图：imgui_markdown 会退化成链接文本
+            }
+            texture = found->second.ImGuiRef();
+            width = static_cast<float>(found->second.Width());
+            height = static_cast<float>(found->second.Height());
+            return true;
         };
     }
 
     void ShowMarkdownDemo() {
-        PrepareMarkdownImages();
-        
-        Popups().ShowMarkdown("游戏说明（Markdown）", MarkdownDemoText(), MarkdownLookup(), 300.0f, PopupKind::Info);
+        // 真实调用 PopupManager + imgui_markdown：标题/粗体/斜体/列表/链接/代码块/图片
+        Popups().ShowMarkdown("游戏说明", MarkdownDemoText(), MakeImageResolver(), 300.0f, PopupKind::Info);
     }
 
     void ShowImageDemo() {
@@ -1196,8 +1185,7 @@ private:
     Image* image_limited_ = nullptr;
     gui_dev::TextureRef test_tex_;              // assets/img/test.png
     gui_dev::TextureRef gradient_tex_;          // assets/img/border_gradient.png
-    std::vector<Markdown::ImageAsset> markdown_images_;
-    std::vector<gui_dev::TextureRef> markdown_textures_;
+    std::map<std::string, gui_dev::TextureRef> markdown_textures_; // Markdown 图片纹理（懒加载）
     ToggleButton* switch_ = nullptr;
     OptionButton* selector_ = nullptr;
     ValueButton* slider_ = nullptr;

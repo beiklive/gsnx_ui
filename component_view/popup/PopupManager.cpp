@@ -153,21 +153,12 @@ Popup* PopupManager::ShowProgress(std::string title, std::string message, bool i
     return Show(std::move(popup));
 }
 
-Popup* PopupManager::ShowRichText(std::string title, std::vector<RichText::Run> runs, float view_height, PopupKind kind) {
-    auto popup = std::make_unique<Popup>("richtext", kind);
-    popup->setStyle(defaults_);
-    popup->setTitle(std::move(title));
-    popup->setRichText(std::move(runs), view_height);
-    popup->addButton("关闭");
-    return Show(std::move(popup));
-}
-
-Popup* PopupManager::ShowMarkdown(std::string title, std::string markdown, Markdown::ImageLookup lookup,
+Popup* PopupManager::ShowMarkdown(std::string title, std::string markdown, MarkdownView::ImageResolver resolver,
                                  float view_height, PopupKind kind) {
     auto popup = std::make_unique<Popup>("markdown", kind);
     popup->setStyle(defaults_);
     popup->setTitle(std::move(title));
-    popup->setMarkdown(std::move(markdown), std::move(lookup), view_height);
+    popup->setMarkdown(std::move(markdown), std::move(resolver), view_height);
     popup->addButton("关闭");
     return Show(std::move(popup));
 }

@@ -1,4 +1,6 @@
-// Content：弹窗与页面共用的「内容型」基础控件 —— Label / Separator / ProgressBar / Image / RichText。
+// Content：弹窗与页面共用的「内容型」基础控件 —— Label / Separator / ProgressBar / Image。
+// 富文本一律走 Markdown（component_view/components/MarkdownView.h + 第三方 imgui_markdown），
+// 不再自己维护一套 runs 渲染。
 //
 // 它们和 Button 是同一层的组件（都继承 Widget），所以：
 //   * 布局、焦点、命中测试、裁剪、滚动、主题跟随全部复用基类；
@@ -181,100 +183,6 @@ protected:
     ImVec2 MeasureContent(const ImVec2& available) override;
     void OnDrawContent(ImDrawList* dl, const Rect& content) override;
     void OnThemeChanged() override;
-};
-
-// --------------------------------------------------------------- RichText ----
-// 富文本：一段一段（run）带颜色 / 粗体 / 字号 / 图标的文本，支持自动换行与内嵌图片。
-// Markdown 由 component_view/Markdown.h 解析成这里的 runs（文字 + 图片），本控件只负责排版与绘制。
-//
-// 滚动怎么做？—— **不在这里做**。把它放进一个可滚动容器即可复用现有机制：
-//
-//   Box* view = host.Emplace<Box>("rich_scroll");
-//   view->overflow = Overflow::Scroll;      // 这就是 ScrollView
-//   RichText* text = view->Emplace<RichText>();
-//   text->setRuns({{"无法加载核心", Theme::kError, true}, ...});
-//
-// 于是：手指/鼠标拖动滚动、滚动条、焦点自动滚动（Widget::EnsureVisible）全都由基类负责；
-// RichText 额外提供「手柄上下键滚一行 / 翻一页」（capture_vertical = true 时生效）。
-class RichText : public Widget {
-public:
-    // color 的 alpha = 0 表示「跟随主题正文色」（和 Box/Button 的约定一致），
-    // 这样切主题时文本会自动换色；给了具体颜色就固定用它。
-    struct Run {
-        std::string text;
-        ImVec4 color{0.0f, 0.0f, 0.0f, 0.0f};
-        bool bold = false;
-        bool italic = false;         // 语义保留：当前字体没有斜体字重，视觉上按正文渲染
-        std::string icon;            // 这段前面画一个 Material 字形
-        float font_size = 0.0f;      // 0 = 用 RichText::font_size（Markdown 标题靠它放大）
-        bool code = false;           // 行内代码 / 代码块：加一条统一样式的底色带
-        // 图片块（Markdown 的 ![alt](path)）：非空纹理时这段独占一行，按最大宽度等比缩放
-        ImTextureRef texture{};
-        float image_width = 0.0f;
-        float image_height = 0.0f;
-    };
-
-    RichText();
-
-    std::vector<Run> runs;
-    float font_size = 0.0f;   // 0 = Theme::kFontBody
-    float line_gap = 6.0f;    // 行距
-    float paragraph_gap = 10.0f; // 段落间距（空行）
-    float icon_gap = 6.0f;
-    bool color_follows_theme = true; // 未显式指定颜色的 run 跟随主题
-    float max_image_width = 0.0f;    // 图片块最大宽度（0 = 用内容宽度）
-    float max_image_height = 0.0f;   // 图片块最大高度（0 = 不限，Markdown 长图建议给个上限）
-    bool center_images = true;       // 图片块居中
-    // 手柄上下键滚一行 / 左右键翻页（需要自己不是滚动容器时用）
-    bool scroll_keys = true;
-    float key_scroll_lines = 1.0f;
-
-    RichText& setRuns(std::vector<Run> value);
-    RichText& append(std::string text, ImVec4 color = ImVec4(0.0f, 0.0f, 0.0f, 0.0f), bool bold = false,
-                     std::string icon = {});
-    RichText& appendParagraph(std::string text);
-
-    // 内容总高度 / 行数（容器测量用）
-    float ContentHeight(float wrap_width) const;
-    int LineCount(float wrap_width) const;
-
-protected:
-    ImVec2 MeasureContent(const ImVec2& available) override;
-    void OnDrawContent(ImDrawList* dl, const Rect& content) override;
-    bool OnPadAction(InputAction action) override;
-    void OnThemeChanged() override;
-
-private:
-    struct Glyph {
-        std::string text;   // 单个词（可能含中文单字）
-        ImVec4 color;
-        bool bold = false;
-        bool italic = false;
-        bool icon = false;
-        bool code = false;
-        bool image = false;
-        float font_size = 0.0f;   // 0 = RichText::font_size
-        float width = 0.0f;
-        float space_after = 0.0f; // 词后是否需要空格
-        ImTextureRef texture{};   // image = true 时有效
-        float image_height = 0.0f;
-    };
-    struct Line {
-        std::vector<Glyph> glyphs;
-        float width = 0.0f;
-        float height = 0.0f;
-        float extra_gap = 0.0f; // 段落间距
-    };
-    void BuildLines(float wrap_width) const;
-    float ResolvedFontSize() const;
-    float LineHeight() const;
-    // 内容指纹：文本/颜色/粗体/图标任一变化都要重排行
-    std::size_t RunsHash() const;
-
-    // 行布局缓存：内容或宽度没变就不重排（长文本每帧重排很贵）
-    mutable std::vector<Line> lines_;
-    mutable float cached_wrap_width_ = -1.0f;
-    mutable std::size_t cached_hash_ = 0;
 };
 
 } // namespace gui_dev::cv

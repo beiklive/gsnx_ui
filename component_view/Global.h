@@ -56,8 +56,9 @@ struct ComponentStyle {
     // ---- 弹窗（Popup）----
     // 弹窗不另立一套视觉：圆角/边框/阴影直接复用上面的 corner_radius / border_* / shadow_*，
     // 这里只放「弹窗特有、但必须统一」的尺寸与遮罩参数。
-    float popup_padding = 24.0f;        // 弹窗内边距（类型条、标题、内容、按钮都在这条内边距之内）
-    float popup_bar_height = 4.0f;      // 顶部类型条高度（在 popup_padding 之内，左右留白相同）
+    float popup_padding = 24.0f;        // 弹窗内边距（header、标题、内容、按钮都在这条内边距之内）
+    float popup_header_size = 32.0f;    // Header 左边那个方形图标 Box 的边长
+    float popup_header_gap = 12.0f;     // 方形图标 Box 与文字之间的间距
     float popup_gap = 16.0f;            // 弹窗内部各行间距
     float popup_min_width = 380.0f;
     float popup_max_width_ratio = 0.74f; // 相对画布宽度

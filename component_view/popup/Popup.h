@@ -4,7 +4,7 @@
 //   * **只有一套结构**：遮罩 + 窗口 Box + 类型条 + 标题 + 内容容器 + 按钮组。
 //     Info / Confirm / Selection / Progress / 自定义页 都是同一套结构 + 不同的配置与内容，
 //     不是几套独立渲染系统。
-//   * **内容是可组合控件**：内容容器就是一个普通的 Box，里面塞 Label / RichText / Image /
+//   * **内容是可组合控件**：内容容器就是一个普通的 Box，里面塞 Label / Markdown / Image /
 //     ProgressBar / Checkbox / RadioGroup / Button / 可滚动容器…… 与页面里用的是同一批组件。
 //   * **层级由 UILayer 决定**：PopupManager 按栈序给每个弹窗分配 5000~9000 的层级，
 //     焦点框（9900）与 Toast（9999）永远在弹窗之上；见 component_view/UILayer.h。
@@ -27,10 +27,10 @@
 #include <vector>
 
 #include "component_view/Object.h"
-#include "component_view/Markdown.h"
 #include "component_view/UILayer.h"
 #include "component_view/Widget.h"
 #include "component_view/components/Content.h"
+#include "component_view/components/MarkdownView.h"
 
 namespace gui_dev::cv {
 
@@ -89,7 +89,8 @@ struct PopupStyle {
     float gap = 16.0f;          // 各行间距
 
     // 外观（默认跟随 Global::component_style）
-    float type_bar_height = 4.0f;    // 顶部类型条高度（在 padding 之内，左右留白相同）
+    float header_size = 32.0f;       // Header 方形图标 Box 的边长（在 padding 之内）
+    float header_gap = 12.0f;        // 图标 Box 与文字间距
     float corner_radius = 5.0f;
     float backdrop_alpha = 0.55f;
     bool backdrop = true;
@@ -112,7 +113,7 @@ struct PopupStyle {
     bool animated = true;
 
     // 内容
-    float rich_text_height = 240.0f; // 可滚动富文本视图的高度（0 = 按内容自适应）
+    float markdown_height = 300.0f;  // Markdown 视图高度（0 = 按内容自适应）
     float image_max_height = 300.0f;
 };
 
@@ -158,7 +159,10 @@ public:
 
     // ---- 配置（全部返回 *this，可链式） -----------------------------------
     Popup& setKind(PopupKind value);
+    // Header = 方形图标 Box（语义色）+ 文字；文字就是标题（例如：提示 / 警告 / 通知 / 情绪 / 请选择 / 功能名）
     Popup& setTitle(std::string value);
+    Popup& setHeaderText(std::string value) { return setTitle(std::move(value)); }
+    Popup& setHeaderIcon(std::string glyph); // 覆盖默认图标（按 kind 自动给）
     Popup& setModal(bool value);
     Popup& setBackdrop(bool enabled, float alpha = -1.0f);
     Popup& setDismissOnBackdrop(bool enabled);
@@ -178,10 +182,9 @@ public:
     // ---- 内容 --------------------------------------------------------------
     // 单行 / 多行文本（MultiLineText：自动换行）
     Popup& setText(std::string text);
-    // 可滚动富文本（Log / 错误详情 / 更新说明 / License）
-    Popup& setRichText(std::vector<RichText::Run> runs, float view_height = 0.0f);
-    // Markdown（标题/粗体/列表/链接/代码块/图片）：内部就是 Markdown::Parse + setRichText
-    Popup& setMarkdown(std::string markdown, Markdown::ImageLookup lookup = {}, float view_height = 0.0f);
+    // Markdown：用第三方 imgui_markdown 渲染（标题/粗体/列表/链接/代码块/图片）。
+    // 图片由宿主通过 resolver 提供纹理（控件层不碰平台接口）。
+    Popup& setMarkdown(std::string markdown, MarkdownView::ImageResolver resolver = {}, float view_height = 0.0f);
     // 图片（等比缩放 / 居中 / 最大尺寸）
     Popup& setImage(ImTextureRef texture, float width, float height);
     // 进度内容（标题下方一行说明 + 进度条）
@@ -243,11 +246,13 @@ private:
     void BuildChrome();
     void RebuildContent();
     void ApplyKindColors();
+    void ApplyKindHeader();
     float ResolveWidth(float canvas_width) const;
     float ResolveHeightLimit(float canvas_height) const;
     void PositionChildren();
 
     std::string name_;
+    std::string header_icon_glyph_;   // 空 = 按 kind 取默认图标
     PopupKind kind_ = PopupKind::Custom;
     PopupScope scope_ = PopupScope::Page;
     PopupState state_ = PopupState::Closed;
@@ -269,15 +274,16 @@ private:
     Box* root_ = nullptr;
     Box* backdrop_ = nullptr;        // 遮罩（z_order = -1：画在最下、命中测试最后）
     Box* window_ = nullptr;          // 弹窗窗口
-    Box* type_bar_ = nullptr;        // 顶部类型条
+    Box* header_badge_ = nullptr;    // Header 左侧的方形图标 Box
+    Label* header_icon_ = nullptr;   // 放在方形 Box 里的图标字形
     Label* title_ = nullptr;
     Box* content_host_ = nullptr;    // 内容容器（需要滚动时它自己就是 ScrollView）
     Box* buttons_box_ = nullptr;     // 按钮组容器
     Label* message_ = nullptr;       // 进度/说明文字
     ProgressBar* progress_bar_ = nullptr;
     Image* image_ = nullptr;
-    RichText* rich_text_ = nullptr;
-    Box* rich_scroll_ = nullptr;     // 富文本的滚动容器（Box + Overflow::Scroll）
+    Box* markdown_scroll_ = nullptr; // Markdown 的滚动容器（Box + Overflow::Scroll）
+    MarkdownView* markdown_view_ = nullptr;
     std::function<void(Widget&)> content_builder_;
 
     struct ButtonEntry {
