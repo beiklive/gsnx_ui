@@ -78,6 +78,60 @@ inline ImVec4 kCapsuleFill = rgb(255, 255, 255);
 inline ImVec4 kCapsuleStroke = rgb(255, 255, 255);
 inline ImVec4 kCapsuleShadow = rgba(0, 0, 0, 72);
 
+// ---- 控件「状态」色（唯一来源 = 主题；控件只查状态，不各存一套颜色） --------
+// 状态判定见 Widget::State()；这里只把「状态 → 主题里哪个角色色」定下来，
+// 深色/浅色两套主题各自覆盖上面那些角色色，所以状态色自动跟着主题走。
+enum class WidgetState {
+    Normal,   // 常规
+    Hovered,  // 指针悬停
+    Pressed,  // 按下（down）
+    Selected, // 选中（容器设置的 selected）
+    Disabled, // 禁用（enabled == false；透明度另由 disabled_opacity 处理）
+};
+
+inline ImVec4 ControlBackgroundColor(WidgetState state) {
+    switch (state) {
+    case WidgetState::Hovered:
+        return kBgWidgetHi;
+    case WidgetState::Pressed:
+        return kButtonActive;
+    case WidgetState::Selected:
+        return kSelection;
+    case WidgetState::Normal:
+    case WidgetState::Disabled:
+    default:
+        return kBgWidget;
+    }
+}
+
+inline ImVec4 ControlBorderColor(WidgetState state) {
+    switch (state) {
+    case WidgetState::Hovered:
+        return kAccentHover;
+    case WidgetState::Pressed:
+    case WidgetState::Selected:
+        return kAccent;
+    case WidgetState::Normal:
+    case WidgetState::Disabled:
+    default:
+        return kControlBorder;
+    }
+}
+
+inline ImVec4 ControlInkColor(WidgetState state) {
+    switch (state) {
+    case WidgetState::Pressed:
+    case WidgetState::Selected:
+        return kTextBright;
+    case WidgetState::Disabled:
+        return kTextDisabled;
+    case WidgetState::Normal:
+    case WidgetState::Hovered:
+    default:
+        return kTextPrimary;
+    }
+}
+
 inline ThemeMode theme_mode = ThemeMode::Dark;
 
 // 切主题：把整套角色色换成浅色 / 深色；切完调 ApplyToImGui() 让 ImGui 原生控件一致

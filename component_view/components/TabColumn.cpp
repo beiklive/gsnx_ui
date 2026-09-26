@@ -8,9 +8,11 @@
 namespace gui_dev::cv {
 namespace {
 
-// 列里的一项：按 A（确认）不当作「点自己」，而是把焦点送进子页面。
-// 所以这里把 Confirm 提前吃掉，不再走 Button 的 clicked/activated。
-class TabItem : public TextButton {
+// 列里的一项 = **基础 Button 的左对齐形态**（图标在左、文字紧跟其右）：
+// 边框 / 阴影 / 底色都关掉，选中态与焦点视觉由 TabColumn 自己画（选中底 + 左侧色条）。
+// 另外：按 A（确认）不当作「点自己」，而是把焦点送进子页面 —— 这里把 Confirm 提前吃掉，
+// 不再走 Button 的 clicked/activated。
+class TabItem : public Button {
 public:
     explicit TabItem(TabColumn* owner) : owner_(owner) {}
 
@@ -19,7 +21,7 @@ protected:
         if (action == InputAction::Confirm && owner_ != nullptr && owner_->EnterContent()) {
             return true;
         }
-        return TextButton::OnPadAction(action);
+        return Button::OnPadAction(action);
     }
 
 private:
@@ -158,9 +160,10 @@ void TabColumn::ApplyItemLook(int index) {
     // 平铺：没有底色 / 边框 / 阴影，选中底由容器在 OnDrawContent 里画（画在文字下面）
     item->background = 0;
     item->background_follows_theme = false;
-    item->border.width = 0.0f;
-    item->border.color = 0;
-    item->shadow.enabled = false;
+    item->background_state_follows_theme = false; // 选中底由本列自己画（不用主题状态底）
+    item->setBorderVisible(false);                // 无边框
+    item->border_state_follows_theme = false;     // 也不要状态边框色
+    item->shadow.enabled = false;                 // 无阴影
     item->padding = EdgeInsets{style.content_padding, style.padding_y, 12.0f, style.padding_y};
     item->size.y = style.item_height;
     // 圆角跟选中底一致：按钮的流光焦点框按 corner_radius + margin 画，

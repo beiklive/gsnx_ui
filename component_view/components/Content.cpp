@@ -309,6 +309,11 @@ Separator::Separator(Orientation value) : Separator() {
     orientation = value;
 }
 
+Separator& Separator::setOrientation(Orientation value) {
+    orientation = value;
+    return *this;
+}
+
 Separator& Separator::setThickness(float value) {
     thickness = value;
     return *this;

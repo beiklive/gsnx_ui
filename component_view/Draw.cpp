@@ -77,6 +77,38 @@ void RoundedRectFilled(ImDrawList* dl, const Rect& r, ImU32 color, float tl, flo
     dl->AddRectFilled(r.min, r.max, color, radius, flags);
 }
 
+// 单边边框：四条独立的矩形条（各自宽度 / 颜色），按 inset 往内收。
+// 只有「四边不一致」时才走这里，所以默认视觉与老的 outline 完全相同。
+static void ComponentBoxPerSide(ImDrawList* dl, const Rect& rect, const BoxVisual& visual) {
+    const float inset = visual.border.inset;
+    const Rect outer = rect.Expanded(-inset);
+    const BorderSide sides[4] = {BorderSide::Top, BorderSide::Right, BorderSide::Bottom, BorderSide::Left};
+    for (BorderSide side : sides) {
+        const float width = visual.border.SideWidth(side);
+        const ImU32 color = visual.border.SideColor(side);
+        if (width <= 0.0f || !BorderStyle::AlphaVisible(color) || !outer.Valid()) {
+            continue;
+        }
+        Rect strip;
+        switch (side) {
+        case BorderSide::Top:
+            strip = Rect{outer.min, ImVec2(outer.max.x, outer.min.y + width)};
+            break;
+        case BorderSide::Right:
+            strip = Rect{ImVec2(outer.max.x - width, outer.min.y), ImVec2(outer.max.x, outer.max.y)};
+            break;
+        case BorderSide::Bottom:
+            strip = Rect{ImVec2(outer.min.x, outer.max.y - width), outer.max};
+            break;
+        case BorderSide::Left:
+        default:
+            strip = Rect{outer.min, ImVec2(outer.min.x + width, outer.max.y)};
+            break;
+        }
+        dl->AddRectFilled(strip.min, strip.max, color);
+    }
+}
+
 void ComponentBox(ImDrawList* dl, const Rect& rect, const BoxVisual& visual) {
     if (dl == nullptr || !rect.Valid()) {
         return;
@@ -91,7 +123,9 @@ void ComponentBox(ImDrawList* dl, const Rect& rect, const BoxVisual& visual) {
     if (((visual.background >> IM_COL32_A_SHIFT) & 0xFF) != 0) {
         RoundedRectFilled(dl, rect, visual.background, tl, tr, bl, br);
     }
-    if (visual.border.Visible()) {
+    if (visual.border.PerSide()) {
+        ComponentBoxPerSide(dl, rect, visual); // 四边不一致：画四条独立边（默认不会走到这里）
+    } else if (visual.border.Visible()) {
         const Rect outline = rect.Expanded(-visual.border.inset);
         RoundedRectOutline(dl, outline, visual.border.color, visual.border.width, tl, tr, bl, br);
     }

@@ -666,6 +666,18 @@ float Widget::EffectiveOpacity() const {
     return enabled ? opacity : opacity * disabled_opacity;
 }
 
+// 状态色统一入口：底色 / 边框色都从 Theme 的「状态 → 角色色」映射里取，
+// 控件自己不存第二套颜色。默认两个开关都是关的，所以现有控件视觉完全不变。
+void Widget::ApplyStateColors() {
+    const WidgetState state = State();
+    if (background_state_follows_theme) {
+        background = Theme::U32(Theme::ControlBackgroundColor(state));
+    }
+    if (border_state_follows_theme && border.width > 0.0f) {
+        border.color = Theme::U32(Theme::ControlBorderColor(state));
+    }
+}
+
 ImU32 Widget::Tint(ImU32 color) const {
     return Theme::Alpha(color, EffectiveOpacity());
 }

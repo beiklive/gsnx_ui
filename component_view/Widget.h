@@ -32,6 +32,8 @@
 
 namespace gui_dev::cv {
 
+using Theme::WidgetState; // 状态枚举与状态色都定义在 Theme（主题是唯一来源）
+
 // 焦点框的「描述」：控件只说自己要什么样的焦点框（矩形 / 圆角 / 粗细 / 强度 …），
 // 真正画在哪儿由页面级的 FocusRing 图层决定（见 component_view/FocusRing.h）。
 // 这样焦点框与控件解耦，一帧只画一个，也不用每个控件都在自己的 OnDrawOverlay 里画。
@@ -91,9 +93,14 @@ public:
     ImU32 background = 0;
     // 底色是否来自调色板（组件默认）→ 切主题时刷新；用户显式设过色就置 false
     bool background_follows_theme = false;
+    // 底色是否跟着「状态」从主题取（Theme::ControlBackgroundColor(State())）：
+    // 交互控件（Button 家族）打开；纯容器保持 false，视觉与以前完全一致。
+    bool background_state_follows_theme = false;
 
     // ---- 边框 / 阴影 -------------------------------------------------------
     BorderStyle border;
+    // 边框颜色是否跟着状态走（默认 false = 用显式色；按钮类打开，Normal 状态 = 主题默认边框色）
+    bool border_state_follows_theme = false;
     ShadowStyle shadow;
 
     // ---- 溢出与滚动 --------------------------------------------------------
@@ -263,12 +270,49 @@ signals:
     void SetFocusZone(int zone);
 
     // ---- 链式设置 ----------------------------------------------------------
+    // ---- 状态（状态色由主题统一给：Theme::ControlBackgroundColor / ControlInkColor …）----
+    // 判定顺序：Disabled > Pressed(down) > Selected > Hovered > Normal。
+    // 注意：单选「focused」不算 Hovered —— 键盘焦点已经由流光焦点框表达，避免叠加出新底色。
+    WidgetState State() const {
+        if (!enabled) {
+            return WidgetState::Disabled;
+        }
+        if (down) {
+            return WidgetState::Pressed;
+        }
+        if (selected) {
+            return WidgetState::Selected;
+        }
+        if (hovered) {
+            return WidgetState::Hovered;
+        }
+        return WidgetState::Normal;
+    }
+    bool isFocusable() const { return focusable; }
+
     Widget& SetName(std::string value) {
         name = std::move(value);
         return *this;
     }
     Widget& SetPosition(float x, float y) {
         position = ImVec2(x, y);
+        return *this;
+    }
+    // 几何便捷：只动一根轴（不改另一轴的显式/自适应状态）
+    Widget& SetX(float value) {
+        position.x = value;
+        return *this;
+    }
+    Widget& SetY(float value) {
+        position.y = value;
+        return *this;
+    }
+    Widget& SetWidth(float value) {
+        size.x = value;
+        return *this;
+    }
+    Widget& SetHeight(float value) {
+        size.y = value;
         return *this;
     }
     Widget& SetAnchor(float x, float y) {
@@ -295,12 +339,69 @@ signals:
         margin = value;
         return *this;
     }
+    Widget& SetMargin(float left, float top, float right, float bottom) {
+        margin = EdgeInsets{left, top, right, bottom};
+        return *this;
+    }
+    Widget& SetMarginLeft(float value) {
+        margin.left = value;
+        return *this;
+    }
+    Widget& SetMarginTop(float value) {
+        margin.top = value;
+        return *this;
+    }
+    Widget& SetMarginRight(float value) {
+        margin.right = value;
+        return *this;
+    }
+    Widget& SetMarginBottom(float value) {
+        margin.bottom = value;
+        return *this;
+    }
     Widget& SetPadding(const EdgeInsets& value) {
         padding = value;
         return *this;
     }
+    Widget& SetPadding(float left, float top, float right, float bottom) {
+        padding = EdgeInsets{left, top, right, bottom};
+        return *this;
+    }
+    Widget& SetPaddingLeft(float value) {
+        padding.left = value;
+        return *this;
+    }
+    Widget& SetPaddingTop(float value) {
+        padding.top = value;
+        return *this;
+    }
+    Widget& SetPaddingRight(float value) {
+        padding.right = value;
+        return *this;
+    }
+    Widget& SetPaddingBottom(float value) {
+        padding.bottom = value;
+        return *this;
+    }
     Widget& SetRadius(float value) {
         corner_radius = value;
+        return *this;
+    }
+    // 单角圆角（<0 = 跟随统一圆角；四角统一时用 SetRadius(v) 即可）
+    Widget& SetRadiusTopLeft(float value) {
+        corner_tl = value;
+        return *this;
+    }
+    Widget& SetRadiusTopRight(float value) {
+        corner_tr = value;
+        return *this;
+    }
+    Widget& SetRadiusBottomLeft(float value) {
+        corner_bl = value;
+        return *this;
+    }
+    Widget& SetRadiusBottomRight(float value) {
+        corner_br = value;
         return *this;
     }
     Widget& SetRadius(float tl, float tr, float bl, float br) {
@@ -322,13 +423,93 @@ signals:
         background_follows_theme = false;
         return *this;
     }
+    // RGBA 四通道单独给（0..1）；a = 0 表示不填充
+    Widget& SetBackgroundColor(float r, float g, float b, float a) {
+        background = Theme::U32(ImVec4(r, g, b, a));
+        background_follows_theme = false;
+        return *this;
+    }
     Widget& SetBorder(float width, ImU32 color) {
         border.width = width;
         border.color = color;
         return *this;
     }
+    // 统一边框（颜色给 ImVec4，和 Theme 的用法一致；底层仍存 ImU32）
+    Widget& SetBorder(float width, const ImVec4& color) {
+        border.width = width;
+        border.color = Theme::U32(color);
+        return *this;
+    }
+    Widget& SetBorderWidth(float width) {
+        border.width = width;
+        return *this;
+    }
+    Widget& SetBorderColor(const ImVec4& color) {
+        border.color = Theme::U32(color);
+        return *this;
+    }
+    // 单边边框：宽度 <0 = 跟随统一宽度；alpha=0 的颜色 = 跟随统一颜色
+    Widget& SetBorder(BorderSide side, float width, const ImVec4& color) {
+        switch (side) {
+        case BorderSide::Top:
+            border.top_width = width;
+            border.top_color = Theme::U32(color);
+            break;
+        case BorderSide::Right:
+            border.right_width = width;
+            border.right_color = Theme::U32(color);
+            break;
+        case BorderSide::Bottom:
+            border.bottom_width = width;
+            border.bottom_color = Theme::U32(color);
+            break;
+        case BorderSide::Left:
+        default:
+            border.left_width = width;
+            border.left_color = Theme::U32(color);
+            break;
+        }
+        return *this;
+    }
+    Widget& SetBorderTop(float width, const ImVec4& color) {
+        return SetBorder(BorderSide::Top, width, color);
+    }
+    Widget& SetBorderRight(float width, const ImVec4& color) {
+        return SetBorder(BorderSide::Right, width, color);
+    }
+    Widget& SetBorderBottom(float width, const ImVec4& color) {
+        return SetBorder(BorderSide::Bottom, width, color);
+    }
+    Widget& SetBorderLeft(float width, const ImVec4& color) {
+        return SetBorder(BorderSide::Left, width, color);
+    }
     Widget& SetShadow(const ShadowStyle& value) {
         shadow = value;
+        return *this;
+    }
+    // 阴影逐字段（offset 与 blur/spread 是两回事：offset = 位移，blur = 柔化，spread = 额外扩张）
+    Widget& SetShadowEnabled(bool value) {
+        shadow.enabled = value;
+        return *this;
+    }
+    Widget& SetShadowOffset(float x, float y) {
+        shadow.offset = ImVec2(x, y);
+        shadow.enabled = true;
+        return *this;
+    }
+    Widget& SetShadowBlur(float blur) {
+        shadow.blur = blur;
+        shadow.enabled = true;
+        return *this;
+    }
+    Widget& SetShadowSpread(float spread) {
+        shadow.spread = spread;
+        shadow.enabled = true;
+        return *this;
+    }
+    Widget& SetShadowColor(const ImVec4& color) {
+        shadow.color = Theme::U32(color);
+        shadow.enabled = true;
         return *this;
     }
     Widget& SetLayout(LayoutMode mode, const ImVec2& spacing = ImVec2(0.0f, 0.0f)) {
@@ -351,6 +532,11 @@ signals:
     }
     Widget& SetOverflow(Overflow value) {
         overflow = value;
+        return *this;
+    }
+    // 裁剪开关（true = 裁掉超出部分且不滚动，false = 不裁剪）
+    Widget& SetClip(bool enabled) {
+        overflow = enabled ? Overflow::Hidden : Overflow::Visible;
         return *this;
     }
     Widget& SetFocusable(bool value) {
@@ -400,6 +586,9 @@ signals:
 protected:
     // 套用 Global::component_style 的「框」：边框 / 圆角 / 阴影（Box / Button / Toast 共用）
     void ApplyComponentBoxStyle();
+
+    // 按当前状态从主题取底色 / 边框色（只有对应的 *_state_follows_theme 打开时才动）
+    void ApplyStateColors();
 
     // ---- 子类接口 ----------------------------------------------------------
     // 内容自身需要的尺寸（不含 padding/border/margin）。默认 0。

@@ -76,6 +76,7 @@ using gui_dev::cv::OptionButton;
 using gui_dev::cv::Page;
 using gui_dev::cv::TabColumn;
 using gui_dev::cv::TextButton;
+using gui_dev::cv::TextAlign;
 using gui_dev::cv::ToastType;
 using gui_dev::cv::ToggleButton;
 using gui_dev::cv::ValueButton;
@@ -448,6 +449,55 @@ public:
                 button->enabled = enabled;
             }
         });
+
+        // ---- 本轮新增接口演示：图标显隐 / 图标+文字三向对齐 / 单边边框 / 状态色 ----
+        header_api_ = AddHeader(kTabPopups, "接口演示", "对齐 · 图标显隐 · 单边边框 · 状态色（主题统一给色）");
+        desc_api_ = AddDescription(
+            kTabPopups,
+            "Button：setTextAlign(Left/Center/Right) 控制「图标+文字」整块；setIconVisible(false) 隐藏图标；"
+            "Widget：SetBorderTop/Bottom…、SetShadow*、SetRadiusTopLeft…；状态色由 Theme 统一管理");
+        {
+            struct AlignSpec {
+                const char* name;
+                const char* label;
+                TextAlign align;
+            };
+            const AlignSpec specs[3] = {{"btn_align_left", "左对齐（图标 + 文字）", TextAlign::Left},
+                                        {"btn_align_center", "居中", TextAlign::Center},
+                                        {"btn_align_right", "右对齐", TextAlign::Right}};
+            for (const AlignSpec& spec : specs) {
+                IconTextButton* button = AddTo(
+                    kTabPopups, content_panel_->Emplace<IconTextButton>(Icons::Glyph(Icons::Material::Folder), spec.label));
+                button->SetName(spec.name);
+                button->setTextAlign(spec.align);
+                button->setBorderVisible(false);  // 顺便演示无框
+                api_buttons_.push_back(button);
+            }
+            TextButton* no_icon = AddTo(kTabPopups, content_panel_->Emplace<TextButton>("隐藏图标（只有文字）"));
+            no_icon->SetName("btn_no_icon");
+            no_icon->setIcon(Icons::Glyph(Icons::Material::Favorite));
+            no_icon->setIconVisible(false); // 图标设了但不显示
+            no_icon->setTextAlign(TextAlign::Left);
+            api_buttons_.push_back(no_icon);
+
+            TextButton* selected = AddTo(kTabPopups, content_panel_->Emplace<TextButton>("选中态（Theme::kSelection）"));
+            selected->SetName("btn_selected");
+            selected->setTextAlign(TextAlign::Center);
+            selected->selected = true; // 状态色：由主题统一给（Selected → kSelection / kTextBright）
+            api_buttons_.push_back(selected);
+        }
+        api_box_ = AddTo(kTabPopups, content_panel_->Emplace<Box>("box_border_demo"));
+        api_box_->SetName("box_border_demo");
+        api_box_->fillWith(Theme::kBgWidget);
+        api_box_->SetRadiusTopLeft(16.0f);              // 单角圆角
+        api_box_->SetRadiusTopRight(4.0f);
+        api_box_->SetRadiusBottomLeft(4.0f);
+        api_box_->SetRadiusBottomRight(4.0f);
+        api_box_->SetBorderBottom(2.0f, Theme::kAccent); // 只画下边框
+        api_box_->SetShadowEnabled(false);
+        api_box_label_ = AddTo(kTabPopups, content_panel_->Emplace<Label>("单边边框：只有下边框 2px（强调色）+ 左上 16 圆角"));
+        api_box_label_->setFontSize(Theme::kFontSmall);
+        api_box_label_->setColor(Theme::kTextMuted);
 
         // ---- 文件浏览器：选择文件 / 选择目录 → 打开新的浏览页（见 FileBrowserPage） ----
         header_browser_ = AddHeader(kTabPopups, "文件浏览器", "选择文件 / 选择目录 → 打开新的浏览页");
@@ -1332,6 +1382,26 @@ public:
             }
             y += gap;
 
+            header_api_->SetPosition(left, y);
+            header_api_->size.x = w;
+            y += kHeaderHeight + 2.0f;
+            desc_api_->SetPosition(left, y);
+            desc_api_->size.x = w;
+            desc_api_->size.y = 44.0f;
+            y += 44.0f + kPreviewGap;
+            for (Button* button : api_buttons_) {
+                button->resize(w, Theme::kControlHeight);
+                button->moveTo(left, y);
+                y += Theme::kControlHeight + kRowGap;
+            }
+            api_box_->resize(w, 64.0f);
+            api_box_->moveTo(left, y);
+            y += 64.0f + kRowGap;
+            api_box_label_->SetPosition(left, y);
+            api_box_label_->size.x = w;
+            api_box_label_->size.y = kDescHeight;
+            y += kDescHeight + kSectionGap;
+
             header_browser_->SetPosition(left, y);
             header_browser_->size.x = w;
             y += kHeaderHeight + 2.0f;
@@ -1677,6 +1747,11 @@ private:
     Box* content_panel_ = nullptr;
     TabColumn* tab_column_ = nullptr;
     Header* header_buttons_ = nullptr;
+    Header* header_api_ = nullptr;
+    Label* desc_api_ = nullptr;
+    std::vector<Button*> api_buttons_;
+    Box* api_box_ = nullptr;
+    Label* api_box_label_ = nullptr;
     Header* header_browser_ = nullptr;
     Label* desc_browser_ = nullptr;
     TextButton* pick_file_button_ = nullptr;

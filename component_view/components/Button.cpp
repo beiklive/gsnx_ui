@@ -49,6 +49,42 @@ Button& Button::applyComponentStyle() {
         background = Theme::U32(Theme::kBgWidget);
         background_follows_theme = true;
     }
+    // 按钮是交互控件：底色 / 边框色由「状态 + 主题」共同决定（Normal 与以前完全一样）
+    background_state_follows_theme = background_follows_theme;
+    border_state_follows_theme = true;
+    ApplyStateColors();
+    return *this;
+}
+
+// 状态底色：每帧按当前状态从主题取（Hovered = kBgWidgetHi / Pressed = kButtonActive / Selected = kSelection）
+void Button::OnUpdate(float dt) {
+    (void)dt;
+    ApplyStateColors();
+}
+
+ImU32 Button::InkMain() const {
+    const ImVec4 base = text_color_follows_theme ? Theme::ControlInkColor(State()) : text_color;
+    return Theme::Alpha(Theme::U32(base), EffectiveOpacity());
+}
+
+Button& Button::setIconVisible(bool visible) {
+    icon_visible = visible;
+    return *this;
+}
+
+Button& Button::setIconColor(ImVec4 color) {
+    icon_color = color;
+    icon_color_follows_text = false; // 显式给色：不再跟主文字/状态
+    return *this;
+}
+
+Button& Button::setIconFollowsText(bool value) {
+    icon_color_follows_text = value;
+    return *this;
+}
+
+Button& Button::setShowRight(bool visible) {
+    show_right = visible;
     return *this;
 }
 
@@ -58,7 +94,8 @@ Button& Button::setBorderVisible(bool visible) {
         border.width = 0.0f;
     } else if (border.width <= 0.0f) {
         border.width = Global::component_style.border_width;
-        border.color = Theme::U32(Global::component_style.border_color);
+        border_state_follows_theme = true; // 恢复默认边框色（并继续跟状态）
+        ApplyStateColors();
     }
     return *this;
 }
@@ -149,6 +186,7 @@ Button& Button::setContentPadding(float value) {
 Button& Button::setBorder(float width, ImVec4 color) {
     border.width = width;
     border.color = Theme::U32(color);
+    border_state_follows_theme = false; // 显式设过边框色：不再跟状态
     return *this;
 }
 
@@ -200,18 +238,30 @@ Button::LeftBlock Button::computeLeftBlock(const Rect& content) const {
         show_sub ? Draw::MeasureText(nullptr, sub_size, subtitle.c_str(), 0.0f) : ImVec2(0.0f, 0.0f);
 
     // 图标占左侧一个正方形格：边长默认 = 内容区高度 → 到边框的上下左右留白完全相同
-    const float cell = icon.empty() ? 0.0f : (icon_cell > 0.0f ? icon_cell : content.Height());
-    const float gap = (icon.empty() || text.empty()) ? 0.0f : icon_gap;
+    const bool has_icon = isIconVisible();
+    const float cell = has_icon ? (icon_cell > 0.0f ? icon_cell : content.Height()) : 0.0f;
+    const float gap = (has_icon && !text.empty()) ? icon_gap : 0.0f;
+    // 「图标 + 文字」整块在内容区里的对齐：Left / Center / Right 三向都支持
+    const auto aligned_x = [&](float block_width) {
+        switch (text_align) {
+        case TextAlign::Center:
+            return content.Center().x - block_width * 0.5f;
+        case TextAlign::Right:
+            return content.max.x - block_width;
+        case TextAlign::Left:
+        default:
+            return content.min.x;
+        }
+    };
 
-    if (text.empty() && !icon.empty()) {
+    if (text.empty() && has_icon) {
         // 纯图标：图标在按钮里居中；说明行（如果有）是画在外面的，不占这里的位置
         const float text_w = show_sub ? sub_extent.x : 0.0f;
         const float text_h = show_sub ? sub_extent.y : 0.0f;
         block.vertical = !show_sub;
         block.width = Maxf(cell, text_w);
         const float total_h = cell + (show_sub ? text_h + 2.0f : 0.0f);
-        const float block_x = (text_align == TextAlign::Center) ? content.Center().x - block.width * 0.5f
-                                                               : content.min.x;
+        const float block_x = aligned_x(block.width);
         const float block_y = content.Center().y - total_h * 0.5f;
         block.icon = Rect::FromPosSize(ImVec2(block_x + (block.width - cell) * 0.5f, block_y),
                                       ImVec2(cell, cell));
@@ -226,8 +276,7 @@ Button::LeftBlock Button::computeLeftBlock(const Rect& content) const {
 
     // 文字块（主文字 [+ 说明行]）整体相对内容区垂直居中：
     // 位置按文字块自己的高度算，而不是按图标格的高度算 —— 否则关掉说明行后主文字会停在偏上的位置。
-    const float block_x = (text_align == TextAlign::Center) ? content.Center().x - block.width * 0.5f
-                                                            : content.min.x;
+    const float block_x = aligned_x(block.width);
     block.icon = Rect::FromPosSize(ImVec2(block_x, content.Center().y - cell * 0.5f), ImVec2(cell, cell));
     block.text = Rect::FromPosSize(ImVec2(block_x + cell + gap, content.Center().y - text_h * 0.5f),
                                    ImVec2(text_w, text_h));
@@ -239,7 +288,7 @@ void Button::drawLeftBlock(ImDrawList* dl, const LeftBlock& block) const {
     const float sub_size = subFontSize();
     const bool show_sub = SubtitleVisible();
 
-    if (!icon.empty() && block.icon.Width() > 0.0f) {
+    if (isIconVisible() && block.icon.Width() > 0.0f) {
         // 图标大小跟着格子走（额外 0.86 让四周留白看起来均匀）
         const float glyph_size = block.icon.Height() * 0.86f;
         const ImVec2 extent = Draw::MeasureText(nullptr, glyph_size, icon.c_str(), 0.0f);
@@ -250,8 +299,9 @@ void Button::drawLeftBlock(ImDrawList* dl, const LeftBlock& block) const {
         if (Draw::GlyphInkExtent(nullptr, glyph_size, icon.c_str(), ink_top, ink_bottom)) {
             y = block.icon.Center().y - (ink_top + ink_bottom) * 0.5f;
         }
-        Draw::Text(dl, nullptr, glyph_size, ImVec2(block.icon.Center().x - extent.x * 0.5f, y),
-                   Ink(text_color), icon.c_str());
+        const ImU32 icon_ink = icon_color_follows_text ? InkMain() : Ink(icon_color);
+        Draw::Text(dl, nullptr, glyph_size, ImVec2(block.icon.Center().x - extent.x * 0.5f, y), icon_ink,
+                   icon.c_str());
     }
     if (text.empty() && !show_sub) {
         return;
@@ -269,7 +319,7 @@ void Button::drawLeftBlock(ImDrawList* dl, const LeftBlock& block) const {
 
     // 主文字在上、说明行在下，两块作为整体已经垂直居中
     const float main_y = show_sub ? block.text.min.y : block.text.Center().y - main_extent.y * 0.5f;
-    Draw::Text(dl, nullptr, main_size, ImVec2(block.text.min.x, main_y), Ink(text_color), text.c_str());
+    Draw::Text(dl, nullptr, main_size, ImVec2(block.text.min.x, main_y), InkMain(), text.c_str());
     if (show_sub) {
         Draw::Text(dl, nullptr, sub_size, ImVec2(block.text.min.x, main_y + main_extent.y + 2.0f),
                    Ink(subtitle_color), subtitle.c_str());
@@ -317,7 +367,8 @@ ImVec2 Button::MeasureContent(const ImVec2& available) {
     const Button* self = this;
     LeftBlock block = self->computeLeftBlock(Rect::FromPosSize(ImVec2(0.0f, 0.0f), ImVec2(0.0f, Theme::kControlHeight)));
     const float height = Maxf(Theme::kControlHeight, subFontSize() + mainFontSize() + 8.0f);
-    const float width = block.width + (rightSideWidth() > 0.0f ? rightSideWidth() + 16.0f : 0.0f);
+    const float right = show_right ? rightSideWidth() : 0.0f;
+    const float width = block.width + (right > 0.0f ? right + 16.0f : 0.0f);
     return ImVec2(Maxf(width, 120.0f), height);
 }
 
@@ -325,7 +376,7 @@ void Button::OnDrawContent(ImDrawList* dl, const Rect& content) {
     const LeftBlock block = computeLeftBlock(content);
     drawLeftBlock(dl, block);
 
-    const float right_w = rightSideWidth();
+    const float right_w = show_right ? rightSideWidth() : 0.0f;
     if (right_w > 0.0f) {
         const Rect right_rect = Rect::FromPosSize(ImVec2(content.max.x - right_w, content.min.y),
                                                  ImVec2(right_w, content.Height()));
@@ -425,6 +476,11 @@ IconButton::IconButton(std::string glyph) : IconButton() {
 IconButton& IconButton::setShape(IconButtonShape value) {
     shape = value;
     setSide(side); // 重新算圆角
+    return *this;
+}
+
+IconButton& IconButton::setCaptionGap(float value) {
+    caption_gap = value;
     return *this;
 }
 
@@ -535,7 +591,13 @@ float ToggleButton::rightSideWidth() const {
     return switch_width;
 }
 
+ToggleButton& ToggleButton::setKnobSpeed(float value) {
+    knob_speed = value;
+    return *this;
+}
+
 void ToggleButton::OnUpdate(float dt) {
+    Button::OnUpdate(dt); // 状态底色（Hovered/Pressed/Selected）
     const float target = checked ? 1.0f : 0.0f;
     if (knob_mix_ < 0.0f) {
         knob_mix_ = target; // 第一帧直接对齐，避免刚打开就滑一下
@@ -698,14 +760,9 @@ FileButton& FileButton::setRightColor(ImVec4 color) {
     return *this;
 }
 
-FileButton& FileButton::setShowRight(bool visible) {
-    show_right = visible;
-    return *this;
-}
-
 std::string FileButton::rightText() const {
     if (!show_right) {
-        return {}; // 「返回上层」这类行右边不写字
+        return {}; // 右侧关闭（「返回上层」这类行右边不写字）
     }
     if (kind == FileKind::Folder) {
         return "文件夹"; // 目录不显示大小（与 GBAStation FileListPage 一致）
@@ -800,6 +857,11 @@ OptionButton& OptionButton::setIndex(int value, bool notify) {
     return *this;
 }
 
+OptionButton& OptionButton::setWrap(bool value) {
+    wrap = value;
+    return *this;
+}
+
 const char* OptionButton::currentOption() const {
     return options.empty() ? "" : options[static_cast<std::size_t>(index)].c_str();
 }
@@ -854,6 +916,40 @@ ValueButton& ValueButton::setValue(float next, bool notify) {
     if (notify) {
         emit valueChanged(value);
     }
+    return *this;
+}
+
+ValueButton& ValueButton::setRange(float min_v, float max_v) {
+    min_value = min_v;
+    max_value = Maxf(max_v, min_v);
+    value = Clampf(value, min_value, max_value);
+    return *this;
+}
+
+ValueButton& ValueButton::setStep(float step_v) {
+    step = Absf(step_v) > 0.0001f ? Absf(step_v) : step;
+    return *this;
+}
+
+ValueButton& ValueButton::setPrecision(int precision_digits) {
+    precision = precision_digits < 0 ? 0 : precision_digits;
+    return *this;
+}
+
+ValueButton& ValueButton::setWrap(bool value) {
+    wrap = value;
+    return *this;
+}
+
+ValueButton& ValueButton::setRepeat(float delay, float interval) {
+    repeat_delay = Maxf(delay, 0.0f);
+    repeat_interval = Maxf(interval, 0.01f);
+    return *this;
+}
+
+ValueButton& ValueButton::setRepeatAcceleration(float accel_time, float max_multiplier) {
+    repeat_accel_time = Maxf(accel_time, 0.0f);
+    repeat_max_multiplier = Maxf(max_multiplier, 1.0f);
     return *this;
 }
 
@@ -912,6 +1008,7 @@ void ValueButton::flushPending() {
 }
 
 void ValueButton::OnUpdate(float dt) {
+    Button::OnUpdate(dt); // 状态底色
     if (hold_dir_ == 0) {
         return;
     }

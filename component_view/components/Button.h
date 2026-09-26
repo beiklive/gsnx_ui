@@ -55,6 +55,13 @@ public:
     bool text_color_follows_theme = true;
     bool subtitle_color_follows_theme = true;
     float lr_slot_width = -1.0f;  // LR 选择器中间那一格的宽度，<0 = Global::component_style
+    // 图标显隐 / 颜色：默认图标和主文字同色（视觉与以前完全一致）
+    bool icon_visible = true;
+    ImVec4 icon_color = Theme::kTextPrimary;
+    bool icon_color_follows_text = true; // true = 跟随主文字色（含状态色）
+    // 右侧区域（自定义文字 / LR 选择器 / 开关 / 文件大小）显隐：
+    // false 时右侧既不画也不占宽度，左侧图标+文字可以用满整行。
+    bool show_right = true;
 
     // ---- 流光聚焦框（默认取 Global::component_style） -----------------------
     bool flowing_focus = true;
@@ -66,6 +73,15 @@ public:
 
     // ---- 链式接口 ----------------------------------------------------------
     Button& setIcon(std::string glyph);
+    // 图标显隐（隐藏后图标格与图标/文字间距都不占宽）
+    Button& setIconVisible(bool visible);
+    bool isIconVisible() const { return icon_visible && !icon.empty(); }
+    // 图标颜色：显式给色后不再跟随主文字（也就不会跟着状态变）
+    Button& setIconColor(ImVec4 color);
+    Button& setIconFollowsText(bool value);
+    // 右侧区域显隐
+    Button& setShowRight(bool visible);
+    bool isRightVisible() const { return show_right; }
     Button& setText(std::string value);
     Button& setSubtitle(std::string value, bool visible = true);
     Button& showSubtitle(bool value);
@@ -108,6 +124,7 @@ protected:
 
     ImVec2 MeasureContent(const ImVec2& available) override;
     void OnDrawContent(ImDrawList* dl, const Rect& content) override;
+    void OnUpdate(float dt) override; // 状态底色：Hovered / Pressed / Selected 从主题取
     // 焦点框改成页面级图层统一画：这里只描述「流光框长什么样」
     cv::FocusVisual BuildFocusVisual() const override;
     bool OnPadAction(InputAction action) override;
@@ -125,6 +142,8 @@ protected:
     virtual bool CaptionOutside() const;              // IconButton：说明行画在控件外面
     bool SubtitleVisible() const { return show_subtitle && SubtitleAllowed() && !CaptionOutside(); }
 
+    // 主文字 / 图标的墨色：跟主题时按「状态」取（Theme::ControlInkColor），显式设色时不跟状态
+    ImU32 InkMain() const;
     // 文字 / 图标 / 开关的颜色统一过一遍 Widget::opacity：入出场淡入淡出、禁用态都靠它
     ImU32 Ink(const ImVec4& color) const { return Theme::Alpha(Theme::U32(color), EffectiveOpacity()); }
     ImU32 Ink(ImU32 color) const { return Theme::Alpha(color, EffectiveOpacity()); }
@@ -176,7 +195,8 @@ public:
     float caption_gap = 4.0f; // 说明行与按钮之间的间距
 
     IconButton& setShape(IconButtonShape value);
-    IconButton& setSide(float value); // 正方形/圆形的边长
+    IconButton& setSide(float value);
+    IconButton& setCaptionGap(float value); // 说明行与按钮之间的间距 // 正方形/圆形的边长
 
 protected:
     ImVec2 MeasureContent(const ImVec2& available) override;
@@ -206,6 +226,8 @@ public:
     ToggleButton& setChecked(bool value, bool notify = true);
     ToggleButton& setSwitchSize(float width, float height);
     ToggleButton& setSwitchColors(ImVec4 on, ImVec4 off, ImVec4 knob);
+    ToggleButton& setKnobSpeed(float value); // 旋钮动画速度（1/s）
+    bool isChecked() const { return checked; }
     float knobMix() const { return knob_mix_; }
 
 protected:
@@ -232,6 +254,7 @@ public:
 
     CustomButton& setRightText(std::string value, ImVec4 color);
     CustomButton& setRightColor(ImVec4 color); // 只改颜色、显式指定
+    // 显隐继承 Button::setShowRight()（右侧区域开关）
 
 protected:
     float rightSideWidth() const override;
@@ -257,7 +280,8 @@ public:
         Text,    // 文本（txt/md/log/json…）
     };
 
-    // GBAStation FileListPage 的行高（FileListView.hpp: m_itemHeight = 70）
+    // 文件列表行高：取 50（比 GBAStation FileListPage 的 m_itemHeight = 70 更紧凑，
+    // 一行里文件名 + 右侧大小更平衡）。宿主可以直接 resize(宽, FileButton::kRowHeight)。
     static constexpr float kRowHeight = 50.0f;
 
     FileButton();
@@ -272,17 +296,13 @@ public:
     // 左侧文件名的字号：**独立变量**，不跟着普通 Button 的正文走（文件名要更醒目）。
     // 0 表示回落到 Theme::kFontBody；右侧「文件夹 / 大小」始终用说明行字号（kFontSmall）。
     float name_font_size = Theme::kFontHeader; // 默认 20（比正文 16 大一档）
-    // 右侧信息开关：false = 右边什么都不画（「返回上层」「使用当前路径」这种纯导航行用），
-    // 此时文件名可以占满整行。
-    bool show_right = true;
+    // 右侧信息显隐用基类的 Button::show_right / setShowRight()（一处实现，全按钮家族共用）
 
     FileButton& setFile(FileKind value, std::string file_name, long long size = -1);
     FileButton& setFileKind(FileKind value);
     FileButton& setFileSize(long long value);
     // 只改左侧文件名的大小（传 0 = 用 Theme::kFontBody）
     FileButton& setNameFontSize(float value);
-    // 右侧信息显示 / 隐藏（隐藏时不占宽度，文件名可用满整行）
-    FileButton& setShowRight(bool visible);
     FileButton& setRightColor(ImVec4 color);
     // 右侧那行字：文件夹 → 「文件夹」；文件 → 大小（未知/0 之外都按 1024 进制换算）
     std::string rightText() const;
@@ -314,6 +334,8 @@ public:
     OptionButton& setOptions(std::vector<std::string> values, int start_index = 0);
     OptionButton& setIndex(int value, bool notify = true);
     OptionButton& setOptionColor(ImVec4 color);
+    OptionButton& setWrap(bool value); // 到头是否绕回
+    int optionCount() const { return static_cast<int>(options.size()); }
     const char* currentOption() const;
 
 protected:
@@ -350,6 +372,12 @@ public:
     ValueButton& setup(float initial, float min_v, float max_v, float step_v, int precision_digits);
     ValueButton& setValue(float next, bool notify = true);
     ValueButton& setValueColor(ImVec4 color);
+    ValueButton& setRange(float min_v, float max_v);   // 只改范围（值会被夹进新范围）
+    ValueButton& setStep(float step_v);                // 只改步长
+    ValueButton& setPrecision(int precision_digits);   // 只改小数位
+    ValueButton& setWrap(bool value);                  // 到头是否绕回
+    ValueButton& setRepeat(float delay, float interval); // 长按加速：首次延迟 / 基础间隔
+    ValueButton& setRepeatAcceleration(float accel_time, float max_multiplier);
     std::string valueText() const;
     bool isRepeating() const { return hold_dir_ != 0 && hold_time_ >= repeat_delay; }
 

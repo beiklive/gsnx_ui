@@ -89,6 +89,7 @@ public:
     ImVec4 color{0.0f, 0.0f, 0.0f, 0.0f}; // alpha = 0 表示跟主题（kBorder）
     bool color_follows_theme = true;
 
+    Separator& setOrientation(Orientation value);
     Separator& setThickness(float value);
     Separator& setLength(float value);
     Separator& setInset(float start, float end = -1.0f);

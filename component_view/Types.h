@@ -61,12 +61,57 @@ struct EdgeInsets {
 };
 
 // ---- 边框 ----------------------------------------------------------------
+enum class BorderSide { Top, Right, Bottom, Left };
+
 struct BorderStyle {
-    float width = 0.0f;
+    float width = 0.0f; // 统一宽度（四边一致时只画这一条 outline，画法与以前完全相同）
     ImU32 color = 0;
     float inset = 0.0f; // 向矩形内部收缩的像素（画在内部而不是骑在边上）
 
-    bool Visible() const { return width > 0.0f && ((color >> IM_COL32_A_SHIFT) & 0xFF) != 0; }
+    // 单边覆盖：宽度 <0 = 跟随 width；颜色 alpha=0 = 跟随 color。
+    // 四边都跟随（默认）= 旧行为；只要有一边不同，就改画四条独立边（矩形条，不参与圆角）。
+    float top_width = -1.0f;
+    float right_width = -1.0f;
+    float bottom_width = -1.0f;
+    float left_width = -1.0f;
+    ImU32 top_color = 0;
+    ImU32 right_color = 0;
+    ImU32 bottom_color = 0;
+    ImU32 left_color = 0;
+
+    float SideWidth(BorderSide side) const {
+        const float override = side == BorderSide::Top    ? top_width
+                               : side == BorderSide::Right  ? right_width
+                               : side == BorderSide::Bottom ? bottom_width
+                                                            : left_width;
+        return override >= 0.0f ? override : width;
+    }
+    ImU32 SideColor(BorderSide side) const {
+        const ImU32 override = side == BorderSide::Top     ? top_color
+                               : side == BorderSide::Right   ? right_color
+                               : side == BorderSide::Bottom  ? bottom_color
+                                                             : left_color;
+        return override != 0 ? override : color;
+    }
+    static bool AlphaVisible(ImU32 color) { return ((color >> IM_COL32_A_SHIFT) & 0xFF) != 0; }
+    // 是否用了单边覆盖（用不到时 Draw 走老的 outline 路径，保证默认视觉不变）
+    bool PerSide() const {
+        return top_width >= 0.0f || right_width >= 0.0f || bottom_width >= 0.0f || left_width >= 0.0f ||
+               AlphaVisible(top_color) || AlphaVisible(right_color) || AlphaVisible(bottom_color) ||
+               AlphaVisible(left_color);
+    }
+    bool Visible() const {
+        if (PerSide()) {
+            const BorderSide sides[4] = {BorderSide::Top, BorderSide::Right, BorderSide::Bottom, BorderSide::Left};
+            for (BorderSide side : sides) {
+                if (SideWidth(side) > 0.0f && AlphaVisible(SideColor(side))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return width > 0.0f && AlphaVisible(color);
+    }
 };
 
 // ---- 阴影 ----------------------------------------------------------------
