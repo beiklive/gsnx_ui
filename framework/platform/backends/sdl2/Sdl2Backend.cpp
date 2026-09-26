@@ -396,7 +396,10 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
                     MouseEventToLogical(ImVec2(static_cast<float>(e.motion.x), static_cast<float>(e.motion.y)));
                 imgui_event.motion.x = static_cast<Sint32>(logical.x);
                 imgui_event.motion.y = static_cast<Sint32>(logical.y);
-            } else if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) {
+            } else if (e.type == SDL_MOUSEWHEEL) {
+            // 滚轮刻度累计进 InputFrame（ImGui 那边同样会收到），供 ImageViewer 这类控件做滚轮缩放
+            in.wheel += e.wheel.preciseY != 0.0f ? e.wheel.preciseY : static_cast<float>(e.wheel.y);
+        } else if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) {
                 const ImVec2 logical =
                     MouseEventToLogical(ImVec2(static_cast<float>(e.button.x), static_cast<float>(e.button.y)));
                 imgui_event.button.x = static_cast<Sint32>(logical.x);
