@@ -99,6 +99,7 @@ enum class Material : std::uint8_t {
     CheckCircle,
     ErrorOutline,
     Info,
+    InsertDriveFile, // 普通文件（Material insert_drive_file）
     Count,
 };
 

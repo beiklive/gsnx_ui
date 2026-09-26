@@ -53,6 +53,7 @@ using gui_dev::cv::CardCarousel;
 using gui_dev::cv::FunctionBar;
 using gui_dev::cv::EdgeInsets;
 using gui_dev::cv::CustomButton;
+using gui_dev::cv::FileButton;
 using gui_dev::cv::Image;
 using gui_dev::cv::ImageViewer;
 using gui_dev::cv::Label;
@@ -435,6 +436,18 @@ public:
             }
         });
 
+        // ---- 8 文件列表行：外观/布局同 CustomButton，右侧按「类型 + 大小」自动生成 ----
+        header_files_ = AddHeader(kTabPopups, "文件列表行 FileButton",
+                                  "图标随类型；右侧：文件夹→「文件夹」，文件→大小（单位自动）");
+        desc_files_ = AddDescription(
+            kTabPopups,
+            "行高 70（= GBAStation FileListPage 的 m_itemHeight）；左：类型图标 + 文件名，右：文件夹名或文件大小");
+        AddFileRow("folder", FileButton::FileKind::Folder, "Games", -1);
+        AddFileRow("file", FileButton::FileKind::File, "readme.nro", 512);
+        AddFileRow("image", FileButton::FileKind::Image, "cover.png", 4823);
+        AddFileRow("archive", FileButton::FileKind::Archive, "saves.zip", 1310720);
+        AddFileRow("text", FileButton::FileKind::Text, "notes.txt", 3650722201LL);
+
         // 图标按钮（Box 预览挪到「基础控件」页了）
         header_icons_ = AddHeader(kTabPopups, "图标按钮", "方形 / 圆形");
 
@@ -489,6 +502,17 @@ public:
         connect(button, &Widget::clicked, this, [handler = std::move(on_click)] { handler(); });
         popup_buttons_.push_back(button);
         buttons_.push_back(button);
+    }
+
+    // 文件列表行：一行 = 类型 + 文件名 + 大小（-1 = 未知/文件夹）
+    FileButton* AddFileRow(const char* name, FileButton::FileKind kind, const char* file_name, long long size) {
+        FileButton* row = AddTo(kTabPopups, content_panel_->Emplace<FileButton>(kind, file_name, size));
+        row->SetName(name);
+        connect(row, &Widget::clicked, this, [this, label = std::string(file_name)](void) {
+            Toasts().ShowInfo("打开：" + label);
+        });
+        file_rows_.push_back(row);
+        return row;
     }
 
     void AddStackButton(Button* button, const char* name) {
@@ -1272,6 +1296,20 @@ public:
             }
             y += gap;
 
+            header_files_->SetPosition(left, y);
+            header_files_->size.x = w;
+            y += kHeaderHeight + 2.0f;
+            desc_files_->SetPosition(left, y);
+            desc_files_->size.x = w;
+            desc_files_->size.y = kDescHeight;
+            y += kDescHeight + kPreviewGap;
+            for (FileButton* row : file_rows_) {
+                row->resize(w, FileButton::kRowHeight); // 行高 = GBAStation FileListPage 的 m_itemHeight
+                row->moveTo(left, y);
+                y += FileButton::kRowHeight + kRowGap;
+            }
+            y += gap;
+
             header_icons_->SetPosition(left, y);
             header_icons_->size.x = w;
             y += kHeaderHeight + kPreviewGap;
@@ -1585,6 +1623,9 @@ private:
     Box* content_panel_ = nullptr;
     TabColumn* tab_column_ = nullptr;
     Header* header_buttons_ = nullptr;
+    Header* header_files_ = nullptr;
+    Label* desc_files_ = nullptr;
+    std::vector<FileButton*> file_rows_;
     Header* header_icons_ = nullptr;
     Header* header_badges_ = nullptr;
     Header* header_toasts_ = nullptr;

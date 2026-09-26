@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include "component_view/Draw.h"
+#include "component_view/Format.h"
 #include "component_view/Global.h"
 #include "ui/Icons.h"
 
@@ -600,6 +601,100 @@ void CustomButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
     Draw::Text(dl, nullptr, size,
                ImVec2(right_rect.max.x - extent.x, right_rect.Center().y - extent.y * 0.5f), Ink(right_color),
                right_text.c_str());
+}
+
+// --------------------------------------------------------- 8 文件列表行 -----
+
+FileButton::FileButton() {
+    name = "file_button";
+    text_align = TextAlign::Left; // 左：图标 + 文件名
+}
+
+FileButton::FileButton(FileKind value, std::string file_name, long long size) : FileButton() {
+    setFile(value, std::move(file_name), size);
+}
+
+const char* FileButton::IconFor(FileKind value) {
+    switch (value) {
+    case FileKind::Folder:
+        return Icons::Glyph(Icons::Material::Folder);
+    case FileKind::Image:
+        return Icons::Glyph(Icons::Material::Image);
+    case FileKind::Archive:
+        return Icons::Glyph(Icons::Material::Archive); // 与 GBAStation 的 ZIP_FILE 图标一致
+    case FileKind::Text:
+        return Icons::Glyph(Icons::Material::Description);
+    case FileKind::File:
+    default:
+        return Icons::Glyph(Icons::Material::InsertDriveFile); // 普通文件（文档字形）
+    }
+}
+
+FileButton& FileButton::setFile(FileKind value, std::string file_name, long long size) {
+    kind = value;
+    text = std::move(file_name);
+    size_bytes = size;
+    icon = IconFor(kind); // 图标跟着类型走（想换可以再 setIcon）
+    return *this;
+}
+
+FileButton& FileButton::setFileKind(FileKind value) {
+    kind = value;
+    icon = IconFor(kind);
+    return *this;
+}
+
+FileButton& FileButton::setFileSize(long long value) {
+    size_bytes = value;
+    return *this;
+}
+
+FileButton& FileButton::setRightColor(ImVec4 color) {
+    right_color = color;
+    right_color_follows_theme = false;
+    return *this;
+}
+
+std::string FileButton::rightText() const {
+    if (kind == FileKind::Folder) {
+        return "文件夹"; // 目录不显示大小（与 GBAStation FileListPage 一致）
+    }
+    return FormatFileSize(size_bytes); // 大小未知（-1）→ 空串
+}
+
+ImVec2 FileButton::MeasureContent(const ImVec2& available) {
+    ImVec2 measured = Button::MeasureContent(available);
+    if (size.y <= 0.0f) {
+        measured.y = kRowHeight; // 没显式给高度：用 GBAStation 文件列表的行高
+    }
+    return measured;
+}
+
+float FileButton::rightSideWidth() const {
+    const std::string value = rightText();
+    if (value.empty()) {
+        return 0.0f;
+    }
+    return Draw::MeasureText(nullptr, subFontSize(), value.c_str(), 0.0f).x;
+}
+
+void FileButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
+    const std::string value = rightText();
+    if (value.empty()) {
+        return;
+    }
+    const float font_size = subFontSize(); // 右侧是次要信息：用说明行字号
+    const ImVec2 extent = Draw::MeasureText(nullptr, font_size, value.c_str(), 0.0f);
+    Draw::Text(dl, nullptr, font_size,
+               ImVec2(right_rect.max.x - extent.x, right_rect.Center().y - extent.y * 0.5f), Ink(right_color),
+               value.c_str());
+}
+
+void FileButton::OnThemeChanged() {
+    Button::OnThemeChanged();
+    if (right_color_follows_theme) {
+        right_color = Theme::kTextMuted;
+    }
 }
 
 // ------------------------------------------------------- 6 LR 选项选择按钮 ---

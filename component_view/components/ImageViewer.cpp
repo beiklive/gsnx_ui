@@ -6,6 +6,7 @@
 
 #include "component_view/Anim.h"
 #include "component_view/Draw.h"
+#include "component_view/Format.h"
 #include "component_view/Global.h"
 #include "component_view/components/Box.h"
 #include "component_view/components/Button.h"
@@ -31,25 +32,6 @@ std::string LowerExtension(const std::string& path) {
     std::transform(extension.begin(), extension.end(), extension.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return extension;
-}
-
-// 文件大小：B / KB / MB（宿主没给（0）时不显示）
-std::string FormatFileSize(long long bytes) {
-    if (bytes <= 0) {
-        return {};
-    }
-    char buffer[32];
-    constexpr double kb = 1024.0;
-    constexpr double mb = kb * 1024.0;
-    const double value = static_cast<double>(bytes);
-    if (value < kb) {
-        std::snprintf(buffer, sizeof(buffer), "%lld B", bytes);
-    } else if (value < mb) {
-        std::snprintf(buffer, sizeof(buffer), "%.1f KB", value / kb);
-    } else {
-        std::snprintf(buffer, sizeof(buffer), "%.1f MB", value / mb);
-    }
-    return buffer;
 }
 
 std::string BaseName(const std::string& path) {
@@ -198,7 +180,7 @@ void ImageViewer::ApplyLabels() {
     }
     // 信息行只放图片信息：尺寸 · 文件大小 · 缩放比例（文件名是 Header 主文字，这里不重复）
     const int percent = static_cast<int>(scale_ * 100.0f + 0.5f);
-    const std::string size_text = FormatFileSize(image_.size_bytes);
+    const std::string size_text = image_.size_bytes > 0 ? FormatFileSize(image_.size_bytes) : std::string();
     char info[160];
     if (state_ == State::Loaded) {
         if (size_text.empty()) {

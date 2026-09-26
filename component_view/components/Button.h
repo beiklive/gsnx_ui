@@ -1,10 +1,10 @@
-// Button：按钮组件（按约定的 7 种形态）。
+// Button：按钮组件（按约定的 8 种形态）。
 //
 // 全局约定样式（Global::component_style）：1px 灰白边框 / 5px 圆角 / 右下角阴影，
 // 聚焦时画「完整闭合、颜色沿边框流动」的流光框，四边与控件留 2px 边距。
 // 每个实例都能用链式接口覆盖这些默认值。
 //
-// 七种形态（都在 Button 的 box 内部）：
+// 八种形态（都在 Button 的 box 内部）：
 //   1 TextButton        文字居中（弹窗的确认/取消这类提示文字，不带说明行）
 //   2 IconTextButton    图标 + 文字，都靠左；图标占左侧一个正方形格，格子内水平+垂直居中
 //   3 IconButton        只有图标，只有「圆角正方形 / 圆形」两种形态
@@ -13,6 +13,8 @@
 //   6 OptionButton      左：图标 + 文字；右：[L] 选项 [R]，固定间隔、超长滚动，L/R 切换
 //   7 ValueButton       左：图标 + 文字；右：[L] 数值 [R]，固定间隔、超长滚动，L/R 调值，
 //                       长按加速（有上限），valueChanged 在短按或长按松开后触发
+//   8 FileButton        文件列表行：左：图标（按文件类型）+ 文件名；右：文件夹显示「文件夹」、
+//                       文件显示大小（单位自动换算）；行高参考 GBAStation FileListPage（70）
 //
 // 说明行：除 TextButton 外都支持 showSubtitle(true)：主文字下加一行小号浅色文字。
 // 有主文字时图标在左侧方形格里居中、文字紧跟其右；没有主文字（纯图标）时说明行落到图标下方居中。
@@ -222,6 +224,52 @@ public:
     CustomButton& setRightColor(ImVec4 color); // 只改颜色、显式指定
 
 protected:
+    float rightSideWidth() const override;
+    void drawRightSide(ImDrawList* dl, const Rect& right_rect) override;
+    void OnThemeChanged() override;
+};
+
+// ----------------------------------------------------------- 文件列表行 -----
+// 文件列表的一行：外观 / 布局与 CustomButton 完全一致（左图标 + 文字，右侧信息右对齐），
+// 只是右侧不是自由文字，而由「文件类型 + 大小」推出来：
+//   * 图标按类型取 Material 字形：文件夹 / 文件 / 图片 / 压缩包 / 文本；
+//   * 右侧：文件夹 → 「文件夹」；其它 → 文件大小（1024 进制、单位自动换算）；
+//   * 大小未知（-1）时不画右侧信息。
+// 行高取 GBAStation FileListPage 的 FileListView::m_itemHeight = 70（Switch 1280x720 量出来的），
+// 宿主可以直接用 FileButton::kRowHeight，保证文件列表的节奏一致。
+class FileButton : public Button {
+public:
+    enum class FileKind {
+        Folder,  // 文件夹
+        File,    // 普通文件
+        Image,   // 图片（png/jpg/jpeg…）
+        Archive, // 压缩包（zip/7z/rar…）
+        Text,    // 文本（txt/md/log/json…）
+    };
+
+    // GBAStation FileListPage 的行高（FileListView.hpp: m_itemHeight = 70）
+    static constexpr float kRowHeight = 70.0f;
+
+    FileButton();
+    // 一行 = 类型 + 文件名 + 大小（bytes < 0 = 未知；文件夹不用给）
+    FileButton(FileKind kind, std::string file_name, long long size_bytes = -1);
+
+    FileKind kind = FileKind::File;
+    long long size_bytes = -1;
+    ImVec4 right_color = Theme::kTextMuted; // 右侧信息默认用次级文字色
+    bool right_color_follows_theme = true;
+
+    FileButton& setFile(FileKind value, std::string file_name, long long size = -1);
+    FileButton& setFileKind(FileKind value);
+    FileButton& setFileSize(long long value);
+    FileButton& setRightColor(ImVec4 color);
+    // 右侧那行字：文件夹 → 「文件夹」；文件 → 大小（未知/0 之外都按 1024 进制换算）
+    std::string rightText() const;
+    // 类型 → 图标字形（Material 字形，UTF-8）
+    static const char* IconFor(FileKind value);
+
+protected:
+    ImVec2 MeasureContent(const ImVec2& available) override; // 未显式给高度时用 kRowHeight
     float rightSideWidth() const override;
     void drawRightSide(ImDrawList* dl, const Rect& right_rect) override;
     void OnThemeChanged() override;

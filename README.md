@@ -42,6 +42,7 @@ GUI_DEV/
 │   ├── popup/                   # Popup 基类 + PopupManager（弹窗栈 / 遮罩 / 输入优先级）
 │   ├── RichText.h               # 单文件富文本 Widget（零第三方依赖，见 RichText.md）
 │   ├── ImageViewer.{h,cpp}      # 图片浏览器（Fit/Zoom/Pan/确认，手柄+触屏+鼠标统一，见 ImageViewer.md）
+│   ├── Button.{h,cpp}           # 8 种按钮形态（含 FileButton 文件列表行）
 │   ├── CardCarousel.{h,cpp}     # 游戏卡牌行（封面/徽标/标题/副行，选中卡居中+流光框，见 CardCarousel.md）
 │   ├── FunctionBar.{h,cpp}      # 功能按钮行（面板 + 等分「图标在上名字在下」的动作项，见 FunctionBar.md）
 ├── third_party/stb/             # stb_image.h（JPG/JPEG 解码，public domain / MIT）
@@ -218,7 +219,7 @@ macOS runner 上跑同一条脚本，手动 *Run workflow*、推 iOS 相关文�
 
 ## component_view 组件库
 
-业务无关、可整体搬走的一层。现有组件：`Box`（容器 / 可聚焦控件）、`Button`（7 种形态：
+业务无关、可整体搬走的一层。现有组件：`Box`（容器 / 可聚焦控件）、`Button`（8 种形态：
 纯文字 / 图标+文字 / 纯图标 / 开关 / 自定义右侧文字 / LR 选项 / LR 数值）、
 `Label` / `Separator` / `ProgressBar` / `Image` / `RichText` / `ImageViewer`（文本、分隔、进度、图片、单文件富文本、图片浏览器）、
 `Popup` + `PopupManager`（统一弹窗系统：Info / Confirm / Selection / Progress / 富文本 / 图片 / 自定义页，
@@ -540,7 +541,7 @@ GUI_DEV_DEBUG_LAYOUT=1 ./build/mac/gui_dev_demo
 
 > 这一节讲的是 **framework 层** 的 `Components::FocusableBox`（贴图版流光，给宿主内核/启动器用）。
 > `component_view` 里的 `Box` / `Button` 不依赖贴图，流光框是 `Draw::FlowingRing` 直接按弧长采样算出来的
-> （见上面「Button：7 种形态」）。两套并存，别混着改。
+> （见上面「Button：8 种形态」）。两套并存，别混着改。
 
 游戏机 UI 的焦点是**显式索引**（手柄方向键选择），不是 ImGui 的 nav 焦点，
 所以 `focused` 由调用方传入，组件只负责画。
@@ -726,9 +727,9 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   Widget/Global）+ 一个最小 `Box` + `Page` 宿主；`demo.cpp` 现在只在页面左上角 `(0,0)` 放一个
   128x128 的 Box（`docs/` 里旧的 showcase-*.png 已一并删除）。清空前那套 16 个控件 / 16 个 Tab
   的实现都在 git 历史里（`35ec70d` 及之前），需要哪一块可以直接 `git show` 取回来。
-- 已确认（Button 7 种形态 + 约定样式）：`Global::component_style` 统一 1px 灰白边框 / 5px 圆角 /
-  右下软阴影 / 与控件留 2px 的完整闭合流光框，单实例都能链式覆盖；7 种形态（纯文字、图标+文字、
-  纯图标、开关、自定义右侧文字、LR 选项、LR 数值）逐个抓帧核对，脚本化验收（`GUI_DEV_TRACE_SIGNAL=1`
+- 已确认（Button 8 种形态 + 约定样式）：`Global::component_style` 统一 1px 灰白边框 / 5px 圆角 /
+  右下软阴影 / 与控件留 2px 的完整闭合流光框，单实例都能链式覆盖；8 种形态（纯文字、图标+文字、
+  纯图标、开关、自定义右侧文字、LR 选项、LR 数值、文件列表行）逐个抓帧核对，脚本化验收（`GUI_DEV_TRACE_SIGNAL=1`
   打信号）：A 键开关 `开→关`、Q/E（手柄 L/R）选项 `2→0`（wrap）、数值 `70→75`（步长 5）、
   `+`(Tab) 一键开关说明行且文字块仍垂直居中；抓帧见 `docs/buttons-demo.png`（说明行开）与
   `docs/buttons-demo-compact.png`（说明行关）。
