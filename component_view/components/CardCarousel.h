@@ -107,6 +107,10 @@ private:
     void Step(int direction, bool wrap = true);
     void Page(int direction);
     void SnapScrollToIndex();
+    // 拖动时用：选中项 = 按下时那张 + 拖过的卡数（按位移算，不按「谁在行中心」算，
+    // 否则一按下去就会跳到行中心那张）
+    void SyncIndexToDrag(bool notify = true);
+    int IndexFromDrag() const;
     int CardAtPoint(const ImVec2& point) const;
     float RowHeight() const;
     void EnsureCovers();                 // 懒加载封面（走 Global::image_source）
@@ -136,6 +140,7 @@ private:
     bool drag_moved_ = false;
     float drag_start_x_ = 0.0f;
     float drag_base_scroll_ = 0.0f;
+    int drag_base_index_ = 0; // 按下时选中的第几张（拖动位移相对它算）
 
     // 封面（路径 → 宿主纹理）。宿主缓存纹理会保活，这里只负责按路径取用 / 释放引用。
     struct Cover {

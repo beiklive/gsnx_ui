@@ -303,6 +303,7 @@ void CardCarousel::OnUpdate(float dt) {
         drag_moved_ = false;
         drag_start_x_ = Global::mouse.x;
         drag_base_scroll_ = scroll_;
+        drag_base_index_ = index_;
         // 横向拖动由这一行自己处理（别让外层页面同时纵向滚）；
         // 一旦真的拖起来就置 pointer_dragging —— 基类看到它才不会把这次手势当成点击。
         Global::pointer_drag_host = nullptr;
@@ -311,7 +312,10 @@ void CardCarousel::OnUpdate(float dt) {
         if (!Global::mouse_down[0]) {
             drag_active_ = false;
             if (drag_moved_) {
-                SnapScrollToIndex(); // 松手吸附到最近一张
+                // 松手：选中项 = 按下时那张 + 拖过的卡数，再把它吸附到行中心
+                // （差值不到半张卡宽，所以不会「弹回原来的焦点位置」）。
+                SyncIndexToDrag();
+                SnapScrollToIndex();
                 Global::pointer_dragging = false;
             }
             // 没拖动的手指点击交给基类的 Activate()（见下面 Activate）：
@@ -327,6 +331,7 @@ void CardCarousel::OnUpdate(float dt) {
                                     style.card_gap;
                 scroll_ = Clampf(drag_base_scroll_ - delta, 0.0f, Maxf(total - content_rect.Width(), 0.0f));
                 scroll_target_ = scroll_;
+                SyncIndexToDrag(); // 选中跟着手指走（只改下标与信号，不动 scroll_target_）
             }
         }
     }
@@ -428,6 +433,29 @@ void CardCarousel::SnapScrollToIndex() {
     scroll_target_ = Clampf(selected_center - view * 0.5f, 0.0f, Maxf(total - view, 0.0f));
     if (content_rect.Width() <= 0.0f) {
         scroll_ = scroll_target_; // 还没布局过（第一帧）：直接对齐，别看到滑动
+    }
+}
+
+// 拖动时选中第几张：按下时那张 + 拖过的卡数（位移 / pitch，四舍五入）
+int CardCarousel::IndexFromDrag() const {
+    if (data_count_ <= 0) {
+        return 0;
+    }
+    const float pitch = style.card_width + style.card_gap;
+    const float shift = (scroll_ - drag_base_scroll_) / Maxf(pitch, 1.0f);
+    const int index = drag_base_index_ + static_cast<int>(std::lround(shift));
+    return static_cast<int>(Clampf(static_cast<float>(index), 0.0f, static_cast<float>(data_count_ - 1)));
+}
+
+// 选中项跟着手指走（只改 index_ 与信号，不动 scroll_target_，免得和手指打架）
+void CardCarousel::SyncIndexToDrag(bool notify) {
+    const int next = IndexFromDrag();
+    if (next == index_) {
+        return;
+    }
+    index_ = next;
+    if (notify) {
+        emit selectionChanged(index_);
     }
 }
 

@@ -752,8 +752,9 @@ public:
 
         // ---- 功能按钮行 ----
         header_functions_ = AddHeader(kTabHome, "功能按钮行 FunctionBar", "← / → 移动焦点，A / 点击触发");
-        desc_functions_ =
-            AddDescription(kTabHome, "一块面板里等分排开的动作项：图标在上、名字在下（复用 Button 的说明行形态）");
+        desc_functions_ = AddDescription(
+            kTabHome,
+            "胶囊容器（左右半圆、上下直线）+ 无边框圆形按钮；名字只在某个按钮获得焦点时显示在容器下方");
         functions_ = AddTo(kTabHome, content_panel_->Emplace<FunctionBar>());
         functions_status_ = AddDescription(kTabHome, "已触发：无");
         functions_->SetItems({
@@ -1438,7 +1439,7 @@ private:
     static constexpr float kControlSize = Theme::kControlHeight; // 统一控件尺寸（56）
     static constexpr float kCapsuleWidth = 440.0f;
     static constexpr float kCardRowHeight = 172.0f;   // 卡牌行高（封面 106 + 标题 22 + 副行 20 + 余量）
-    static constexpr float kFunctionBarHeight = 108.0f; // 功能按钮行高（单项 84 + 上下内边距 12）
+    static constexpr float kFunctionBarHeight = 88.0f; // 功能按钮行高（胶囊 64 + 名称行 24）
     static constexpr float kHeaderHeight = 58.0f;
     static constexpr float kHeaderGap = 8.0f;   // 标题到本区块内容
     static constexpr float kRowGap = 8.0f;      // 行间距

@@ -1,17 +1,16 @@
-// FunctionBar：功能按钮行（横排「图标 + 说明」的动作条）。
+// FunctionBar：功能按钮行（胶囊容器 + 圆形无边框按钮 + 聚焦项名称显示在容器下方）。
 //
 // 学习来源：GBAStation `src/ui/view/SwitchLayout.cpp` 的「功能按钮行」（_drawFunctions）
-//   * 一条横向的胶囊条，里面等距排 N 个功能项：上面是大图标、下面是名字；
-//   * 焦点在项之间左右移动（首尾相接），当前项放大 + 一圈渐变流光；
-//   * 按 A 先播一次「按下回弹」再执行动作（延迟 0.38s 才真正跳页，避免动画被切掉）；
-//   * 六个功能项固定：游戏库 / 文件列表 / 数据管理 / 设置 / 关于 / 退出。
+//   * 一条横向的胶囊条（左右两端是半圆、上下是直线），里面等距排 N 个功能项：大图标 + 名字；
+//   * 焦点在项之间左右移动（首尾相接），当前项套一圈渐变流光；
+//   * 按 A 先播一次「按下回弹」再执行动作（GBAStation 里延迟 0.38s 跳页）。
 //
 // 与 GBAStation 的差异（落进本组件库的约定）：
-//   * 不自己画：条 = 普通 Box 面板（圆角/边框/阴影取 Global::component_style），
-//     项 = 现成的 Button（图标在上、说明行在下，`showSubtitle(true)`），
-//     所以「焦点 → A → 触发」、触摸点击、流光焦点框、禁用置灰全都是 Button 那一套，
-//     本组件只负责「等分宽度 + 把 clicked 汇总成一个带下标的信号」。
-//   * 断点是「按当前 UI 风格」做的：面板底色 Theme::kBgPanel，项用 Button 的默认配色与流光框。
+//   * 容器 = 普通 Box（圆角 = 高度的一半 → 胶囊；边框/阴影取 Global::component_style，底色 Theme::kBgWidget）；
+//   * 按钮 = 现成的 IconButton（圆形形态）+ 去掉边框与底色 → 「无边框圆形按钮」，聚焦时是 Button 那套流光框；
+//   * 名字**不再是按钮的说明行**：只在某个按钮拿到焦点时显示，画在胶囊容器下方居中（淡入淡出，不推动布局）；
+//   * 焦点 → A → 触发、触摸点击、禁用置灰全部复用 Button，本组件只负责「排布 + 汇总 activated(index)」；
+//   * 不做 GBAStation 的 0.38s 点击延迟动画：库里 A = 立即触发的语义要保持一致。
 //
 // 典型用法：
 //   FunctionBar* bar = panel.Emplace<FunctionBar>();
@@ -27,23 +26,26 @@
 
 namespace gui_dev::cv {
 
-class Button;
+class IconButton;
 
 class FunctionBar : public Box {
 public:
     struct Item {
         std::string icon;  // Material 字形
-        std::string label; // 名字（画在图标下方，走 Button 的说明行）
+        std::string label; // 名字（只在聚焦时显示在胶囊下方）
         std::function<void()> on_activate;
     };
 
     struct Style {
-        float item_height = 84.0f; // 单项高（图标 + 名字）
-        float item_min_width = 96.0f;
-        float gap = 10.0f;         // 项间距
-        float padding = -1.0f;     // <0 = 用 Global::component_style.content_padding
-        float radius = -1.0f;      // <0 = 用 Global::component_style.corner_radius
-        float icon_size = 30.0f;   // 图标方形格边长
+        float item_size = 44.0f;       // 圆形按钮直径
+        float capsule_padding = 10.0f; // 胶囊上下内边距（左右用 edge_padding）
+        float edge_padding = 18.0f;    // 胶囊左右内边距（半圆两端留白）
+        float gap = 22.0f;             // 相邻按钮最小间距（容器更宽时自动摊开）
+        float label_gap = 6.0f;        // 名称与胶囊底边的间距
+        float label_size = Theme::kFontSmall;
+        float label_height = 24.0f;    // 名称行高度：常驻占位，聚焦时不会把布局顶动
+        float label_fade = 12.0f;      // 名称淡入淡出速度（1/s）
+        float radius = -1.0f;          // <0 = 胶囊（高度的一半）
     };
 
     FunctionBar();
@@ -51,23 +53,34 @@ public:
     FunctionBar& SetItems(std::vector<Item> items);
     FunctionBar& AddItem(std::string icon, std::string label, std::function<void()> on_activate = {});
     FunctionBar& SetStyle(const Style& value);
-    Button* itemAt(int index) const;
+    IconButton* itemAt(int index) const;
     int count() const { return static_cast<int>(items_.size()); }
     // 当前持有焦点的项下标（没有则 -1）
     int focusedIndex() const;
+    // 胶囊自然宽度（不含外框；宿主想知道它占多宽时用）
+    float CapsuleWidth() const;
 
 signals:
     Signal<int> activated; // 某项被触发（A / 点击 / 触摸），带下标
 
 protected:
     ImVec2 MeasureContent(const ImVec2& available) override;
+    void OnDrawContent(ImDrawList* dl, const Rect& content) override; // 胶囊容器画在子按钮之下
+    void OnDrawOverlay(ImDrawList* dl, const Rect& content) override; // 聚焦项名称画在子按钮之上
+    void OnUpdate(float dt) override;
     void OnThemeChanged() override;
 
 private:
     void Rebuild();
+    float CapsuleHeight() const;
+    float NaturalCapsuleWidth() const;
+
     std::vector<Item> items_;
-    std::vector<Button*> buttons_;
+    std::vector<IconButton*> buttons_;
     Style style;
+    Rect capsule_rect_;        // 胶囊容器矩形（内容区局部坐标，MeasureContent 里算好）
+    float label_alpha_ = 0.0f; // 名称淡入淡出
+    int label_index_ = -1;     // 正在显示（或正在淡出）的名字是第几项
 };
 
 } // namespace gui_dev::cv

@@ -780,6 +780,6 @@ Section Title（Header）
 | 图片浏览器 | ImageViewer（经典全屏布局：弹窗 Header 主文字 = 文件名、副文字 = 尺寸 · 文件大小 · 缩放，右上角无按钮、底部统一 Toolbar 带手柄按键提示）：Toolbar **不通过 A 触发**，L/R/ZL/ZR/X/B 各自触发；A 只在 `SetConfirmEnabled(true)` 时确认当前图片并弹确认 Popup（Popup 内恢复 A/B Focus）；PNG 与 JPG/JPEG（stb_image）均可显示；Fit / 100% / 缩放 / 平移 / 重置 / 关闭；触摸点按钮、拖动平移、鼠标滚轮缩放；Fit / 100% / 缩放 / 平移 / 重置 / 关闭；手柄 L·R·ZL·ZR 缩放、方向键平移、X 重置、Y 适应、A 切换；触摸点按钮缩放（29%→75% 实测）、拖动平移；不支持的格式进 Failed 并显示原因 |
 | 富文本 | RichText 渲染：标题 / 粗体 / 斜体 / 删除线 / 行内代码 / 列表（两级）/ 有序列表 / 引用 / 分隔线 / 链接 / 行内图片 / 染色全部正常；缺图占位正常；链接点击回调实测触发；长文在弹窗里可上下键滚动，焦点框框住可见文本区 |
 | 富文本页 | Demo 新增「富文本」页（Basic/Color/Heading/List/Ordered/Link/Image/Mixed 八段），全部为真实 Markdown 输入 + 真实 RichText API |
-| 卡牌行 | CardCarousel（学习 GBAStation SwitchLayout 的游戏卡片行）：封面 = `Image(Cover)`、平台徽标查 `PlatformBadgeInfoOf()`、选中卡居中放大 + 全局流光框、空位占位卡；←/→ 相邻切（长按 0.30s 后 0.085s 连发）、L/R 整屏；触摸点选 / 再点启动 / 横向拖动吸附 / 滚轮；封面走 `Global::image_source` |
-| 功能按钮行 | FunctionBar（学习 GBAStation SwitchLayout 的功能按钮行）：一块普通面板 + 等分的「图标在上、名字在下」Button；←/→ 移焦点、A/点击触发并汇总成 `activated(index)`；分区随 `Rebuild()` 同步给子项 |
+| 卡牌行 | CardCarousel（学习 GBAStation SwitchLayout 的游戏卡片行）：封面 = `Image(Cover)`、平台徽标查 `PlatformBadgeInfoOf()`、选中卡居中放大 + 全局流光框、空位占位卡；←/→ 相邻切（长按 0.30s 后 0.085s 连发）、L/R 整屏；触摸点选 / 再点启动 / **横向拖动时选中跟着手指走、松手吸附（不再弹回原焦点）** / 滚轮；封面走 `Global::image_source` |
+| 功能按钮行 | FunctionBar（学习 GBAStation SwitchLayout 的功能按钮行）：胶囊容器（左右半圆、上下直线）+ 等距排开的**无边框圆形 IconButton**；←/→ 移焦点、A/点击触发并汇总成 `activated(index)`；**名字只在聚焦时显示在容器下方**（淡入淡出、常驻行高不推布局）；分区随 `Rebuild()` 同步给子项 |
 | 视觉特效 | 未引入 Glass / Neon / Glow / 渐变 / 粒子 |
