@@ -91,6 +91,7 @@ if(GUI_DEV_BACKEND STREQUAL "sdl2")
         framework/platform/backends/sdl2/Factory.cpp
         framework/platform/backends/sdl2/AssetPaths.cpp
         framework/platform/backends/sdl2/PngLoader.cpp
+        framework/platform/backends/sdl2/JpegLoader.cpp
         ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
         ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer2.cpp)
 
@@ -107,6 +108,7 @@ if(GUI_DEV_BACKEND STREQUAL "sdl2")
         GUI_DEV_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
 
     target_include_directories(gui_dev_backend PUBLIC framework)
+target_include_directories(gui_dev_backend PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(gui_dev_backend PUBLIC imgui gui_dev::SDL2 gui_dev::PNG)
 elseif(GUI_DEV_BACKEND STREQUAL "glfw")
     find_package(OpenGL REQUIRED)
@@ -143,6 +145,7 @@ add_library(gui_dev STATIC
     framework/gamemenu/views/SettingsView.cpp
     framework/gamemenu/views/DialogView.cpp)
 target_include_directories(gui_dev PUBLIC framework ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(gui_dev PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(gui_dev PUBLIC gui_dev_backend)
 
 # ------------------------------------------------- component_view 组件库 -----

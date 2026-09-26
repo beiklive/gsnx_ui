@@ -48,6 +48,7 @@ void Page::Update(float dt) {
 
     // 焦点作用域交给本页：弹窗打开后只有弹窗内部的控件可聚焦（Focus Trap）
     Global::focus_manager = &focus_;
+    Global::popup_manager = &popups_;
 
     // 根节点铺满画布
     root_->position = ImVec2(0.0f, 0.0f);

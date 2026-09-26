@@ -1,5 +1,6 @@
 #include "platform/backends/sdl2/Sdl2Backend.h"
 
+#include <cctype>
 #include <cstdio>
 
 #include <imgui.h>
@@ -9,6 +10,7 @@
 #include "platform/AssetPaths.h"
 #include "platform/Fonts.h"
 #include "platform/Platform.h"
+#include "platform/backends/sdl2/JpegLoader.h"
 #include "platform/backends/sdl2/PngLoader.h"
 
 namespace gui_dev {
@@ -537,6 +539,7 @@ void Sdl2Backend::BeginRenderFrame() {
     SDL_SetRenderDrawColor(renderer_, 0x11, 0x13, 0x16, 0xFF);
     SDL_RenderClear(renderer_);
     ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer_);
+    
 }
 
 void Sdl2Backend::EndRenderFrame() {
@@ -628,8 +631,18 @@ Texture Sdl2Backend::LoadTexture(const char* relative_asset_path) {
         return texture;
     }
 
+    // 按扩展名选解码器：PNG 走 libpng，JPG/JPEG 走 stb_image（输出格式一致）
+    const std::string lower = [&path] {
+        std::string out = path;
+        for (char& c : out) {
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+        return out;
+    }();
+    const bool is_jpeg = lower.size() > 4 && (lower.compare(lower.size() - 4, 4, ".jpg") == 0 ||
+                                             (lower.size() > 5 && lower.compare(lower.size() - 5, 5, ".jpeg") == 0));
     PngImage image;
-    if (!DecodePng(path.c_str(), image)) {
+    if (!(is_jpeg ? DecodeJpeg(path.c_str(), image) : DecodePng(path.c_str(), image))) {
         return texture;
     }
 

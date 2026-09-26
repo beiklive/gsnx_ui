@@ -41,7 +41,8 @@ GUI_DEV/
 │   │                            #   RichText / Badge / Header / …
 │   ├── popup/                   # Popup 基类 + PopupManager（弹窗栈 / 遮罩 / 输入优先级）
 │   ├── RichText.h               # 单文件富文本 Widget（零第三方依赖，见 RichText.md）
-│   ├── ImageViewer.{h,cpp}      # 图片浏览器（Fit/Zoom/Pan，手柄+触屏+鼠标统一，见 ImageViewer.md）
+│   ├── ImageViewer.{h,cpp}      # 图片浏览器（Fit/Zoom/Pan/确认，手柄+触屏+鼠标统一，见 ImageViewer.md）
+├── third_party/stb/             # stb_image.h（JPG/JPEG 解码，public domain / MIT）
 │   ├── UILayer.h                # 统一渲染层级（Background/Content/Popup/Focus/Toast）
 │   ├── FocusManager.*           # 焦点作用域（Focus Trap）与焦点恢复
 │   └── pages/                   # Page 基类（宿主：根 Box + 弹窗 + Toast + 焦点框图层）

@@ -10,9 +10,14 @@
 //   * 不新增视觉语言：圆角 / 边框 / 阴影 / 内边距 / 字号全部取 Theme 与 Global::component_style；
 //   * 不新增解码器：图片怎么解码由宿主的 image_source 决定（当前后端只有 libpng → PNG）。
 //
-// 交互映射（都走现有 Action，无平台按键硬编码）：
-//   手柄：方向键/摇杆 = 平移（图片超出可视区时），L / R = 缩小 / 放大，
-//         X = 重置，Y = 适应屏幕，A = 适应屏幕/100% 切换，B = 关闭（由 Popup 或 closeRequested）
+// 交互模型（重要）：
+//   * Toolbar 是「直接操作栏」，**A 不会触发 Toolbar 上的任何按钮**：每个按钮由它自己的手柄按键触发
+//     （L=适应 / R=100% / ZL=缩小 / ZR=放大 / X=重置 / B=关闭），按钮上显示对应的手柄图标提示；
+//     触屏与鼠标点击 Toolbar 仍然按普通 Button 走（clicked），三者都进同一组方法。
+//   * A 是「确认当前图片」这个全局语义操作，默认关闭；`SetConfirmEnabled(true)` 后才会在 Toolbar
+//     显示 [A 确认]，按 A / 点它都会弹确认 Popup（复用 PopupManager），确认后才回调；
+//     Popup 内部恢复正常的 A/B Focus 操作。
+//   手柄：方向键/摇杆 = 平移（图片超出可视区时）或移动焦点；B = 关闭（或关闭确认框）
 //   触屏：单指拖动 = 平移，点按钮 = 缩放/重置/适应/关闭（双指缩放需要输入层支持多点触控，见文档）
 //   鼠标：左键拖动 = 平移，滚轮 = 缩放，点按钮 = 操作，Esc/B = 关闭
 #pragma once
@@ -41,6 +46,8 @@ public:
     };
 
     using CloseCallback = std::function<void()>;
+    // 确认当前图片（图片选择模式）：确认后在 Popup 里点「确认」才回调
+    using ConfirmCallback = std::function<void(const std::string& path)>;
 
     // 已加载的图片数据（纹理 + 原始尺寸）
     struct ImageData {
@@ -80,6 +87,14 @@ public:
 
     // ---- 交互 / 外观配置 --------------------------------------------------
     ImageViewer& SetCloseCallback(CloseCallback callback);
+    // ---- 确认当前图片（可选功能；默认关闭）--------------------------------
+    // 关闭时：Toolbar 不显示 [A 确认]，按 A 无任何操作（保持普通浏览模式）
+    // 打开时：Toolbar 显示 [A 确认]，按 A / 点它 → 弹确认 Popup → 确认后触发回调
+    ImageViewer& SetConfirmEnabled(bool enabled);
+    bool ConfirmEnabled() const { return confirm_enabled_; }
+    ImageViewer& SetConfirmCallback(ConfirmCallback callback);
+    ImageViewer& ConfirmCurrentImage(); // A 键与 [A 确认] 按钮都走这里（唯一入口）
+    ImageViewer& RequestClose();        // B 键 / [B 关闭] 按钮都走这里
     ImageViewer& SetToolbarVisible(bool visible);
     ImageViewer& SetToolbarAutoHide(bool enabled, float idle_seconds = 4.0f);
     ImageViewer& SetShowInfo(bool visible);
@@ -91,6 +106,7 @@ signals:
     Signal<> closeRequested;    // 关闭请求（Popup 里由 PopupManager 接；独立用时宿主自己接）
     Signal<State> stateChanged; // 状态变化
     Signal<float> zoomChanged;  // 缩放变化
+    Signal<std::string> confirmRequested; // 确认了当前图片（带路径）
 
 protected:
     ImVec2 MeasureContent(const ImVec2& available) override;
@@ -150,9 +166,12 @@ private:
     Button* zoom_in_button_ = nullptr;
     Button* reset_button_ = nullptr;
     Button* close_button_ = nullptr;
+    Button* confirm_button_ = nullptr;
 
     // 配置
     CloseCallback close_callback_;
+    ConfirmCallback confirm_callback_;
+    bool confirm_enabled_ = false;
     std::vector<std::string> supported_extensions_{".png", ".jpg", ".jpeg"};
     bool toolbar_visible_ = true;
     bool toolbar_autohide_ = false;

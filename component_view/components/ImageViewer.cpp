@@ -10,6 +10,7 @@
 #include "component_view/components/Box.h"
 #include "component_view/components/Button.h"
 #include "component_view/components/Content.h"
+#include "component_view/popup/PopupManager.h"
 #include "ui/Icons.h"
 
 namespace gui_dev::cv {
@@ -45,10 +46,27 @@ Label* MakeLabel(Widget& parent, const char* name, float font_size, const ImVec4
     return label;
 }
 
-TextButton* MakeToolButton(Widget& parent, const char* name, const char* text) {
-    TextButton* button = parent.Emplace<TextButton>(text);
+// Toolbar 专用按钮：外观与交互完全复用 Button，但**忽略手柄 Confirm（A）**。
+// 这是本次交互设计的核心：Toolbar 是直接操作栏，A 不能顺着焦点触发它；
+// 触屏 / 鼠标点击不受影响（指针路径走 Activate/clicked，不经 OnPadAction）。
+class ToolbarButton : public TextButton {
+public:
+    using TextButton::TextButton;
+
+protected:
+    bool OnPadAction(InputAction action) override {
+        if (action == InputAction::Confirm) {
+            return true; // 吃掉 A，不执行任何动作（A 属于 ImageViewer 的确认语义）
+        }
+        return TextButton::OnPadAction(action);
+    }
+};
+
+ToolbarButton* MakeToolButton(Widget& parent, const char* name, const char* text, Icons::Button glyph) {
+    ToolbarButton* button = parent.Emplace<ToolbarButton>(text);
     button->SetName(name);
     button->setFontSize(Theme::kFontSmall);
+    button->setIcon(Icons::Glyph(glyph)); // 手柄按键提示
     button->focus_margin = -1.0f;
     return button;
 }
@@ -61,6 +79,10 @@ ImageViewer::ImageViewer() : Widget("image_viewer") {
     focusable = true;
     focus_frame = true;
     focus_frame_offset = 3.0f;
+    // Viewer Surface：ImageViewer 自己就是一块面板（不复用 Popup Box 当主体）
+    ApplyComponentBoxStyle();
+    padding = EdgeInsets::All(Global::component_style.content_padding);
+    background = Theme::U32(Theme::kBgPanel);
     BuildUi();
     ApplyLabels();
     SetState(State::Empty);
@@ -106,8 +128,8 @@ void ImageViewer::BuildUi() {
     error_actions_->shadow.enabled = false;
     error_actions_->padding = EdgeInsets{};
     error_actions_->visible = false;
-    retry_button_ = MakeToolButton(*error_actions_, "viewer_retry", "重试");
-    error_close_button_ = MakeToolButton(*error_actions_, "viewer_error_close", "关闭");
+    retry_button_ = MakeToolButton(*error_actions_, "viewer_retry", "重试", Icons::Button::A);
+    error_close_button_ = MakeToolButton(*error_actions_, "viewer_error_close", "关闭", Icons::Button::B);
     connect(retry_button_, &Widget::clicked, this, [this] { Reload(); });
     connect(error_close_button_, &Widget::clicked, this, [this] {
         if (close_callback_) {
@@ -127,24 +149,23 @@ void ImageViewer::BuildUi() {
     toolbar_->shadow.enabled = false;
     toolbar_->padding = EdgeInsets{};
 
-    fit_button_ = MakeToolButton(*toolbar_, "viewer_fit", "适应屏幕");
-    actual_button_ = MakeToolButton(*toolbar_, "viewer_actual", "100%");
-    zoom_out_button_ = MakeToolButton(*toolbar_, "viewer_zoom_out", "－");
-    zoom_in_button_ = MakeToolButton(*toolbar_, "viewer_zoom_in", "＋");
-    reset_button_ = MakeToolButton(*toolbar_, "viewer_reset", "重置");
-    close_button_ = MakeToolButton(*toolbar_, "viewer_close", "关闭");
+    fit_button_ = MakeToolButton(*toolbar_, "viewer_fit", "适应", Icons::Button::L);
+    actual_button_ = MakeToolButton(*toolbar_, "viewer_actual", "100%", Icons::Button::R);
+    zoom_out_button_ = MakeToolButton(*toolbar_, "viewer_zoom_out", "缩小", Icons::Button::ZL);
+    zoom_in_button_ = MakeToolButton(*toolbar_, "viewer_zoom_in", "放大", Icons::Button::ZR);
+    reset_button_ = MakeToolButton(*toolbar_, "viewer_reset", "重置", Icons::Button::X);
+    confirm_button_ = MakeToolButton(*toolbar_, "viewer_confirm", "确认", Icons::Button::A);
+    confirm_button_->visible = false;
+    close_button_ = MakeToolButton(*toolbar_, "viewer_close", "关闭", Icons::Button::B);
 
     connect(fit_button_, &Widget::clicked, this, [this] { FitToWindow(); });
     connect(actual_button_, &Widget::clicked, this, [this] { ActualSize(); });
     connect(zoom_out_button_, &Widget::clicked, this, [this] { ZoomOut(); });
     connect(zoom_in_button_, &Widget::clicked, this, [this] { ZoomIn(); });
     connect(reset_button_, &Widget::clicked, this, [this] { ResetView(); });
-    connect(close_button_, &Widget::clicked, this, [this] {
-        if (close_callback_) {
-            close_callback_();
-        }
-        emit closeRequested();
-    });
+    // [A 确认]：触屏/鼠标点击走这里；手柄 A 由 OnPadAction 走同一个 ConfirmCurrentImage()
+    connect(confirm_button_, &Widget::clicked, this, [this] { ConfirmCurrentImage(); });
+    connect(close_button_, &Widget::clicked, this, [this] { RequestClose(); });
 }
 
 void ImageViewer::ApplyLabels() {
@@ -205,6 +226,9 @@ void ImageViewer::SetState(State next, std::string error) {
         zoom_out_button_->visible = show_view_buttons;
         zoom_in_button_->visible = show_view_buttons;
         reset_button_->visible = show_view_buttons;
+        if (confirm_button_ != nullptr) {
+            confirm_button_->visible = show_view_buttons && confirm_enabled_;
+        }
         toolbar_->visible = toolbar_visible_ && (toolbar_autohide_ ? loaded : true);
     }
     ApplyLabels();
@@ -385,6 +409,53 @@ ImageViewer& ImageViewer::SetCloseCallback(CloseCallback callback) {
     return *this;
 }
 
+ImageViewer& ImageViewer::SetConfirmEnabled(bool enabled) {
+    confirm_enabled_ = enabled;
+    if (confirm_button_ != nullptr) {
+        confirm_button_->visible = enabled;
+    }
+    return *this;
+}
+
+ImageViewer& ImageViewer::SetConfirmCallback(ConfirmCallback callback) {
+    confirm_callback_ = std::move(callback);
+    return *this;
+}
+
+ImageViewer& ImageViewer::RequestClose() {
+    if (close_callback_) {
+        close_callback_();
+    }
+    emit closeRequested();
+    return *this;
+}
+
+// A 键 / [A 确认] 按钮的唯一入口：启用确认时弹确认 Popup（复用 PopupManager）
+ImageViewer& ImageViewer::ConfirmCurrentImage() {
+    if (!confirm_enabled_ || path_.empty()) {
+        return *this; // 普通浏览模式：A 什么都不做
+    }
+    if (Global::popup_manager == nullptr) {
+        if (confirm_callback_) {
+            confirm_callback_(path_);
+        }
+        emit confirmRequested(path_);
+        return *this;
+    }
+    const std::string name = file_name_;
+    Global::popup_manager->ShowConfirm(
+        "确认选择图片", "是否选择当前图片？\n" + name,
+        [this, name] {
+            if (confirm_callback_) {
+                confirm_callback_(path_);
+            }
+            emit confirmRequested(path_);
+            RequestClose(); // 确认后关闭浏览器
+        },
+        "确认", "取消");
+    return *this;
+}
+
 ImageViewer& ImageViewer::SetToolbarVisible(bool visible) {
     toolbar_visible_ = visible;
     return *this;
@@ -495,12 +566,12 @@ void ImageViewer::LayoutChildren(const ImVec2& inner) {
     if (toolbar_ != nullptr) {
         toolbar_->position = ImVec2(0.0f, height - Theme::kControlHeight);
         toolbar_->size = ImVec2(width, Theme::kControlHeight);
-        const int count = 6;
+        const int count = 7;
         const float gap = toolbar_->gap.x;
-        const float each = Clampf((width - gap * static_cast<float>(count - 1)) / static_cast<float>(count), 56.0f,
-                                  160.0f);
-        Button* buttons[count] = {fit_button_, actual_button_, zoom_out_button_,
-                                  zoom_in_button_, reset_button_, close_button_};
+        const float each = Clampf((width - gap * static_cast<float>(count - 1)) / static_cast<float>(count), 52.0f,
+                                  150.0f);
+        Button* buttons[count] = {fit_button_,     actual_button_,  zoom_out_button_, zoom_in_button_,
+                                  reset_button_, confirm_button_, close_button_};
         for (int i = 0; i < count; ++i) {
             if (buttons[i] != nullptr) {
                 buttons[i]->resize(each, Theme::kControlHeight);
@@ -663,15 +734,22 @@ void ImageViewer::OnUpdate(float dt) {
     }
 }
 
+// 手柄映射：每个 Toolbar 按钮走它自己那一个 Action（不经过焦点 + A）
 bool ImageViewer::OnPadAction(InputAction action) {
     switch (action) {
-    case InputAction::PageLeft:      // L
-    case InputAction::TriggerLeft:   // ZL
+    case InputAction::PageLeft: // L = 适应屏幕
+        FitToWindow();
+        RevealToolbar();
+        return state_ == State::Loaded;
+    case InputAction::PageRight: // R = 100%
+        ActualSize();
+        RevealToolbar();
+        return state_ == State::Loaded;
+    case InputAction::TriggerLeft: // ZL = 缩小
         ZoomOut();
         RevealToolbar();
         return state_ == State::Loaded;
-    case InputAction::PageRight:     // R
-    case InputAction::TriggerRight:  // ZR
+    case InputAction::TriggerRight: // ZR = 放大
         ZoomIn();
         RevealToolbar();
         return state_ == State::Loaded;
@@ -679,20 +757,11 @@ bool ImageViewer::OnPadAction(InputAction action) {
         ResetView();
         RevealToolbar();
         return state_ == State::Loaded;
-    case InputAction::ActionY: // Y = 适应屏幕
-        FitToWindow();
-        RevealToolbar();
-        return state_ == State::Loaded;
-    case InputAction::Confirm: // A = 适应屏幕 / 100% 切换
-        if (state_ != State::Loaded) {
-            return false;
-        }
-        if (fit_mode_) {
-            ActualSize();
-        } else {
-            FitToWindow();
-        }
-        RevealToolbar();
+    case InputAction::Cancel: // B = 关闭（在确认 Popup 里则由 Popup 自己处理）
+        RequestClose();
+        return true;
+    case InputAction::Confirm: // A = 确认当前图片（未启用确认时什么都不做，但吃掉按键）
+        ConfirmCurrentImage();
         return true;
     default:
         return false;
@@ -700,7 +769,9 @@ bool ImageViewer::OnPadAction(InputAction action) {
 }
 
 void ImageViewer::OnThemeChanged() {
-    // 颜色都从 Theme 现取，这里只需要让信息行重新排版（字号/文字不变）
+    // 表面（圆角/边框/阴影/底色）与全局 Style 保持一致
+    ApplyComponentBoxStyle();
+    background = Theme::U32(Theme::kBgPanel);
     ApplyLabels();
 }
 

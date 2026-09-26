@@ -15,8 +15,10 @@ Fit（等比适应）、100%、25%~400% 分档缩放、Pan（带边界）、Rese
 
 | 扩展名 | 状态 |
 |---|---|
-| `.png`（含大写 `.PNG`） | ✅ 当前后端可用（libpng） |
-| `.jpg` / `.jpeg`（含大写） | ⚠️ ImageViewer 接受该路径，但**当前后端没有 JPG 解码器** → 进 Failed 并显示明确原因 |
+| `.png`（含大写 `.PNG`） | ✅ libpng |
+| `.jpg` / `.jpeg`（含大写） | ✅ stb_image（`third_party/stb/stb_image.h`，只启用 JPEG） |
+
+后端 `Sdl2Backend::LoadTexture` 按扩展名选解码器，两条路径输出同一种 RGBA8888。
 
 扩展名大小写不敏感（`SetSupportedExtensions` 可配置）。不支持的扩展名在加载前就被拒绝，不会走到解码器。
 
@@ -71,15 +73,22 @@ Global::image_source.release = [](Global::ImageHandle&) {};  // 缓存由宿主�
 
 ## 9. Gamepad 操作（走现有 Action，无平台按键硬编码）
 
-| 输入 | Action | 行为 |
-|---|---|---|
-| 方向键 / 左摇杆 | Up/Down/Left/Right | 图片超出视口时平移；否则移动焦点到工具条按钮 |
-| L / ZL | PageLeft / TriggerLeft | 缩小 |
-| R / ZR | PageRight / TriggerRight | 放大 |
-| X | ActionX | 重置 |
-| Y | ActionY | 适应屏幕 |
-| A | Confirm | 适应屏幕 / 100% 切换 |
-| B | Cancel | 返回（Popup 里由 PopupManager 关弹窗） |
+**Toolbar 是"直接操作栏"：A 不会顺着焦点触发 Toolbar 上的任何按钮。**
+每个按钮由它自己那一个 Action 触发，按钮上也显示对应手柄图标（`Icons::Button::*`）：
+
+| 按钮 | 图标 | Action | 行为 |
+|---|---|---|---|
+| 适应 | L | `PageLeft` | Fit |
+| 100% | R | `PageRight` | 原始尺寸 |
+| 缩小 | ZL | `TriggerLeft` | Zoom out |
+| 放大 | ZR | `TriggerRight` | Zoom in |
+| 重置 | X | `ActionX` | 100% + 居中 |
+| 确认（可选） | A | `Confirm` | `ConfirmCurrentImage()` → 确认 Popup |
+| 关闭 | B | `Cancel` | 关闭 ImageViewer |
+| 方向键 / 摇杆 | — | Up/Down/Left/Right | 图片超出视口时平移；否则移动焦点（**焦点变化不执行任何 Action**） |
+
+实现上 Toolbar 按钮是一个内部 `ToolbarButton : TextButton`，它把 `Confirm` 吃掉（`OnPadAction` 返回 true 不做动作），
+所以手柄 A 永远不会触发 Toolbar；触屏 / 鼠标点击照常走 `clicked`。
 
 ## 10. Touch 操作
 
@@ -91,6 +100,21 @@ Global::image_source.release = [](Global::ImageHandle&) {};  // 缓存由宿主�
 ## 11. Mouse 操作
 
 左键拖动 = 平移；滚轮 / 触控板 = 缩放（以指针为焦点）；点按钮 = 操作；Esc/B = 返回。
+
+## 11.5 确认当前图片（图片选择模式）
+
+```cpp
+viewer->SetConfirmEnabled(true);                       // 默认 false = 普通浏览，A 无操作
+viewer->SetConfirmCallback([](const std::string& path){ /* 记录选择结果 */ });
+// A 键 / 点 [A 确认] → 同一个入口 ConfirmCurrentImage()
+//   → Global::popup_manager->ShowConfirm("确认选择图片", …)   ← 复用现有 PopupManager
+//      → [确认] 触发回调并关闭浏览器；[取消] / B 回到 ImageViewer（图片不变）
+```
+
+确认 Popup 里恢复正常的 Button + Focus + A/B（Focus Trap、默认焦点在「取消」）。
+ImageViewer 本身**不是 Popup**：它有自己的 Viewer Surface（Header / Canvas / Toolbar）；
+只有 `ConfirmCurrentImage()` 会创建 Popup。作为弹窗内容打开时用 `Popup::setFrameless(true)`，
+弹窗只提供模态与焦点容器，不画 Popup Box。
 
 ## 12. Focus
 

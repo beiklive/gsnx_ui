@@ -177,6 +177,9 @@ public:
     Popup& setDefaultFocus(int index); // 默认焦点按钮下标（Confirm 默认 0 = 取消）
     Popup& setAnimated(bool value);
     Popup& setStyle(const PopupStyle& value);
+    // 无框模式：不画弹窗自己的底/边框/阴影、内边距归零 —— 内容自己就是完整的一块 UI
+    // （ImageViewer 用它，避免"Popup Box 套 ImageViewer"）
+    Popup& setFrameless(bool enabled);
     PopupStyle& style() { return style_; }
     const PopupStyle& style() const { return style_; }
 
@@ -262,6 +265,7 @@ private:
     PopupStyle style_;
 
     bool modal_ = true;
+    bool frameless_ = false;
     bool dismiss_on_backdrop_ = false;
     bool dismiss_on_cancel_ = true;
     bool auto_close_on_button_ = true;

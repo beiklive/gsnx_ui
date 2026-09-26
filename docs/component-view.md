@@ -771,7 +771,7 @@ Section Title（Header）
 | 独立滚动容器 | 未新增；弹窗内 Markdown 的滚动仍是 `Box + Overflow::Scroll` |
 | Checkbox / Radio | 已从代码与 Demo 移除，改用 Switch / Selector / Tab |
 | Image | 用 `assets/img/test.png` 演示 Contain / Cover / None(裁剪) / 限高+居中 四种能力 |
-| 图片浏览器 | ImageViewer：Fit / 100% / 缩放 / 平移 / 重置 / 关闭；手柄 L·R·ZL·ZR 缩放、方向键平移、X 重置、Y 适应、A 切换；触摸点按钮缩放（29%→75% 实测）、拖动平移；不支持的格式进 Failed 并显示原因 |
+| 图片浏览器 | ImageViewer（经典全屏布局：Header 只显示信息、右上角无按钮、底部统一 Toolbar 带手柄按键提示）：Toolbar **不通过 A 触发**，L/R/ZL/ZR/X/B 各自触发；A 只在 `SetConfirmEnabled(true)` 时确认当前图片并弹确认 Popup（Popup 内恢复 A/B Focus）；PNG 与 JPG/JPEG（stb_image）均可显示；Fit / 100% / 缩放 / 平移 / 重置 / 关闭；触摸点按钮、拖动平移、鼠标滚轮缩放；Fit / 100% / 缩放 / 平移 / 重置 / 关闭；手柄 L·R·ZL·ZR 缩放、方向键平移、X 重置、Y 适应、A 切换；触摸点按钮缩放（29%→75% 实测）、拖动平移；不支持的格式进 Failed 并显示原因 |
 | 富文本 | RichText 渲染：标题 / 粗体 / 斜体 / 删除线 / 行内代码 / 列表（两级）/ 有序列表 / 引用 / 分隔线 / 链接 / 行内图片 / 染色全部正常；缺图占位正常；链接点击回调实测触发；长文在弹窗里可上下键滚动，焦点框框住可见文本区 |
 | 富文本页 | Demo 新增「富文本」页（Basic/Color/Heading/List/Ordered/Link/Image/Mixed 八段），全部为真实 Markdown 输入 + 真实 RichText API |
 | 视觉特效 | 未引入 Glass / Neon / Glow / 渐变 / 粒子 |

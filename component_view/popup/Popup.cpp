@@ -131,10 +131,16 @@ void Popup::SyncVisualStyleFromGlobal() {
     style_.backdrop_alpha = global.popup_backdrop_alpha;
     style_.button_min_width = global.popup_button_min_width;
     style_.corner_radius = global.corner_radius;
-    if (window_ != nullptr) {
+    if (window_ != nullptr && !frameless_) {
         window_->applyComponentStyle(); // 边框 / 圆角 / 阴影 = Box / Button 同一套
         window_->padding = EdgeInsets::All(style_.padding);
         window_->corner_radius = style_.corner_radius;
+    } else if (window_ != nullptr) {
+        window_->background = 0;
+        window_->background_follows_theme = false;
+        window_->border.width = 0.0f;
+        window_->shadow.enabled = false;
+        window_->padding = EdgeInsets::All(0.0f);
     }
     if (header_badge_ != nullptr) {
         // 方形图标 Box：透明底 + 语义色描边（描边色 = 图标色），圆角跟全局（Box/Button 同一套）
@@ -342,6 +348,18 @@ Popup& Popup::setDefaultFocus(int index) {
 
 Popup& Popup::setAnimated(bool value) {
     style_.animated = value;
+    return *this;
+}
+
+Popup& Popup::setFrameless(bool enabled) {
+    frameless_ = enabled;
+    if (window_ != nullptr) {
+        window_->background = 0;
+        window_->background_follows_theme = false;
+        window_->border.width = 0.0f;
+        window_->shadow.enabled = false;
+        window_->padding = enabled ? EdgeInsets::All(0.0f) : EdgeInsets::All(style_.padding);
+    }
     return *this;
 }
 

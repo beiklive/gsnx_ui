@@ -22,6 +22,7 @@ namespace gui_dev::cv {
 
 class Widget;
 class FocusManager;
+class PopupManager;
 
 namespace Global {
 
@@ -129,6 +130,11 @@ BoxVisual ComponentBoxVisual();
 // 让「约定样式」跟随当前主题（边框色 / 阴影浓淡）。切完主题调一次，
 // 再对页面根节点调 Widget::RefreshThemeTree() 让组件重新取色。
 void ApplyTheme();
+
+// ---- 弹窗系统（宿主注入）--------------------------------------------------
+// Page 每帧把自己那套 PopupManager 挂在这里；组件（例如 ImageViewer 的"确认图片"）需要在
+// 不持有 Page 的情况下弹确认框时用它 —— 仍然只有一套 PopupManager，不新建弹窗系统。
+inline PopupManager* popup_manager = nullptr;
 
 // ---- 图片加载（宿主注入）--------------------------------------------------
 // 组件层不直接调平台接口：宿主（App / Page）启动时注册「按路径加载 / 释放」，

@@ -24,6 +24,7 @@
 #include "component_view/components/CapsuleTabs.h"
 #include "component_view/components/Content.h"
 #include "component_view/components/Header.h"
+#include "component_view/components/ImageViewer.h"
 #include "component_view/components/RichText.h"
 #include "component_view/components/TabColumn.h"
 #include "component_view/pages/Page.h"
@@ -48,6 +49,7 @@ using gui_dev::cv::CapsuleTabs;
 using gui_dev::cv::EdgeInsets;
 using gui_dev::cv::CustomButton;
 using gui_dev::cv::Image;
+using gui_dev::cv::ImageViewer;
 using gui_dev::cv::Label;
 using gui_dev::cv::RichText;
 using gui_dev::cv::RichTextImage;
@@ -311,13 +313,26 @@ public:
     }
 
     // 图片浏览器按钮：真实调用 Popups().ShowImageViewer(...)
-    TextButton* AddViewerButton(const char* name, const char* label, const char* image_path) {
+    TextButton* AddViewerButton(const char* name, const char* label, const char* image_path, bool confirm) {
         TextButton* button = AddTo(kTabBasics, content_panel_->Emplace<TextButton>(label));
         button->SetName(name);
         button->setFontSize(Theme::kFontBody);
-        connect(button, &Widget::clicked, this, [this, path = std::string(image_path), title = std::string(label)] {
-            Popups().ShowImageViewer(title, path);
-        });
+        connect(button, &Widget::clicked, this,
+                [this, path = std::string(image_path), title = std::string(label), confirm] {
+                    Popup* popup = Popups().ShowImageViewer(title, path);
+                    ImageViewer* viewer = popup != nullptr
+                                              ? dynamic_cast<ImageViewer*>(popup->contentWidget()->children.front().get())
+                                              : nullptr;
+                    if (viewer == nullptr) {
+                        return;
+                    }
+                    if (confirm) {
+                        viewer->SetConfirmEnabled(true);
+                        viewer->SetConfirmCallback([this](const std::string& selected) {
+                            Toasts().ShowSuccess("已选择图片：" + selected);
+                        });
+                    }
+                });
         viewer_buttons_.push_back(button);
         return button;
     }
@@ -496,9 +511,9 @@ public:
             for (char& c : extension) {
                 c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
             }
-            if (extension != ".png") {
-                handle.error = "当前图片解码器只有 libpng：仅支持 PNG（不支持 " +
-                               (extension.empty() ? std::string("无扩展名") : extension) + "）";
+            if (extension != ".png" && extension != ".jpg" && extension != ".jpeg") {
+                handle.error = "不支持的图片格式：" + (extension.empty() ? std::string("(无扩展名)") : extension) +
+                               "（支持 PNG / JPG / JPEG）";
                 return handle;
             }
             auto found = image_cache_.find(full);
@@ -586,13 +601,16 @@ public:
         image_limited_->setFit(Image::Fit::Contain);
         image_limited_->max_size = ImVec2(0.0f, 190.0f);
 
-        // 图片浏览器：真实打开 ImageViewer 弹窗（手柄 / 触屏 / 鼠标同一套状态）
-        image_cap_viewer_ = AddDescription(kTabBasics, "点按钮真实打开 ImageViewer（Fit / 100% / 缩放 / 重置 / 关闭）");
-        viewer_png_button_ = AddViewerButton("viewer_png", "查看图片（PNG）", "img/image.png");
-        viewer_big_button_ = AddViewerButton("viewer_big", "查看大图（1920×1056）", "img/image.png");
-        viewer_transparent_button_ = AddViewerButton("viewer_alpha", "查看透明 PNG", "img/border_gradient.png");
-        viewer_jpg_button_ = AddViewerButton("viewer_jpg", "查看 JPG（当前后端不支持 → Failed）", "img/test.jpg");
-        viewer_missing_button_ = AddViewerButton("viewer_missing", "查看缺失图片（Failed）", "img/not_found.png");
+        // 图片浏览器：两个真实场景 —— 普通浏览（A 无操作）与选择图片（A → 确认 Popup）
+        image_cap_viewer_ = AddDescription(
+            kTabBasics, "查看图片 = 普通浏览（A 无操作）；选择图片 = A 弹确认框。Toolbar 各自按键触发");
+        viewer_png_button_ = AddViewerButton("viewer_png", "查看图片（PNG 大图，A 无操作）", "img/image.png", false);
+        viewer_jpg_button_ = AddViewerButton("viewer_jpg", "查看图片（JPG 照片）", "img/photo.jpg", false);
+        viewer_jpeg_button_ = AddViewerButton("viewer_jpeg", "查看图片（JPEG）", "img/photo.jpeg", false);
+        viewer_wide_jpg_button_ = AddViewerButton("viewer_wide_jpg", "查看图片（宽图 JPG）", "img/wide.jpg", false);
+        viewer_transparent_button_ = AddViewerButton("viewer_alpha", "查看图片（透明 PNG）", "img/alpha_test.png", false);
+        viewer_pick_button_ = AddViewerButton("viewer_pick", "选择图片（A 确认 → 确认框）", "img/photo.jpg", true);
+        viewer_missing_button_ = AddViewerButton("viewer_missing", "查看图片（缺失 → Failed）", "img/not_found.png", false);
 
         // ---- ProgressBar ----
         header_progress_ = AddHeader(kTabBasics, "ProgressBar", "确定进度 / 不确定进度");
@@ -1361,6 +1379,9 @@ private:
     TextButton* viewer_big_button_ = nullptr;
     TextButton* viewer_transparent_button_ = nullptr;
     TextButton* viewer_jpg_button_ = nullptr;
+    TextButton* viewer_jpeg_button_ = nullptr;
+    TextButton* viewer_wide_jpg_button_ = nullptr;
+    TextButton* viewer_pick_button_ = nullptr;
     TextButton* viewer_missing_button_ = nullptr;
     std::vector<TextButton*> viewer_buttons_;
     std::map<std::string, gui_dev::TextureRef> image_cache_; // 与 RichText 图片共用同一份纹理缓存
