@@ -310,7 +310,8 @@ FocusVisual Button::BuildFocusVisual() const {
     const Global::ComponentStyle& style = Global::component_style;
     const float margin = ResolvedFocusMargin();
     visual.enabled = true;
-    visual.flowing = true;
+    visual.pause_style = Global::pause_focus_frame;
+    visual.flowing = !visual.pause_style;
     visual.rect = DrawRect().Expanded(margin);
     // 外扩后的圆角 = 按钮圆角 + 外扩量，这样流光框的圆角跟按钮轮廓平行
     visual.radius = corner_radius + margin;
@@ -319,6 +320,12 @@ FocusVisual Button::BuildFocusVisual() const {
     visual.phase = Global::time * style.focus_flow_speed + focus_phase_offset;
     visual.saturation = focus_saturation >= 0.0f ? focus_saturation : style.focus_saturation;
     visual.brightness = focus_brightness >= 0.0f ? focus_brightness : style.focus_brightness;
+    if (visual.pause_style) {
+        visual.rect = DrawRect().Inset(-8.0f, -6.0f, -8.0f, -6.0f);
+        visual.radius = 0.0f;
+        visual.color = Theme::U32(Theme::kError);
+        visual.width = Maxf(visual.width, 2.0f);
+    }
     return visual;
 }
 
@@ -540,11 +547,17 @@ bool ToggleButton::OnPadAction(InputAction action) {
         return true;
     }
     if (action == InputAction::Confirm) {
-        // 切换后返回 false，让基类继续发 clicked（Qt 里 toggle 也会发 clicked）
+        // 手柄路径自己发 clicked，避免基类 Activate 再切换一次。
         setChecked(!checked);
-        return false;
+        emit clicked();
+        return true;
     }
     return false;
+}
+
+void ToggleButton::Activate() {
+    // 指针（包括触屏）释放路径调用 Activate；这里不能留空，否则只能聚焦不能切换。
+    setChecked(!checked);
 }
 
 // ---------------------------------------------------- 5 自定义右侧文字按钮 ---

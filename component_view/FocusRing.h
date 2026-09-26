@@ -36,6 +36,7 @@ private:
     float phase_ = 0.0f;
     float saturation_ = 0.75f;
     float brightness_ = 1.0f;
+    bool pause_style_ = false;
     ImU32 color_ = 0;
     bool flowing_ = false;
     bool has_rect_ = false; // 还没有基准矩形 -> 下一个目标直接对齐，不从别处滑过来

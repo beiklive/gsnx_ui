@@ -63,6 +63,8 @@ inline int frame_index = 0;
 inline float ui_scale = 1.0f;
 inline bool compact = false;
 inline const char* platform_name = "Desktop";
+// 焦点框样式：false = 组件库流光框，true = pause_menu 风格的装饰框。
+inline bool pause_focus_frame = false;
 
 // ---- 鼠标 ----------------------------------------------------------------
 inline ImVec2 mouse{-FLT_MAX, -FLT_MAX};

@@ -200,6 +200,7 @@ protected:
     float rightSideWidth() const override;
     void drawRightSide(ImDrawList* dl, const Rect& right_rect) override;
     bool OnPadAction(InputAction action) override;
+    void Activate() override;
     void OnUpdate(float dt) override;
     void OnThemeChanged() override;
 

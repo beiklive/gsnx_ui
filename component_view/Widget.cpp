@@ -662,6 +662,7 @@ FocusVisual Widget::BuildFocusVisual() const {
     const float ring_offset = focus_frame_offset * scale * (0.6f + 0.4f * focus_mix);
     visual.enabled = true;
     visual.flowing = false;
+    visual.pause_style = Global::pause_focus_frame;
     visual.rect = draw_rect_.Expanded(ring_offset);
     visual.radius = Maxf(Maxf(CornerTL(), CornerTR()), Maxf(CornerBL(), CornerBR())) * scale + ring_offset;
     visual.width = Maxf(focus_frame_width * scale, 1.0f);

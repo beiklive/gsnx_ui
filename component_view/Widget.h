@@ -46,6 +46,7 @@ struct FocusVisual {
     float phase = 0.0f;     // 流光相位
     float saturation = 0.75f;
     float brightness = 1.0f;
+    bool pause_style = false;    // pause_menu 风格：角标 + 强调色外框
 };
 
 class Widget : public Object {

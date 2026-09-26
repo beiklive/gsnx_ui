@@ -20,6 +20,7 @@ void FocusRing::Reset() {
     rect_ = Rect{};
     has_rect_ = false;
     alpha_ = 0.0f;
+    pause_style_ = false;
 }
 
 void FocusRing::Draw(ImDrawList* dl, Widget* target) {
@@ -54,6 +55,7 @@ void FocusRing::Draw(ImDrawList* dl, Widget* target) {
         phase_ = visual.phase;
         saturation_ = visual.saturation;
         brightness_ = visual.brightness;
+        pause_style_ = visual.pause_style;
         alpha_ = Anim::SmoothTo(alpha_, visual.alpha, kFadeSpeed, dt);
     } else {
         // 没有目标：原地淡出，并把基准矩形清掉（下次换目标直接对齐）
@@ -79,6 +81,24 @@ void FocusRing::Draw(ImDrawList* dl, Widget* target) {
 
     if (flowing_) {
         Draw::FlowingRing(dl, rect_, width_, phase_, saturation_, brightness_, alpha_, 3.0f, radius_);
+    } else if (pause_style_) {
+        // pause_menu 风格：红色强调外框 + 四角白色 L 形标记。
+        Draw::RoundedRectOutline(dl, rect_, Theme::Alpha(Theme::U32(Theme::kError), alpha_ * 0.55f),
+                                 Maxf(width_, 1.0f), radius_, radius_, radius_, radius_);
+        const float tick = Minf(12.0f, rect_.Width() * 0.18f);
+        const ImU32 white = Theme::Alpha(Theme::U32(Theme::kTextBright), alpha_ * 0.9f);
+        const float x0 = rect_.min.x;
+        const float x1 = rect_.max.x;
+        const float y0 = rect_.min.y;
+        const float y1 = rect_.max.y;
+        dl->AddLine(ImVec2(x0, y0), ImVec2(x0 + tick, y0), white, 2.5f);
+        dl->AddLine(ImVec2(x0, y0), ImVec2(x0, y0 + tick), white, 2.5f);
+        dl->AddLine(ImVec2(x1, y0), ImVec2(x1 - tick, y0), white, 2.5f);
+        dl->AddLine(ImVec2(x1, y0), ImVec2(x1, y0 + tick), white, 2.5f);
+        dl->AddLine(ImVec2(x0, y1), ImVec2(x0 + tick, y1), white, 2.5f);
+        dl->AddLine(ImVec2(x0, y1), ImVec2(x0, y1 - tick), white, 2.5f);
+        dl->AddLine(ImVec2(x1, y1), ImVec2(x1 - tick, y1), white, 2.5f);
+        dl->AddLine(ImVec2(x1, y1), ImVec2(x1, y1 - tick), white, 2.5f);
     } else {
         Draw::RoundedRectOutline(dl, rect_, Theme::Alpha(color_, alpha_), width_, radius_, radius_, radius_, radius_);
     }

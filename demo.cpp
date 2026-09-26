@@ -97,6 +97,15 @@ public:
         connect(theme_button_, &IconButton::clicked, this, [this] { ToggleTheme(); });
         buttons_.push_back(theme_button_);
 
+        // 主题旁边的焦点框样式开关：流光框 / pause_menu 角标框。
+        focus_style_button_ = tab_panel_->Emplace<IconButton>(Icons::Glyph(FocusStyleIcon()));
+        focus_style_button_->SetName("btn_focus_style");
+        focus_style_button_->setSide(kControlSize);
+        focus_style_button_->setShape(IconButtonShape::RoundedSquare);
+        focus_style_button_->setSubtitle(FocusStyleName());
+        connect(focus_style_button_, &IconButton::clicked, this, [this] { ToggleFocusStyle(); });
+        buttons_.push_back(focus_style_button_);
+
         ShowTab(0);
     }
 
@@ -449,10 +458,12 @@ public:
         content_panel_->moveTo(kMargin + tab_w + kPanelGap, kMargin);
         content_panel_->resize(page_w, content_h);
 
-        // TabColumn 撑满面板内容区，底部留一格给主题开关（位置都相对面板内容区）
+        // TabColumn 撑满面板内容区，底部留一行给主题/焦点框开关
         tab_column_->position = ImVec2(0.0f, 0.0f);
         tab_column_->size = ImVec2(Theme::kTabColumnWidth, TabInnerHeight() - kControlSize - kRowGap);
-        theme_button_->moveTo(0.0f, TabInnerHeight() - kControlSize);
+        const float controls_y = TabInnerHeight() - kControlSize;
+        focus_style_button_->moveTo(0.0f, controls_y);
+        theme_button_->moveTo(kControlSize + kRowGap, controls_y);
     }
 
     void LayoutContent() {
@@ -530,6 +541,12 @@ public:
         theme_button_->setSubtitle(ThemeName());
     }
 
+    void ToggleFocusStyle() {
+        Global::pause_focus_frame = !Global::pause_focus_frame;
+        focus_style_button_->setIcon(Icons::Glyph(FocusStyleIcon()));
+        focus_style_button_->setSubtitle(FocusStyleName());
+    }
+
     // 子页面里按 B：焦点回到左边的 tab 列（A 进内容、B 回列，形成来回）
     void OnInput() override {
         if (Global::pad.Pressed(InputAction::Cancel) && Global::Available(InputAction::Cancel)) {
@@ -598,6 +615,10 @@ private:
         return Theme::IsLight() ? Icons::Material::LightMode : Icons::Material::DarkMode;
     }
     static const char* ThemeName() { return Theme::IsLight() ? "浅色" : "深色"; }
+    static gui_dev::Icons::Material FocusStyleIcon() {
+        return Global::pause_focus_frame ? Icons::Material::CheckBoxOutline : Icons::Material::SelectAll;
+    }
+    static const char* FocusStyleName() { return Global::pause_focus_frame ? "菜单框" : "流光框"; }
 
     // 徽标墙几何：两列，统一尺寸
     static constexpr float kBadgeWidth = 92.0f;
@@ -627,6 +648,7 @@ private:
     IconButton* icon_circle_ = nullptr;
     CapsuleTabs* capsule_ = nullptr;
     IconButton* theme_button_ = nullptr;
+    IconButton* focus_style_button_ = nullptr;
     bool subtitle_on_ = true;
 };
 

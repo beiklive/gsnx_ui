@@ -138,6 +138,11 @@ float TabColumn::ItemFocus(int index) const {
 
 void TabColumn::SelectAt(int index) {
     if (index == index_) {
+        // 触屏按下时已经因焦点切换完成了 selectionChanged；释放时再次命中同一项
+        // 只应结束点击，不能把它误判成“再次激活”而重播页面入场动画。
+        if (Global::pointer_touch) {
+            return;
+        }
         emit activated(index); // 对已选中项再点一次 / 再按 A
         return;
     }
