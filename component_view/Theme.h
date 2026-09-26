@@ -107,6 +107,19 @@ inline constexpr ImVec4 kKeyBgActive = rgb(14, 99, 156); // #0E639C
 inline constexpr ImVec4 kShadow = rgba(0, 0, 0, 140); // #0000008C
 inline constexpr ImVec4 kShadowSoft = rgba(0, 0, 0, 80); // #00000050
 
+// ---- 弹窗语义色 -----------------------------------------------------------
+// 弹窗顶部那条「类型条」的颜色按语义取，不在 Popup 里写死色值：
+//   Info / Success / Warning / Error / Progress / Confirm / Selection
+// 弹窗底色不在这里定：走 Theme::kBgPanel（跟主题动态变化），需要覆盖时由 Popup 显式设。
+inline constexpr ImVec4 kPopupInfo = rgb(86, 156, 214); // #569CD6
+inline constexpr ImVec4 kPopupSuccess = rgb(78, 201, 176); // #4EC9B0
+inline constexpr ImVec4 kPopupWarning = rgb(204, 167, 0); // #CCA700
+inline constexpr ImVec4 kPopupError = rgb(241, 76, 76); // #F14C4C
+inline constexpr ImVec4 kPopupProgress = rgb(0, 122, 204); // #007ACC
+inline constexpr ImVec4 kPopupConfirm = rgb(0, 122, 204); // #007ACC
+inline constexpr ImVec4 kPopupSelection = rgb(197, 134, 192); // #C586C0
+inline constexpr ImVec4 kPopupNeutral = rgb(133, 133, 133); // #858585（自定义弹窗）
+
 // ---- 尺寸（720p 设计空间，后端按 UiScale 统一放大） -------------------------
 // 基准对齐 GBAStation 的 SettingPage（borealis 那套手持尺寸）：
 //   区块标题 20~22 / 正文 16 / 说明 14 / 极小 12

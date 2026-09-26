@@ -12,7 +12,7 @@ GBAStation 模拟器家族的**统一前端组件库**：各模拟器核心共�
 | 层 | 目录 | 说明 |
 |---|---|---|
 | 引擎 | `framework/` | App 主循环、UiContext、主题、图标、输入抽象、SDL2 后端、暂停菜单 UI 层 |
-| 组件库 | `component_view/` | 业务无关的组件与页面：Widget / Box / Button(7) / Badge / Header / TabColumn / CapsuleTabs / Toast / FocusRing |
+| 组件库 | `component_view/` | 业务无关的组件与页面：Widget / Box / Button(7) / Label / Separator / ProgressBar / Image / RichText / Checkbox / RadioGroup / Badge / Header / TabColumn / CapsuleTabs / Toast / FocusRing / **Popup 弹窗系统**（层级 + 焦点作用域 + 模态） |
 | 使用方 | `demo.cpp`、`examples/` | 演示、示例、测试；组件库不反向依赖它们 |
 
 📖 组件 API 与规范：[docs/component-view.md](docs/component-view.md) ·
@@ -37,9 +37,13 @@ GUI_DEV/
 │   └── gamemenu/                # 暂停菜单 UI 层（Persona 式视觉语言）
 ├── component_view/              # ★ 组件库（可整体搬走）
 │   ├── Object.h  Global.*  Theme.*  Types.h  Anim.h  Draw.*  Widget.*  FocusRing.*  Toast.*
-│   ├── components/              # Box / Button / Badge / Header / TabColumn / CapsuleTabs
-│   └── pages/                   # Page 基类（宿主：根 Box + Toast + 焦点框图层）
-├── demo.cpp                     # ★ 组件库总览演示（左 Tab 列 + 4 个子页面）
+│   ├── components/              # Box / Button / Label / Separator / ProgressBar / Image /
+│   │                            #   RichText / Checkbox / RadioGroup / Badge / Header / …
+│   ├── popup/                   # Popup 基类 + PopupManager（弹窗栈 / 遮罩 / 输入优先级）
+│   ├── UILayer.h                # 统一渲染层级（Background/Content/Popup/Focus/Toast）
+│   ├── FocusManager.*           # 焦点作用域（Focus Trap）与焦点恢复
+│   └── pages/                   # Page 基类（宿主：根 Box + 弹窗 + Toast + 焦点框图层）
+├── demo.cpp                     # ★ 组件库总览演示（左 Tab 列 + 5 个子页面：基础控件 / 按钮+弹窗 / …）
 ├── examples/                    # 示例（与组件库互不依赖）
 │   ├── min_demo/                # ★ 最小接入示例（另一个项目要写的全部代码）
 │   ├── imgui_tour/              # ImGui 原生能力导览（8 个 Tab）
@@ -210,7 +214,11 @@ macOS runner 上跑同一条脚本，手动 *Run workflow*、推 iOS 相关文�
 ## component_view 组件库
 
 业务无关、可整体搬走的一层。现有组件：`Box`（容器 / 可聚焦控件）、`Button`（7 种形态：
-纯文字 / 图标+文字 / 纯图标 / 开关 / 自定义右侧文字 / LR 选项 / LR 数值）、`Badge`（机种徽标）、
+纯文字 / 图标+文字 / 纯图标 / 开关 / 自定义右侧文字 / LR 选项 / LR 数值）、
+`Label` / `Separator` / `ProgressBar` / `Image` / `RichText`（文本、分隔、进度、图片、富文本）、
+`Checkbox` / `RadioGroup`（复选 / 单选）、
+`Popup` + `PopupManager`（统一弹窗系统：Info / Confirm / Selection / Progress / 富文本 / 图片 / 自定义页，
+含弹窗栈、遮罩、层级、Focus Trap、焦点恢复、异步进度）、`Badge`（机种徽标）、
 `Header`（竖条 + 标题 + 分隔线）、`TabColumn`（左侧纵向 Tab 列）、`CapsuleTabs`（横向胶囊标签条）、
 `Toast`（通知）、`FocusRing`（焦点框图层）；基础件是 `Widget / Page / Global / Theme / Anim / Draw / Object`。
 
@@ -230,7 +238,7 @@ macOS runner 上跑同一条脚本，手动 *Run workflow*、推 iOS 相关文�
 
 | 目标 | 说明 |
 |---|---|
-| `gui_dev_demo` | 组件库总览：左侧 Tab 列 + 按钮 / 徽标 / 提示 / 导航四个子页面 |
+| `gui_dev_demo` | 组件库总览：左侧 Tab 列 + 基础控件 / 按钮+弹窗 / 徽标 / 提示 / 导航五个子页面（含 7 个弹窗示例） |
 | `gui_dev_min_demo` | 最小接入示例（约 150 行，另一个项目的起点） |
 | `gui_dev_imgui_tour` | ImGui 原生能力导览（8 Tab，页面不滚动） |
 | `gui_dev_pause_demo` | 暂停菜单（Persona 式动态菜单、存档槽、设置、对话框） |

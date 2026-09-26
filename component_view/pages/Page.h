@@ -8,10 +8,13 @@
 #include <memory>
 #include <vector>
 
+#include "component_view/FocusManager.h"
 #include "component_view/FocusRing.h"
 #include "component_view/Toast.h"
+#include "component_view/UILayer.h"
 
 #include "component_view/Widget.h"
+#include "component_view/popup/PopupManager.h"
 
 namespace gui_dev {
 class UiContext;
@@ -49,6 +52,12 @@ public:
     // 生命周期/动画/排列/绘制都由 Page 每帧驱动（画在页面内容之上）
     ToastManager& Toasts() { return toasts_; }
     const ToastManager& Toasts() const { return toasts_; }
+
+    // 弹窗 / 模态框：业务代码只碰这个（Show* / CloseTop / CloseAll…）
+    PopupManager& Popups() { return popups_; }
+    const PopupManager& Popups() const { return popups_; }
+    // 焦点管理（弹窗打开/关闭时自动用；需要手动管理作用域时才直接碰它）
+    FocusManager& Focus() { return focus_; }
     // 切主题后调一次：重置根节点装饰（整页容器本来就不画底/边框/阴影），
     // 再让整棵组件树重新取色。Global::ApplyTheme() 也一起做了。
     void RefreshTheme();
@@ -58,7 +67,10 @@ private:
     std::unique_ptr<Box> root_;
     UiContext* ui_ = nullptr;
     std::vector<Widget*> focusables_;
-    FocusRing focus_ring_; // 焦点框图层：画在页面内容之上、Toast 之下
+    std::vector<Widget*> nav_focusables_; // 本帧真正参与方向键导航的那一份（弹窗打开时是弹窗内的）
+    FocusManager focus_;                  // 焦点作用域（Focus Trap / 焦点恢复）
+    PopupManager popups_{&focus_};         // 弹窗栈
+    FocusRing focus_ring_; // 焦点框图层：画在弹窗之上、Toast 之下
     ToastManager toasts_;
     Widget* last_focused_ = nullptr; // 焦点自动滚动用：焦点变化时把控件滚进它所在的滚动容器
     bool built_ = false;

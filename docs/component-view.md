@@ -471,3 +471,195 @@ GUI_DEV_PERF=1 GUI_DEV_MAX_FPS=60 ./build/mac/gui_dev_demo   # 性能统计
 ```
 
 改动一律要求：三套目标（mac Debug / mac Release / Switch）编译通过 + `ctest` 通过 + 视觉/交互按上面各节的默认值核对。
+
+---
+
+## 12. 层级 / 焦点作用域 / 弹窗系统
+
+这一节是后加的，前面各节的组件与约定不变；新代码都在 `component_view/UILayer.h`、
+`FocusManager.*`、`popup/`、`components/Content.h`、`components/Choice.h`。
+
+### 12.1 UILayer：渲染层级只有一个来源
+
+`component_view/UILayer.h` 定义层级，`Page::Render()` 按它从下往上画；控件内部不要自己决定谁在上面。
+
+```text
+Background   0       页面底色
+Content      1000    普通 UI（页面组件树 + OnOverlay）
+Popup        5000    模态弹窗（栈内每层 +10，见 PopupLayerZ()）
+Focus        9900    焦点框图层（FocusRing）
+Toast        9999    全局通知
+```
+
+**渲染层级、输入层级、焦点层级是三个概念**，刻意分开：
+
+| 维度 | 顺序 | 在哪定义 |
+|---|---|---|
+| 渲染 | Background → Content → Popup → **Focus** → Toast | `UILayer.h` + `Page::Render()` |
+| 输入 | **Popup** → Content（Toast 只画不吃输入） | `PopupManager::HitTest()` / `Page::Update()` |
+| 焦点 | 当前焦点作用域 → 作用域内 FocusTarget → FocusRing 绘制 | `FocusManager` + `Widget::CollectFocusables` |
+
+所以：焦点框永远画在弹窗之上（弹窗里的按钮有焦点也不会被压住），但焦点框只是绘制，
+不参与命中测试 —— 视觉最上层 ≠ 拦输入。
+
+### 12.2 FocusManager：作用域（Focus Trap）与焦点恢复
+
+```cpp
+// 页面里已经接好：Page 持有 FocusManager + PopupManager
+Popup* p = Popups().ShowConfirm("删除存档", "删除后无法恢复，确定继续吗？", [this] { Delete(); });
+// 打开瞬间：背景 UI 失去可聚焦资格（Focus Trap），焦点落到弹窗内
+// 关闭后：焦点自动回到打开前的那个控件（上面例子里就是那个按钮）
+
+Popups().CloseTop();            // 关最上面一个
+Popups().Close("confirm");      // 按名字关
+Popups().CloseAll();            // 全关
+Popups().ClosePageScoped();     // 只关 Scope::Page 的（切页时用；Global 的保留）
+```
+
+规则（`Global::SetFocus` 统一兜底，业务代码绕不过去）：
+
+* `focus_manager` 非空时，只有最内层作用域子树里的控件能拿焦点；
+* 鼠标 hover / 触摸点击也受同样限制（他们最终都走 `SetFocus`）；
+* `Widget::focus_inert = true` 可让某个控件"仍可见仍可命中，但退出焦点导航"
+  （页面转场时旧页就是这么处理的）。
+
+### 12.3 Popup：一套结构 + 配置 + 内容
+
+**弹窗 = 遮罩 + 窗口 Box + 类型条 + 标题 + 内容容器 + 可选按钮组**。
+Info / Confirm / Selection / Progress / 自定义页都只是配置不同，不是几套渲染系统。
+
+```cpp
+Popup* p = Popups().ShowProgress("正在扫描 ROM", "准备中…");
+p->setProgress(0.62f);          // 0..1，内部平滑跟随
+p->setMessage("已扫描 1280 个文件");
+p->setIndeterminate(true);      // 不确定进度（跑动条）
+p->fail("核心文件缺失");         // 转错误态 + 补一个「关闭」按钮
+p->setKind(PopupKind::Success); // 类型条换成语义色
+p->Close();                     // 播关闭动画，播完才真正移除
+```
+
+生命周期是状态机，不能用 `if (open) draw()` 代替：
+
+```text
+Open() → Opening →（动画播完）→ Visible → Close() → Closing →（动画播完）→ Closed → 被回收
+IsOpening() / IsOpen() / IsClosing() / IsClosed()      openProgress() 取 0..1
+信号：opening / opened / closing / closed / buttonClicked(int) / dismissRequested
+```
+
+内容六种写法（都落在同一个内容容器里，可以自由组合）：
+
+```cpp
+popup->setText("单行或多行文本（自动换行）");
+popup->setRichText(runs, 240.0f);                  // 可滚动富文本：颜色/粗体/图标/自动换行
+popup->setImage(tex.ImGuiRef(), w, h);             // 等比缩放 + 居中 + 限高
+popup->setProgressContent("说明文字", false);       // 进度条 + 说明
+popup->setContentBuilder([](Widget& content) {     // 自定义页面：Tab/Checkbox/Radio/Slider/滚动列表…
+    content.Emplace<Checkbox>("启用多线程渲染");
+});
+popup->setContentBuilder([](Widget& content) { /* 也可以直接什么都不放，纯按钮弹窗 */ });
+```
+
+按钮组（0 个 / 1 个 / N 个都支持，横排竖排可切）：
+
+```cpp
+Popup::ButtonSpec spec;
+spec.text = "mGBA";  spec.icon = Icons::Glyph(Icons::Material::Play);
+spec.primary = true; spec.close_on_click = true;      // 点完自动关闭
+spec.on_click = [] { /* … */ };
+popup->addButton(std::move(spec));
+popup->setButtonLayout(PopupButtonLayout::Vertical);
+popup->setDefaultFocus(0);      // 默认焦点下标；Confirm 预设为 0 = 取消，避免误操作
+```
+
+尺寸与遮罩（响应式，不写死像素）：
+
+```cpp
+popup->setSize(0.6f, 0.0f);          // 宽 = 画布 60%，高自适应
+popup->setMinSize(360.0f, 0.0f);
+popup->setMaxSize(640.0f, 0.85f);    // 高按比例给上限
+popup->setBackdrop(true, 0.55f);     // 遮罩透明度
+popup->setDismissOnBackdrop(false);  // 关键操作默认不允许点遮罩关闭
+popup->setModal(false);              // 非模态：背景仍可交互
+```
+
+实测（`canvas / 弹窗矩形`）：1080×600 → 640×178 @ (220,211)；1067×698 → 同样 640×178，
+始终按画布居中并受 max/min 约束。
+
+### 12.4 PopupManager 预设形态
+
+| API | 结构 | 默认行为 |
+|---|---|---|
+| `ShowInfo(title, message, "确定")` | 内容 + 1 按钮 | 点遮罩可关 |
+| `ShowConfirm(title, message, on_confirm, "确认", "取消")` | 内容 + 2 按钮 | 默认焦点=取消；点遮罩不可关；B=取消 |
+| `ShowSelection(title, message, {specs}, layout)` | 内容 + N 按钮 | 竖排默认；B=关闭 |
+| `ShowProgress(title, message, indeterminate)` | 内容（消息+进度） | **无按钮**，生命周期由任务控制 |
+| `ShowRichText(title, runs, height, kind)` | 可滚动富文本 + 关闭 | 默认焦点=文本区（打开就能上下滚） |
+| `ShowImage(title, texture, w, h)` | 图片 + 关闭 | |
+| `ShowCustom(title, builder, kind)` | 自定义页面 + 关闭 | 默认焦点=内容里第一个可聚焦控件 |
+
+输入与关闭：B/Esc 默认 = Back/Cancel（控件先有机会消费，没人要才关弹窗）。
+进度弹窗默认 `dismiss_on_cancel(false)`：不会被误按 B 关掉。
+
+异步任务（进度弹窗的正确用法 —— UI 线程只读状态并刷 UI）：
+
+```cpp
+// 业务线程：只写原子量，绝不碰 UI 对象
+scan_thread_ = std::thread([this] {
+    for (int i = 1; i <= 48; ++i) { std::this_thread::sleep_for(60ms); scan_step_.store(i); }
+    scan_finished_.store(true);
+});
+// UI 线程（每帧）
+Popup* p = Popups().Find("progress");            // 用名字查，不持有裸指针
+if (p != nullptr) {
+    p->setProgress(step / 48.0f)->setMessage("已扫描 " + std::to_string(step * 31) + " 个文件");
+    if (finished) { p->setKind(PopupKind::Success); p->Close(); }   // 完成后自动关，焦点自动恢复
+}
+```
+
+### 12.5 新增内容控件（`Content.h` / `Choice.h`）
+
+| 控件 | 用途 | 常用接口 |
+|---|---|---|
+| `Label` | 单行 / 多行 / 自动换行文本，可带图标 | `setWrap(true)` `setAlign()` `setColor()` `setFontSize()` |
+| `Separator` | 分隔线（水平/垂直 + 缩进） | `setThickness()` `setInset()` |
+| `ProgressBar` | 确定 / 不确定进度 | `setValue()` `setIndeterminate()` `setLabel()` |
+| `Image` | 图片，等比缩放 / 居中 / 限高，缺资源画占位 | `setTexture(tex.ImGuiRef(), w, h)` `setFit(Image::Fit::Contain)` |
+| `RichText` | 富文本（颜色 / 粗体 / 图标 / 换行），配合 `Overflow::Scroll` 的 Box 使用 | `setRuns({{"文本", Theme::kError, true}})` |
+| `Checkbox` | 复选框（方框 + 勾选动画 + 文字） | `setChecked()` / `toggled` 信号 |
+| `RadioGroup` | 单选组（组内自己导航） | `setOptions()` / `selectionChanged` 信号 |
+
+**ScrollView 不需要新类型**：`Box + overflow = Overflow::Scroll` 就是滚动容器，
+焦点自动滚动由 `Page::Update()` 里的 `EnsureVisible` 负责（页面与弹窗内的滚动容器都覆盖）。
+
+复合控件（`RadioGroup` / `ValueButton` / `RichText`…）会吃掉它用的那根轴（`capture_vertical/horizontal`），
+离开它用**另一根轴或 B**；弹窗关闭始终有明确路径（B / 关闭按钮 / 遮罩，按弹窗类型配置）。
+
+### 12.6 输入自动重复
+
+`framework/platform/Input.h` 的 `PadRepeat` 统一提供"按下 → 延迟 → 连续重复"：
+
+```cpp
+if (repeat.Tick(pad, InputAction::Down, dt)) { /* 移动一格 */ }
+```
+
+* 方向键导航已经在用（长按连续移动，`Global::nav_repeat`）；
+* `Widget::OnPadAction` 里需要长按的控件也可以直接用它，不要再各写一套计时；
+* `Pressed` 永远算一次触发 —— 一次"快速点按"可能在同帧内 down+up，只看 held 会把它吞掉。
+
+---
+
+## 13. 本轮验收记录（mac，脚本化截图 + 焦点轨迹）
+
+| 场景 | 脚本动作 | 实测结果 |
+|---|---|---|
+| 基础控件页 | 直接截图 | Label/Separator/ProgressBar/Image/Checkbox/Switch/Radio/Selector/Slider/CapsuleTabs/滚动列表全部正常渲染 |
+| 弹窗打开 + 焦点接管 | Tab→按钮页→打开信息弹窗 | 焦点 `popup_demo_1` → `popup_button_0`（焦点自动进入弹窗） |
+| 弹窗内导航（Focus Trap） | 弹窗内按 ←/→ | 焦点只在弹窗按钮间移动，Tab 列/背景控件不动 |
+| 确认弹窗默认焦点 | 打开确认弹窗 | 落在「取消」按钮 |
+| B = 取消 + 焦点恢复 | 弹窗内按 B | 弹窗关闭，焦点回到 `popup_demo_2`（打开它的按钮） |
+| 进度弹窗（异步） | 后台线程 48 步 | 进度条实时更新（38% → …），任务完成后自动关闭，焦点恢复 |
+| 富文本滚动 | 弹窗内按住 ↓ | 文本区滚动，焦点框跟着文本区 |
+| 触摸打开弹窗 | 手指点弹窗按钮 | `hovered=popup_demo_1` → 聚焦 → 开弹窗 |
+| 触摸点弹窗按钮 | 手指点弹窗内「确定」 | `hovered=popup_button_0` → 执行 → 关闭 → 焦点回到 `popup_demo_1` |
+| 响应式尺寸 | 4 种画布（1080×600 / 1067×1067 / 1067×645 / 1067×698） | 弹窗始终 640×178 并居中，受 max/min 与画布比例约束 |
+| 层级 | 截图核对 | 遮罩在页面之上、弹窗之上是焦点框、Toast 最顶层 |

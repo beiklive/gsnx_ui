@@ -595,7 +595,7 @@ void Widget::SetFocusZone(int zone) {
 }
 
 void Widget::CollectFocusables(std::vector<Widget*>& out) {
-    if (!visible || !enabled) {
+    if (!visible || !enabled || focus_inert) {
         return;
     }
     if (focusable) {

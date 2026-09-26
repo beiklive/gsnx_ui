@@ -19,6 +19,7 @@ class UiContext;
 namespace gui_dev::cv {
 
 class Widget;
+class FocusManager;
 
 namespace Global {
 
@@ -87,6 +88,17 @@ inline Widget* hovered = nullptr; // 鼠标下的组件
 inline Widget* pressed = nullptr; // 鼠标按下时锁定的组件
 inline Widget* focused = nullptr; // 手柄/键盘焦点
 inline Widget* active = nullptr;  // 正在激活（拖拽/长按）的组件
+
+// ---- 焦点作用域（弹窗 Focus Trap） ----------------------------------------
+// 弹窗打开时 PopupManager 把自己那套 FocusManager 挂在这里。Global::SetFocus 会拒绝
+// 作用域之外的目标，于是弹窗打开期间背景页面既拿不到手柄焦点，也不会被 hover 抢走焦点。
+// nullptr = 没有作用域限制（普通页面）。
+inline FocusManager* focus_manager = nullptr;
+bool FocusScopeAllows(const Widget* widget);
+
+// 方向键自动重复（长按连续移动）：由 Global::NavigateFocus 内部驱动，
+// 页面/弹窗都不需要自己处理重复节奏。
+inline PadRepeat nav_repeat;
 
 // ---- 输入消费 -------------------------------------------------------------
 // 一帧里同一个按键只能被消费一次：页面/控件处理后 MarkConsumed，

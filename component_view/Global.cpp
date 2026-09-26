@@ -1,5 +1,7 @@
 #include "component_view/Global.h"
 
+#include "component_view/FocusManager.h"
+
 #include <cfloat>
 
 #include "component_view/Theme.h"
@@ -105,8 +107,20 @@ void EndFrame() {
     }
 }
 
+bool FocusScopeAllows(const Widget* widget) {
+    if (focus_manager == nullptr) {
+        return true;
+    }
+    return focus_manager->Allows(widget);
+}
+
 void SetFocus(Widget* widget) {
     if (focused == widget) {
+        return;
+    }
+    // 焦点只在当前作用域内流转（弹窗打开后背景控件拿不到焦点）——
+    // 放在这里统一兜底，导航、hover、触摸、业务代码手动 SetFocus 都绕不过去。
+    if (widget != nullptr && !FocusScopeAllows(widget)) {
         return;
     }
     // 只改状态：focusIn/focusOut 由 Widget::UpdateInteraction 检测跳变后发射，
@@ -128,6 +142,11 @@ void NavigateFocus(const std::vector<Widget*>& focusables) {
     }
 
     Widget* current = focused;
+    if (current != nullptr && current->focus_inert) {
+        // 焦点所在控件已经退出导航（转场中的旧页）：本帧先清掉，方向键再决定去哪
+        SetFocus(nullptr);
+        current = nullptr;
+    }
     bool valid = false;
     for (Widget* item : focusables) {
         if (item == current) {
@@ -156,14 +175,20 @@ void NavigateFocus(const std::vector<Widget*>& focusables) {
         return;
     }
 
+    // 方向键：首次按下 + 长按自动重复（四个方向都要 Tick，通道状态才连得上）
+    const float dt = delta_time;
+    const bool fire_left = nav_repeat.Tick(pad, InputAction::Left, dt);
+    const bool fire_right = nav_repeat.Tick(pad, InputAction::Right, dt);
+    const bool fire_up = nav_repeat.Tick(pad, InputAction::Up, dt);
+    const bool fire_down = nav_repeat.Tick(pad, InputAction::Down, dt);
     ImVec2 dir(0.0f, 0.0f);
-    if (pad.Pressed(InputAction::Left)) {
+    if (fire_left) {
         dir.x = -1.0f;
-    } else if (pad.Pressed(InputAction::Right)) {
+    } else if (fire_right) {
         dir.x = 1.0f;
-    } else if (pad.Pressed(InputAction::Up)) {
+    } else if (fire_up) {
         dir.y = -1.0f;
-    } else if (pad.Pressed(InputAction::Down)) {
+    } else if (fire_down) {
         dir.y = 1.0f;
     }
     if (dir.x == 0.0f && dir.y == 0.0f) {

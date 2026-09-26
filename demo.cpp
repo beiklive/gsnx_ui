@@ -4,10 +4,13 @@
 //   1. DemoPage 往页面里放组件（现在只有 Box）
 //   2. DemoApp 每帧驱动：Global（输入/画布）→ Page::Update → Page::Render
 //   3. 保留三个调试开关：GUI_DEV_WINDOW=WxH、GUI_DEV_NO_VSYNC=1、GUI_DEV_EXIT_AFTER=<帧数>
+#include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "component_view/Global.h"
@@ -17,10 +20,14 @@
 #include "component_view/components/Button.h"
 #include "component_view/Anim.h"
 #include "component_view/components/CapsuleTabs.h"
+#include "component_view/components/Choice.h"
+#include "component_view/components/Content.h"
 #include "component_view/components/Header.h"
 #include "component_view/components/TabColumn.h"
 #include "component_view/pages/Page.h"
+#include "component_view/popup/Popup.h"
 #include "ui/Icons.h"
+#include "ui/Texture.h"
 #include "core/App.h"
 #include "ui/Scene.h"
 #include "ui/UiContext.h"
@@ -36,8 +43,21 @@ using gui_dev::cv::Widget;
 using gui_dev::cv::EmuPlatform;
 using gui_dev::cv::Button;
 using gui_dev::cv::CapsuleTabs;
+using gui_dev::cv::Checkbox;
 using gui_dev::cv::EdgeInsets;
 using gui_dev::cv::CustomButton;
+using gui_dev::cv::Image;
+using gui_dev::cv::Label;
+using gui_dev::cv::Popup;
+using gui_dev::cv::PopupButtonLayout;
+using gui_dev::cv::PopupKind;
+using gui_dev::cv::ProgressBar;
+using gui_dev::cv::RadioGroup;
+using gui_dev::cv::RichText;
+using gui_dev::cv::Separator;
+using gui_dev::cv::Align;
+using gui_dev::cv::LayoutMode;
+namespace cv = gui_dev::cv;
 using gui_dev::cv::IconButton;
 using gui_dev::cv::Header;
 using gui_dev::cv::Overflow;
@@ -77,16 +97,24 @@ bool TraceSignal() {
 //   两页同时进行，所以不会出现「瞬间刷新」。动画语义对齐 examples/pause_menu。
 class DemoPage : public Page {
 public:
+    ~DemoPage() override {
+        // 后台线程必须在页面销毁前收掉（UI 单线程，不允许线程去碰 UI 对象）
+        if (scan_thread_.joinable()) {
+            scan_thread_.join();
+        }
+    }
+
     const char* Title() const override { return "component_view"; }
 
     void OnBuild() override {
         BuildPanels();
         BuildTabColumn();
 
-        BuildButtonPage(); // tab 0 按钮
-        BuildBadgePage();  // tab 1 徽标
-        BuildToastPage();  // tab 2 提示
-        BuildNavPage();    // tab 3 导航
+        BuildBasicsPage(); // tab 0 基础控件（Label/Separator/ProgressBar/Image/Checkbox/RadioGroup/开关/选择器/标签/滚动列表）
+        BuildPopupPage();  // tab 1 按钮变体 + 7 个弹窗示例
+        BuildBadgePage();  // tab 2 徽标
+        BuildToastPage();  // tab 3 提示
+        BuildNavPage();    // tab 4 导航
 
         // 主题开关是「应用级」的：钉在内容面板右下角，任何 tab 下都能切，不放进 tab 页面
         theme_button_ = tab_panel_->Emplace<IconButton>(Icons::Glyph(ThemeIcon()));
@@ -113,6 +141,16 @@ public:
         UpdatePageAnim(dt);
         LayoutPanels();  // 两个面板的位置/尺寸（画布尺寸可变）
         LayoutContent(); // 面板内的控件重排
+
+        // 基础控件页：进度条一直在走（确定 + 不确定两种形态）
+        basics_progress_ += dt * 0.22f;
+        if (basics_progress_ > 1.15f) {
+            basics_progress_ -= 1.15f;
+        }
+        progress_->setValue(cv::Clampf(basics_progress_ / 1.0f, 0.0f, 1.0f));
+
+        // 弹窗页：后台扫描任务的进度回传（UI 线程只做读取 + 刷 UI）
+        UpdateProgressDemo();
     }
 
     // ---------------------------------------------------- 两个 Box 面板 ----
@@ -146,8 +184,9 @@ public:
         tab_column_ = tab_panel_->Emplace<TabColumn>();
         tab_column_->SetName("tab_column");
         tab_column_->setItems({
-            {Icons::Glyph(Icons::Material::VideogameAsset), "按钮"},
-            {Icons::Glyph(Icons::Material::SportsEsports), "徽标"},
+            {Icons::Glyph(Icons::Material::Settings), "基础控件"},
+            {Icons::Glyph(Icons::Material::Description), "按钮 / 弹窗"},
+            {Icons::Glyph(Icons::Material::ImagePlaceholder), "徽标"},
             {Icons::Glyph(Icons::Material::Info), "提示"},
             {Icons::Glyph(Icons::Material::Games), "导航"},
         });
@@ -191,6 +230,8 @@ public:
             exiting_tab_ = active_tab_;
         }
         active_tab_ = index;
+        // 切页语义：Page 作用域的弹窗跟随页面关闭，Global 作用域的保留（需求 §32）
+        Popups().ClosePageScoped();
         page_anim_[index].enter_time = 0.0f; // 新页从 0 开始入场
         // 滚动状态跟着页面走：切走就当重置，否则新页面会停在上一页滚到的位置
         content_panel_->scroll = ImVec2(0.0f, 0.0f);
@@ -212,8 +253,11 @@ public:
     void ApplyTabVisibility() {
         for (int tab = 0; tab < kTabCount; ++tab) {
             const bool shown = (tab == active_tab_) || (tab == exiting_tab_);
+            // 退场中的旧页仍然可见（在播动画），但不参与焦点导航：否则方向键会跑到旧页上
+            const bool interactive = (tab == active_tab_);
             for (Widget* widget : pages_[tab]) {
                 widget->visible = shown;
+                widget->focus_inert = !interactive;
             }
         }
     }
@@ -262,24 +306,24 @@ public:
     }
 
     // ------------------------------------------------------- tab 0 按钮 ----
-    void BuildButtonPage() {
-        header_buttons_ = AddHeader(kTabButtons, "按钮变体", "点击 / A 触发，+ 键切说明行");
+    void BuildPopupPage() {
+        header_buttons_ = AddHeader(kTabPopups, "按钮变体", "点击 / A 触发，+ 键切说明行");
 
         // 1 普通按钮（弹窗的确认 / 取消这类提示文字）：文字居中，字号比其它按钮大一档
-        TextButton* plain = AddTo(kTabButtons, content_panel_->Emplace<TextButton>("普通按钮"));
+        TextButton* plain = AddTo(kTabPopups, content_panel_->Emplace<TextButton>("普通按钮"));
         plain->setFontSize(Theme::kFontHeader); // 20（其它按钮正文 16）
         AddStackButton(plain, "btn_text");
 
         // 2 图标 + 文字：图标占左侧正方形格（格内水平+垂直居中），文字紧跟其右
         IconTextButton* icon_text = AddTo(
-            kTabButtons,
+            kTabPopups,
             content_panel_->Emplace<IconTextButton>(Icons::Glyph(Icons::Material::Play), "图标 + 文字按钮"));
         icon_text->setSubtitle("图标是正方形格，格内居中；图标在左、文字紧跟其右");
         AddStackButton(icon_text, "btn_icon_text");
 
         // 3 开关按钮：右侧显示 开/关（开=蓝、关=灰），A/点击切换
         ToggleButton* toggle =
-            AddTo(kTabButtons, content_panel_->Emplace<ToggleButton>(Icons::Glyph(Icons::Material::Wifi), "无线网络"));
+            AddTo(kTabPopups, content_panel_->Emplace<ToggleButton>(Icons::Glyph(Icons::Material::Wifi), "无线网络"));
         toggle->setSubtitle("点击 / A 切换开关状态");
         connect(toggle, &ToggleButton::toggled, this, [](bool on) {
             if (TraceSignal()) {
@@ -291,14 +335,14 @@ public:
 
         // 4 自定义右侧文字按钮
         CustomButton* custom = AddTo(
-            kTabButtons, content_panel_->Emplace<CustomButton>(Icons::Glyph(Icons::Material::Storage), "存储路径"));
+            kTabPopups, content_panel_->Emplace<CustomButton>(Icons::Glyph(Icons::Material::Storage), "存储路径"));
         custom->setRightText("sdmc:/switch/", Theme::kTeal);
         custom->setSubtitle("右侧文字的内容与颜色都可以改（setRightText）");
         AddStackButton(custom, "btn_custom");
 
         // 5 LR 选项选择器：右侧 [L] 固定间隔 [R]，L/R 键切换；选项太长就在间隔里滚动
         OptionButton* option = AddTo(
-            kTabButtons,
+            kTabPopups,
             content_panel_->Emplace<OptionButton>(Icons::Glyph(Icons::Material::ImagePlaceholder), "画面缩放"));
         option->setOptions({"整数缩放", "线性过滤", "CRT 扫描线（像素风，速度慢）"});
         option->setSubtitle("L / R 键切换选项；选项超长会在间隔里滚动");
@@ -312,7 +356,7 @@ public:
 
         // 6 LR 数值选择器：右侧 [L] 固定间隔 [R]，初始化时给范围/步长/精度
         ValueButton* value =
-            AddTo(kTabButtons, content_panel_->Emplace<ValueButton>(Icons::Glyph(Icons::Material::Memory), "音量"));
+            AddTo(kTabPopups, content_panel_->Emplace<ValueButton>(Icons::Glyph(Icons::Material::Memory), "音量"));
         value->setup(65.0f, 0.0f, 100.0f, 5.0f, 0);
         value->setSubtitle("L / R 调值（长按加速），松开才发 valueChanged");
         connect(value, &ValueButton::valueChanged, this, [](float current) {
@@ -325,7 +369,7 @@ public:
 
         // 7 全局开关：一键禁用上面这些按钮（禁用 = 不可聚焦 + 整体置灰）
         disable_toggle_ = AddTo(
-            kTabButtons, content_panel_->Emplace<ToggleButton>(Icons::Glyph(Icons::Material::Close), "禁用全部按钮"));
+            kTabPopups, content_panel_->Emplace<ToggleButton>(Icons::Glyph(Icons::Material::Close), "禁用全部按钮"));
         disable_toggle_->resize(kToggleWidth, Theme::kControlHeight);
         disable_toggle_->setSubtitle("打开 = 全部按钮不可聚焦并置灰");
         connect(disable_toggle_, &ToggleButton::toggled, this, [this](bool off) {
@@ -340,7 +384,7 @@ public:
 
         // 顺手保留一个可聚焦 Box（容器/控件两种身份）。
         // 不显式 fillWith，底色就来自调色板 → 切主题会自动跟着变。
-        box_ = AddTo(kTabButtons, content_panel_->Emplace<Box>("box"));
+        box_ = AddTo(kTabPopups, content_panel_->Emplace<Box>("box"));
         box_->resize(124.0f, 124.0f);
         box_->roundCorners(Global::component_style.corner_radius);
         box_->makeFocusable();
@@ -348,19 +392,59 @@ public:
             box_->fillWith(box_->hasFocus() ? Theme::kAccent : Theme::kBgWidget); // 显式设色后就不再跟随主题
         });
 
-        header_icons_ = AddHeader(kTabButtons, "图标按钮 / 容器");
+        header_icons_ = AddHeader(kTabPopups, "图标按钮 / 容器");
 
-        icon_square_ = AddTo(kTabButtons, content_panel_->Emplace<IconButton>(Icons::Glyph(Icons::Material::Settings)));
+        icon_square_ = AddTo(kTabPopups, content_panel_->Emplace<IconButton>(Icons::Glyph(Icons::Material::Settings)));
         icon_square_->setSide(kControlSize);
         icon_square_->setShape(IconButtonShape::RoundedSquare);
         icon_square_->setSubtitle("圆角方形");
         buttons_.push_back(icon_square_);
 
-        icon_circle_ = AddTo(kTabButtons, content_panel_->Emplace<IconButton>(Icons::Glyph(Icons::Material::Favorite)));
+        icon_circle_ = AddTo(kTabPopups, content_panel_->Emplace<IconButton>(Icons::Glyph(Icons::Material::Favorite)));
         icon_circle_->setSide(kControlSize);
         icon_circle_->setShape(IconButtonShape::Circle);
         icon_circle_->setSubtitle("圆形");
         buttons_.push_back(icon_circle_);
+
+        // ---------------- 弹窗 / 模态框示例（7 个，覆盖需求里的全部形态） ----------------
+        header_popups_ = AddHeader(kTabPopups, "弹窗 / 模态框", "A / 点击打开，B 关闭");
+
+        int demo_index = 0;
+        AddPopupButton(demo_index++, Icons::Material::Update, "进度对话框", "后台线程跑任务，实时回传进度，跑完自动关闭", [this] {
+            ShowProgressDemo();
+        });
+        AddPopupButton(demo_index++, Icons::Material::Info, "信息对话框", "单按钮：内容 + [确定]", [this] {
+            Popups().ShowInfo("操作完成", "存档已写入 sdmc:/switch/GUI_DEV/saves/，可以继续游戏。");
+        });
+        AddPopupButton(demo_index++, Icons::Material::HelpOutline, "确认对话框", "双按钮：默认焦点在取消，B = 取消", [this] {
+            Popups().ShowConfirm("删除存档", "删除后无法恢复，确定继续吗？", [this] { Toasts().ShowSuccess("存档已删除"); });
+        });
+        AddPopupButton(demo_index++, Icons::Material::SelectAll, "选择对话框", "多按钮竖排，A 确认后执行回调", [this] {
+            ShowSelectionDemo();
+        });
+        AddPopupButton(demo_index++, Icons::Material::Description, "可滚动富文本", "长文本 + 彩色 + 粗体 + 图标，上下键滚动", [this] {
+            ShowRichTextDemo();
+        });
+        AddPopupButton(demo_index++, Icons::Material::PhotoLibrary, "图片对话框", "等比缩放 / 居中 / 限高", [this] {
+            ShowImageDemo();
+        });
+        AddPopupButton(demo_index++, Icons::Material::Edit, "自定义页面", "弹窗里放 Tab/选择器/开关/滚动列表", [this] {
+            ShowCustomDemo();
+        });
+    }
+
+    // 弹窗示例按钮：统一大小 + 记录顺序（布局时排两列）
+    void AddPopupButton(int demo_index, gui_dev::Icons::Material icon, const char* title, const char* subtitle,
+                        std::function<void()> on_click) {
+        IconTextButton* button =
+            AddTo(kTabPopups, content_panel_->Emplace<IconTextButton>(Icons::Glyph(icon), title));
+        button->SetName(std::string("popup_demo_") + std::to_string(demo_index));
+        button->setSubtitle(subtitle);
+        button->showSubtitle(true);
+        button->resize(kStackWidth, Theme::kControlHeight);
+        connect(button, &Widget::clicked, this, [handler = std::move(on_click)] { handler(); });
+        popup_buttons_.push_back(button);
+        buttons_.push_back(button);
     }
 
     void AddStackButton(Button* button, const char* name) {
@@ -369,6 +453,128 @@ public:
         button->showSubtitle(true);
         buttons_.push_back(button);
         stack_buttons_.push_back(button);
+    }
+
+    // ------------------------------------------------- tab 0 基础控件 ----
+    // 一页把「最基础的那批控件」摆全：文本 / 分隔 / 进度 / 图片 / 开关 / 选择 / 标签 / 滚动列表。
+    // 走查顺序固定：Label → Separator → ProgressBar → Image → Checkbox → Switch → Radio →
+    // Selector → Slider → Tab → ScrollView（焦点上下移动即可逐个验证手柄与触摸）。
+    void BuildBasicsPage() {
+        // ---- 文本与分隔 ----
+        header_text_ = AddHeader(kTabBasics, "文本 / 分隔", "Label 单行 / 换行 / 图标，Separator 分隔线");
+        label_title_ = AddTo(kTabBasics, content_panel_->Emplace<Label>("基础控件预览"));
+        label_title_->setFontSize(Theme::kFontTitle);
+        label_body_ = AddTo(kTabBasics, content_panel_->Emplace<Label>(
+            "这是一段会自动换行的正文：把宽度交给布局后，Label 会按可用宽度断行，中文与 english mixed 都不会溢出。"));
+        label_body_->setWrap(true, 6.0f);
+        label_body_->font_size = Theme::kFontSmall;
+        label_body_->setColor(Theme::kTextMuted);
+        label_multi_ = AddTo(kTabBasics, content_panel_->Emplace<Label>(
+            "多行文本用 \\n 显式断行：\n第一行 · 第二行 · 第三行"));
+        label_multi_->setFontSize(Theme::kFontSmall);
+        separator_ = AddTo(kTabBasics, content_panel_->Emplace<Separator>());
+        label_icon_ = AddTo(kTabBasics, content_panel_->Emplace<Label>("带图标的标签（图标是 Material 字形）"));
+        label_icon_->setIcon(Icons::Glyph(Icons::Material::FavoriteBorder));
+        label_icon_->setFontSize(Theme::kFontSmall);
+
+        // ---- 进度 ----
+        header_progress_ = AddHeader(kTabBasics, "进度", "确定进度会平滑跟随，不确定进度是跑动条");
+        progress_ = AddTo(kTabBasics, content_panel_->Emplace<ProgressBar>());
+        progress_->setLabel("正在加载核心");
+        progress_->setBarHeight(12.0f);
+        progress_wait_ = AddTo(kTabBasics, content_panel_->Emplace<ProgressBar>());
+        progress_wait_->setIndeterminate(true);
+        progress_wait_->setBarHeight(12.0f);
+        progress_wait_->setLabel("正在查找更新…");
+
+        // ---- 图片 ----
+        header_image_ = AddHeader(kTabBasics, "图片", "等比缩放 + 居中 + 限高，缺资源时画占位");
+        image_tex_ = gui_dev::TextureRef(ui().GetBackend(), "img/border_gradient.png");
+        image_ = AddTo(kTabBasics, content_panel_->Emplace<Image>());
+        image_->setTexture(image_tex_.ImGuiRef(), static_cast<float>(image_tex_.Width()),
+                           static_cast<float>(image_tex_.Height()));
+        image_->setFit(Image::Fit::Contain);
+        image_->setRadius(Theme::kRadius);
+
+        // ---- 开关 / 选择 ----
+        header_choice_ = AddHeader(kTabBasics, "开关 / 选择", "Checkbox / Switch / Radio / Selector / Slider");
+        checkbox_ = AddTo(kTabBasics, content_panel_->Emplace<Checkbox>("启用帧率显示（Checkbox）"));
+        connect(checkbox_, &Checkbox::toggled, this, [this](bool on) {
+            Toasts().ShowInfo(on ? "已开启帧率显示" : "已关闭帧率显示");
+        });
+
+        switch_ = AddTo(kTabBasics,
+                        content_panel_->Emplace<ToggleButton>(Icons::Glyph(Icons::Material::Wifi), "无线网络（Switch）"));
+        switch_->setChecked(true, false);
+        connect(switch_, &ToggleButton::toggled, this, [](bool on) {
+            if (TraceSignal()) {
+                std::printf("[signal] switch = %s\n", on ? "开" : "关");
+                std::fflush(stdout);
+            }
+        });
+
+        radio_ = AddTo(kTabBasics, content_panel_->Emplace<RadioGroup>());
+        radio_->setOptions({"整数缩放（Radio）", "线性过滤", "CRT 扫描线"}, 0);
+        connect(radio_, &RadioGroup::selectionChanged, this, [this](int index) {
+            if (TraceSignal()) {
+                std::printf("[signal] radio = %d\n", index);
+                std::fflush(stdout);
+            }
+            Toasts().ShowInfo(std::string("缩放方式：") + radio_->currentOption());
+        });
+
+        selector_ = AddTo(kTabBasics, content_panel_->Emplace<OptionButton>(
+                                          Icons::Glyph(Icons::Material::ImagePlaceholder), "画面比例（Selector）"));
+        selector_->setOptions({"自动", "16:9", "4:3", "原始分辨率"});
+        connect(selector_, &OptionButton::selectionChanged, this, [](int index) {
+            if (TraceSignal()) {
+                std::printf("[signal] selector = %d\n", index);
+                std::fflush(stdout);
+            }
+        });
+
+        slider_ = AddTo(kTabBasics, content_panel_->Emplace<ValueButton>(
+                                        Icons::Glyph(Icons::Material::Memory), "音量（Slider）"));
+        slider_->setup(65.0f, 0.0f, 100.0f, 5.0f, 0);
+        connect(slider_, &ValueButton::valueChanged, this, [](float value) {
+            if (TraceSignal()) {
+                std::printf("[signal] slider = %.0f\n", static_cast<double>(value));
+                std::fflush(stdout);
+            }
+        });
+
+        // ---- 标签条 / 滚动列表 ----
+        header_scroll_ = AddHeader(kTabBasics, "标签 / 滚动列表", "焦点移到列表下方条目时容器会自动滚动");
+        tabs_demo_ = AddTo(kTabBasics, content_panel_->Emplace<CapsuleTabs>());
+        tabs_demo_->setLabels({"所有", "GBA", "GBC", "FC", "NDS", "3DS"}, 0);
+        connect(tabs_demo_, &CapsuleTabs::selectionChanged, this, [this](int index) {
+            if (TraceSignal()) {
+                std::printf("[signal] basics_tab = %d\n", index);
+                std::fflush(stdout);
+            }
+            (void)index;
+        });
+
+        // 滚动容器 = 普通 Box + Overflow::Scroll（不新造 ScrollView 类型）
+        list_box_ = AddTo(kTabBasics, content_panel_->Emplace<Box>("scroll_list"));
+        list_box_->overflow = Overflow::Scroll;
+        list_box_->scroll_bar_auto_hide = false;
+        list_box_->scroll_overscroll = true;
+        list_box_->layout = LayoutMode::Vertical;
+        list_box_->gap = ImVec2(0.0f, 6.0f);
+        list_box_->align_x = Align::Stretch;
+        list_box_->padding = EdgeInsets::All(6.0f);
+        for (int i = 1; i <= 14; ++i) {
+            TextButton* row = list_box_->Emplace<TextButton>("存档槽 " + std::to_string(i));
+            row->SetName("scroll_row_" + std::to_string(i));
+            row->setFontSize(Theme::kFontBody);
+            row->resize(0.0f, 44.0f); // 宽度由容器的 Stretch 撑满
+            row->SetFocusZone(kContentZone);
+            connect(row, &Widget::clicked, this, [this, i] {
+                Toasts().ShowInfo("进入 存档槽 " + std::to_string(i));
+            });
+            list_rows_.push_back(row);
+        }
     }
 
     // ------------------------------------------------------- tab 1 徽标 ----
@@ -446,6 +652,152 @@ public:
         });
     }
 
+    // ------------------------------------------------- 弹窗示例实现 ----
+    // 这些方法就是业务侧的真实调用方式：Show* 拿回 Popup*，之后按需 setXxx / Close。
+    void ShowSelectionDemo() {
+        const char* names[] = {"mGBA", "VBA-M", "NanoBoyAdvance"};
+        const char* notes[] = {"兼容性最好", "老牌核心", "精度最高"};
+        std::vector<Popup::ButtonSpec> options;
+        for (int i = 0; i < 3; ++i) {
+            Popup::ButtonSpec spec;
+            spec.text = std::string(names[i]) + "    " + notes[i];
+            spec.icon = Icons::Glyph(Icons::Material::Play);
+            spec.primary = (i == 0);
+            spec.on_click = [this, name = std::string(names[i])] { Toasts().ShowInfo("已选择核心：" + name); };
+            options.push_back(std::move(spec));
+        }
+        Popup::ButtonSpec cancel;
+        cancel.text = "取消";
+        cancel.on_click = [this] { Toasts().ShowInfo("已取消选择"); };
+        options.push_back(std::move(cancel));
+        Popups().ShowSelection("选择模拟核心", "这个 ROM 有多个可用核心，选一个：", std::move(options),
+                               PopupButtonLayout::Vertical);
+    }
+
+    void ShowRichTextDemo() {
+        std::vector<RichText::Run> runs;
+        runs.push_back({std::string(Icons::Glyph(Icons::Material::ErrorOutline)) + "  无法加载游戏核心", Theme::kError,
+                        true, ""});
+        runs.push_back({"", {}, false, ""});
+        runs.push_back({"路径：sdmc:/switch/GUI_DEV/cores/mgba_libretro.nro", Theme::kBlue, false, ""});
+        runs.push_back({"原因：核心文件不存在或版本不匹配。", {}, false, ""});
+        runs.push_back({"请依次确认：", {}, false, ""});
+        runs.push_back({"1. 核心文件存在（cores/ 目录）", Theme::kTextPrimary, false, ""});
+        runs.push_back({"2. ROM 文件完整（CRC32 校验通过）", Theme::kTextPrimary, false, ""});
+        runs.push_back({"3. BIOS 文件正确（gba_bios.bin，16KB）", Theme::kTextPrimary, false, ""});
+        for (int i = 4; i <= 40; ++i) {
+            runs.push_back({"[debug] 第 " + std::to_string(i) + " 行日志：扫描存档目录、校验缩略图、刷新缓存索引…\n",
+                            Theme::kTextMuted, false, ""});
+        }
+        runs.push_back({"", {}, false, ""});
+        runs.push_back({"（按住 ↑↓ 连续滚动，L/R 翻页，B 关闭）", Theme::kOrange, false,
+                        Icons::Glyph(Icons::Material::Info)});
+        Popups().ShowRichText("日志详情", std::move(runs), 240.0f, PopupKind::Warning);
+    }
+
+    void ShowImageDemo() {
+        Popups().ShowImage("界面预览", image_tex_.ImGuiRef(), static_cast<float>(image_tex_.Width()),
+                           static_cast<float>(image_tex_.Height()));
+    }
+
+    // 自定义页面弹窗：内容就是现有控件的自由组合（Tab / 选择器 / 开关 / 滚动列表 / 内部按钮）
+    void ShowCustomDemo() {
+        Popups().ShowCustom("游戏设置", [this](Widget& content) {
+            CapsuleTabs* tabs = content.Emplace<CapsuleTabs>();
+            tabs->setLabels({"通用", "画面", "音频"}, 0);
+            tabs->size.y = 0.0f;
+            connect(tabs, &CapsuleTabs::selectionChanged, this, [this](int index) {
+                Toasts().ShowInfo("切到第 " + std::to_string(index + 1) + " 组设置");
+            });
+
+            Separator* line = content.Emplace<Separator>();
+            line->setThickness(1.0f);
+
+            Checkbox* fast = content.Emplace<Checkbox>("启用多线程渲染（Checkbox）");
+            fast->setChecked(true, false);
+
+            RadioGroup* mode = content.Emplace<RadioGroup>();
+            mode->setOptions({"性能优先（Radio）", "平衡", "画质优先"}, 1);
+
+            ValueButton* volume = content.Emplace<ValueButton>(Icons::Glyph(Icons::Material::Memory), "主音量（Slider）");
+            volume->setup(70.0f, 0.0f, 100.0f, 5.0f, 0);
+
+            // 弹窗内部也能放滚动列表（焦点移动会自动滚动）
+            Box* list = content.Emplace<Box>("custom_list");
+            list->overflow = Overflow::Scroll;
+            list->scroll_bar_auto_hide = false;
+            list->layout = LayoutMode::Vertical;
+            list->gap = ImVec2(0.0f, 6.0f);
+            list->align_x = Align::Stretch;
+            list->padding = EdgeInsets::All(6.0f);
+            list->size.y = 150.0f;
+            for (int i = 1; i <= 8; ++i) {
+                TextButton* row = list->Emplace<TextButton>("着色器选项 " + std::to_string(i));
+                row->resize(0.0f, 40.0f);
+                connect(row, &Widget::clicked, this, [this, i] {
+                    Toasts().ShowInfo("选择着色器 " + std::to_string(i));
+                });
+            }
+
+            // 内容里的按钮：不关弹窗（close_on_click = false），只做业务动作
+            Box* row = content.Emplace<Box>("custom_row");
+            row->layout = LayoutMode::Horizontal;
+            row->gap = ImVec2(12.0f, 0.0f);
+            row->align_x = Align::Center;
+            row->size.y = Theme::kControlHeight;
+            TextButton* apply = row->Emplace<TextButton>("应用");
+            apply->resize(140.0f, Theme::kControlHeight);
+            connect(apply, &Widget::clicked, this, [this] {
+                Toasts().ShowSuccess("设置已应用（弹窗不关闭）");
+            });
+            CustomButton* info = row->Emplace<CustomButton>(Icons::Glyph(Icons::Material::Info), "当前版本");
+            info->setRightText("v0.1.0", Theme::kTeal);
+            info->resize(200.0f, Theme::kControlHeight);
+        });
+    }
+
+    // ---- 进度弹窗 + 真实后台线程（UI 线程只读进度并刷 UI，不做阻塞操作）----
+    void ShowProgressDemo() {
+        Popups().ShowProgress("正在扫描 ROM", "准备中…");
+        scan_active_ = true;
+        scan_step_.store(0);
+        scan_finished_.store(false);
+        if (scan_thread_.joinable()) {
+            scan_thread_.join(); // 上一次任务已经结束，回收线程
+        }
+        scan_thread_ = std::thread([](std::atomic<int>* step, std::atomic<bool>* finished) {
+            constexpr int kTotal = 48;
+            for (int i = 1; i <= kTotal; ++i) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(55));
+                step->store(i);
+            }
+            finished->store(true);
+        }, &scan_step_, &scan_finished_);
+    }
+
+    void UpdateProgressDemo() {
+        if (!scan_active_) {
+            return;
+        }
+        Popup* popup = Popups().Find("progress");
+        if (popup == nullptr) {
+            scan_active_ = false; // 已被关闭/回收：不持有裸指针，避免悬垂
+            return;
+        }
+        constexpr int kTotal = 48;
+        const int step = scan_step_.load();
+        const float value = cv::Clampf(static_cast<float>(step) / static_cast<float>(kTotal), 0.0f, 1.0f);
+        popup->setProgress(value);
+        popup->setMessage("已扫描 " + std::to_string(step * 31) + " 个文件");
+        if (scan_finished_.load()) {
+            popup->setKind(PopupKind::Success);
+            popup->setMessage("扫描完成：共 " + std::to_string(kTotal * 31) + " 个文件");
+            popup->Close(); // 任务完成 → 自动关闭 → 焦点恢复到打开前的控件
+            scan_active_ = false;
+            Toasts().ShowSuccess("ROM 扫描完成");
+        }
+    }
+
     // ---------------------------------------------------------- 布局 ----
     void LayoutPanels() {
         const float content_w = Global::canvas_size.x - kMargin * 2.0f;
@@ -471,30 +823,118 @@ public:
         const float top = 0.0f;
         const float header_w = ContentWidth();
 
-        // ---- 按钮页：从上到下一条竖列，所有行按钮宽度自适应内容区 ----
-        float y = top;
-        header_buttons_->position = ImVec2(left, y);
-        header_buttons_->size.x = header_w;
-        y += kHeaderHeight + kHeaderGap;
+        // ---- 基础控件页（tab 0）：左右两列，走查顺序 = 控件在需求里的顺序 ----
+        {
+            const float col_gap = 24.0f;
+            const float col_w = gui_dev::cv::Maxf((header_w - col_gap) * 0.5f, 120.0f);
+            const float right_x = left + col_w + col_gap;
 
-        for (std::size_t i = 0; i < stack_buttons_.size(); ++i) {
-            stack_buttons_[i]->resize(header_w, Theme::kControlHeight); // 宽度跟着内容区
-            stack_buttons_[i]->moveTo(left, y + static_cast<float>(i) * (Theme::kControlHeight + kRowGap));
+            float y = top;
+            header_text_->position = ImVec2(left, y);
+            header_text_->size.x = col_w;
+            header_choice_->position = ImVec2(right_x, y);
+            header_choice_->size.x = col_w;
+            y += kHeaderHeight + kHeaderGap;
+
+            // 左列：文本 / 分隔 / 进度 / 图片
+            label_title_->size.x = col_w;
+            label_title_->SetPosition(left, y);
+            y += 30.0f;
+            label_body_->size.x = col_w;
+            label_body_->SetPosition(left, y);
+            y += 46.0f;
+            label_multi_->size.x = col_w;
+            label_multi_->SetPosition(left, y);
+            y += 48.0f;
+            separator_->SetSize(col_w, 9.0f);
+            separator_->SetPosition(left, y);
+            y += 14.0f;
+            label_icon_->size.x = col_w;
+            label_icon_->SetPosition(left, y);
+            y += 26.0f + kSectionGap;
+
+            header_progress_->position = ImVec2(left, y);
+            header_progress_->size.x = col_w;
+            y += kHeaderHeight + kHeaderGap;
+            progress_->SetSize(col_w, 0.0f);
+            progress_->SetPosition(left, y);
+            y += 38.0f;
+            progress_wait_->SetSize(col_w, 0.0f);
+            progress_wait_->SetPosition(left, y);
+            y += 38.0f + kSectionGap;
+
+            header_image_->position = ImVec2(left, y);
+            header_image_->size.x = col_w;
+            y += kHeaderHeight + kHeaderGap;
+            image_->SetSize(col_w, 150.0f);
+            image_->SetPosition(left, y);
+
+            // 右列：开关 / 选择 / 标签 / 滚动列表
+            float ry = top + kHeaderHeight + kHeaderGap;
+            checkbox_->SetSize(col_w, 40.0f);
+            checkbox_->SetPosition(right_x, ry);
+            ry += 48.0f;
+            switch_->resize(col_w, Theme::kControlHeight);
+            switch_->moveTo(right_x, ry);
+            ry += Theme::kControlHeight + kRowGap;
+            radio_->SetSize(col_w, static_cast<float>(radio_->count()) * 44.0f +
+                                       static_cast<float>(radio_->count() - 1) * 8.0f);
+            radio_->SetPosition(right_x, ry);
+            ry += radio_->size.y + kRowGap + 4.0f;
+            selector_->resize(col_w, Theme::kControlHeight);
+            selector_->moveTo(right_x, ry);
+            ry += Theme::kControlHeight + kRowGap;
+            slider_->resize(col_w, Theme::kControlHeight);
+            slider_->moveTo(right_x, ry);
+            ry += Theme::kControlHeight + kSectionGap;
+
+            header_scroll_->position = ImVec2(right_x, ry);
+            header_scroll_->size.x = col_w;
+            ry += kHeaderHeight + kHeaderGap;
+            tabs_demo_->SetSize(col_w, 0.0f);
+            tabs_demo_->SetPosition(right_x, ry);
+            ry += 56.0f;
+            list_box_->resize(col_w, 190.0f);
+            list_box_->moveTo(right_x, ry);
         }
-        float after = y + static_cast<float>(stack_buttons_.size()) * (Theme::kControlHeight + kRowGap);
-        disable_toggle_->resize(header_w, Theme::kControlHeight); // 全局开关也撑满
-        disable_toggle_->moveTo(left, after);
-        after += Theme::kControlHeight + kSectionGap;
 
-        header_icons_->position = ImVec2(left, after);
-        header_icons_->size.x = header_w;
-        after += kHeaderHeight + kHeaderGap;
+        // ---- 按钮 + 弹窗页（tab 1）：左列 = 7 种按钮变体，右列 = 7 个弹窗示例 ----
+        {
+            const float col_gap = 24.0f;
+            const float col_w = gui_dev::cv::Maxf((header_w - col_gap) * 0.5f, 120.0f);
+            const float right_x = left + col_w + col_gap;
 
-        // 最后一行：两个方形 / 圆形图标按钮 + 一个可聚焦 Box（这三个保持各自形状，不做自适应）
-        icon_square_->moveTo(left, after);
-        icon_circle_->moveTo(left + kControlSize + kRowGap, after);
-        box_->resize(124.0f, 124.0f);
-        box_->moveTo(left + (kControlSize + kRowGap) * 2.0f, after);
+            float y = top;
+            header_buttons_->position = ImVec2(left, y);
+            header_buttons_->size.x = col_w;
+            header_popups_->position = ImVec2(right_x, y);
+            header_popups_->size.x = col_w;
+            y += kHeaderHeight + kHeaderGap;
+
+            for (std::size_t i = 0; i < stack_buttons_.size(); ++i) {
+                stack_buttons_[i]->resize(col_w, Theme::kControlHeight); // 宽度跟着列宽
+                stack_buttons_[i]->moveTo(left, y + static_cast<float>(i) * (Theme::kControlHeight + kRowGap));
+            }
+            for (std::size_t i = 0; i < popup_buttons_.size(); ++i) {
+                popup_buttons_[i]->resize(col_w, Theme::kControlHeight);
+                popup_buttons_[i]->moveTo(right_x, y + static_cast<float>(i) * (Theme::kControlHeight + kRowGap));
+            }
+
+            float after = y + static_cast<float>(stack_buttons_.size()) * (Theme::kControlHeight + kRowGap);
+            disable_toggle_->resize(col_w, Theme::kControlHeight);
+            disable_toggle_->moveTo(left, after);
+            after += Theme::kControlHeight + kSectionGap;
+
+            header_icons_->position = ImVec2(left, after);
+            header_icons_->size.x = col_w;
+            after += kHeaderHeight + kHeaderGap;
+
+            // 最后一行：两个方形 / 圆形图标按钮 + 一个可聚焦 Box（保持各自形状，不做自适应）
+            icon_square_->moveTo(left, after);
+            icon_circle_->moveTo(left + kControlSize + kRowGap, after);
+            box_->resize(124.0f, 124.0f);
+            box_->moveTo(left + (kControlSize + kRowGap) * 2.0f, after);
+        }
 
         // ---- 徽标页：标题下面、内容区里居中 ----
         header_badges_->position = ImVec2(left, top);
@@ -549,6 +989,10 @@ public:
 
     // 子页面里按 B：焦点回到左边的 tab 列（A 进内容、B 回列，形成来回）
     void OnInput() override {
+        // 弹窗打开时页面级快捷键全部让位：B 已经由弹窗处理，这里不能再把焦点挪回 tab 列
+        if (!Popups().Empty()) {
+            return;
+        }
         if (Global::pad.Pressed(InputAction::Cancel) && Global::Available(InputAction::Cancel)) {
             Widget* focused = Global::focused;
             if (focused != nullptr && content_panel_->ContainsDescendant(focused)) {
@@ -566,7 +1010,8 @@ public:
     }
 
 private:
-    enum TabIndex { kTabButtons = 0, kTabBadges, kTabToasts, kTabNav, kTabCount };
+    // 0 = 基础控件（不再放按钮），1 = 按钮 + 弹窗示例，后面是原有几页
+    enum TabIndex { kTabBasics = 0, kTabPopups, kTabBadges, kTabToasts, kTabNav, kTabCount };
 
     // 子页面入 / 退场（对齐 examples/pause_menu 的菜单出场参数）
     struct PageAnim {
@@ -625,6 +1070,41 @@ private:
     static constexpr float kBadgeHeight = Theme::kBadgeHeight; // 统一标签高（26）
     static constexpr float kBadgeGapX = 14.0f;
     static constexpr float kBadgeGapY = 8.0f;
+
+    // 基础控件页（tab 0）
+    Header* header_text_ = nullptr;
+    Header* header_progress_ = nullptr;
+    Header* header_image_ = nullptr;
+    Header* header_choice_ = nullptr;
+    Header* header_scroll_ = nullptr;
+    Label* label_title_ = nullptr;
+    Label* label_body_ = nullptr;
+    Label* label_multi_ = nullptr;
+    Label* label_icon_ = nullptr;
+    Separator* separator_ = nullptr;
+    ProgressBar* progress_ = nullptr;
+    ProgressBar* progress_wait_ = nullptr;
+    Image* image_ = nullptr;
+    gui_dev::TextureRef image_tex_;
+    Checkbox* checkbox_ = nullptr;
+    ToggleButton* switch_ = nullptr;
+    RadioGroup* radio_ = nullptr;
+    OptionButton* selector_ = nullptr;
+    ValueButton* slider_ = nullptr;
+    CapsuleTabs* tabs_demo_ = nullptr;
+    Box* list_box_ = nullptr;
+    std::vector<TextButton*> list_rows_;
+    float basics_progress_ = 0.0f;
+
+    // 按钮 / 弹窗页（tab 1）
+    Header* header_popups_ = nullptr;
+    std::vector<IconTextButton*> popup_buttons_;
+
+    // 进度弹窗的后台任务状态（后台线程只写原子量，UI 线程只读）
+    std::atomic<int> scan_step_{0};
+    std::atomic<bool> scan_finished_{false};
+    std::thread scan_thread_;
+    bool scan_active_ = false;
 
     std::vector<Widget*> pages_[kTabCount];
     PageAnim page_anim_[kTabCount];
