@@ -322,9 +322,56 @@ Widget* Widget::ScrollHost() {
     return nullptr;
 }
 
+// 拖动惯性：拖动中记手指速度，松手后让 scroll_target 继续滑一段。
+// 只在「指针正在拖这个容器」时记录，松手那一帧起就进入惯性；顶到边界立刻收速度。
 void Widget::UpdateScroll(float dt) {
     if (overflow != Overflow::Scroll || !scroll_enabled) {
         return;
+    }
+    const bool dragging = Global::pointer_drag_host == this && Global::pointer_dragging && Global::mouse_down[0] &&
+                          Global::mouse_available;
+    if (dragging) {
+        // 手指速度 = -mouse_delta/dt（scroll 与手指方向相反）；做一点平滑，避免单帧抖动把速度带飞
+        const float safe_dt = Maxf(dt, 1.0f / 240.0f);
+        const float target_vx = -Global::mouse_delta.x / safe_dt;
+        const float target_vy = -Global::mouse_delta.y / safe_dt;
+        scroll_velocity.x = SmoothTo(scroll_velocity.x, target_vx, 18.0f, dt);
+        scroll_velocity.y = SmoothTo(scroll_velocity.y, target_vy, 18.0f, dt);
+    } else if (!scroll_inertia) {
+        scroll_velocity = ImVec2(0.0f, 0.0f); // 关掉惯性：松手即停
+    } else if (Absf(scroll_velocity.x) > 1.0f || Absf(scroll_velocity.y) > 1.0f) {
+        scroll_velocity.x = Clampf(scroll_velocity.x, -scroll_fling_max, scroll_fling_max);
+        scroll_velocity.y = Clampf(scroll_velocity.y, -scroll_fling_max, scroll_fling_max);
+        scroll_target.x = Clampf(scroll_target.x + scroll_velocity.x * dt, 0.0f, scroll_max.x);
+        scroll_target.y = Clampf(scroll_target.y + scroll_velocity.y * dt, 0.0f, scroll_max.y);
+        const float decay = std::exp(-scroll_friction * dt);
+        scroll_velocity.x *= decay;
+        scroll_velocity.y *= decay;
+        // 顶到边界：速度归零（越界回弹的容器再补一点冲量，让回弹看得见）
+        auto stop_axis = [this](float& velocity, float target, float max_scroll, bool vertical) {
+            const bool at_edge = max_scroll <= 0.5f || target <= 0.0f || target >= max_scroll;
+            if (!at_edge) {
+                return;
+            }
+            if (scroll_overscroll && max_scroll > 0.5f && Absf(velocity) > 120.0f) {
+                const float impulse = Clampf(Absf(velocity) * 0.012f, 8.0f, 36.0f);
+                if (vertical) {
+                    scroll.y = target <= 0.0f ? Maxf(-48.0f, scroll.y - impulse) : Minf(max_scroll + 48.0f, scroll.y + impulse);
+                } else {
+                    scroll.x = target <= 0.0f ? Maxf(-48.0f, scroll.x - impulse) : Minf(max_scroll + 48.0f, scroll.x + impulse);
+                }
+            }
+            velocity = 0.0f;
+        };
+        stop_axis(scroll_velocity.x, scroll_target.x, scroll_max.x, false);
+        stop_axis(scroll_velocity.y, scroll_target.y, scroll_max.y, true);
+        // 速度已经很小：把目标值收回合法区间，交给下面的平滑收尾
+        if (Absf(scroll_velocity.x) < scroll_fling_threshold * 0.12f) {
+            scroll_velocity.x = 0.0f;
+        }
+        if (Absf(scroll_velocity.y) < scroll_fling_threshold * 0.12f) {
+            scroll_velocity.y = 0.0f;
+        }
     }
     scroll.x = SmoothTo(scroll.x, scroll_target.x, scroll_smoothing, dt);
     scroll.y = SmoothTo(scroll.y, scroll_target.y, scroll_smoothing, dt);
@@ -365,6 +412,7 @@ void Widget::EnsureRectVisible(const Rect& target_rect) {
     }
 
     scroll_target = ImVec2(Clampf(next.x, 0.0f, scroll_max.x), Clampf(next.y, 0.0f, scroll_max.y));
+    scroll_velocity = ImVec2(0.0f, 0.0f); // 程序化滚动接管：清掉拖动惯性，别互相抢
     if (scroll_snap) {
         const float page = Maxf(view_max.x - view_min.x, 1.0f);
         scroll_target.x = Clampf(std::round(scroll_target.x / page) * page, 0.0f, scroll_max.x);
@@ -397,6 +445,7 @@ void Widget::ScrollPage(int direction, float scale) {
     if (host == nullptr || direction == 0) {
         return;
     }
+    host->scroll_velocity = ImVec2(0.0f, 0.0f); // 翻页接管：清掉拖动惯性
     const float page_y = (host->content_rect.Height() - 16.0f) * scale;
     const float page_x = (host->content_rect.Width() - 16.0f) * scale;
     host->scroll_target.y = Clampf(host->scroll_target.y + static_cast<float>(direction) * page_y, 0.0f,

@@ -62,6 +62,10 @@ public:
         float scroll_speed = 11.0f;   // 滚动插值速度（1/s）
         float hold_delay = 0.30f;     // 长按连发延迟
         float hold_repeat = 0.085f;   // 连发间隔
+        // 拖动惯性（横向滚动容器的那套，这里自己管）
+        float fling_threshold = 320.0f; // 松手速度低于它就直接吸附（px/s）
+        float fling_max = 4200.0f;      // 速度上限（px/s）
+        float friction = 5.0f;          // 甩动衰减（1/s）
     };
 
     CardCarousel();
@@ -140,7 +144,9 @@ private:
     bool drag_moved_ = false;
     float drag_start_x_ = 0.0f;
     float drag_base_scroll_ = 0.0f;
-    int drag_base_index_ = 0; // 按下时选中的第几张（拖动位移相对它算）
+    int drag_base_index_ = 0;    // 按下时选中的第几张（拖动位移相对它算）
+    float drag_velocity_ = 0.0f; // 拖动中记录的手指速度（px/s，正值 = 往后滚）
+    float fling_velocity_ = 0.0f; // 松手后的甩动速度（px/s，0 = 没有惯性）
 
     // 封面（路径 → 宿主纹理）。宿主缓存纹理会保活，这里只负责按路径取用 / 释放引用。
     struct Cover {

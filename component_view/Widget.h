@@ -106,6 +106,14 @@ public:
     float scroll_smoothing = 14.0f;    // 指数平滑速度
     bool scroll_overscroll = false;    // 越界回弹（超出后弹回，不硬夹）
     bool scroll_snap = false;          // 滚动目标吸附到页宽整数倍
+    // ---- 拖动惯性（触摸/鼠标拖动松手后继续滑一段；两个轴都生效）-----------------
+    // 拖动中由 Widget::UpdateScroll 记录手指速度，松手后按速度继续推进 scroll_target，
+    // 速度按 exp(-friction*dt) 衰减；顶到边界（或没有可滚空间）就立刻停下。
+    bool scroll_inertia = true;              // false = 松手即停（旧行为）
+    ImVec2 scroll_velocity{0.0f, 0.0f};      // 当前速度 px/s（运行时状态，不用手设）
+    float scroll_friction = 5.5f;            // 速度衰减速度（1/s，越大停得越快）
+    float scroll_fling_threshold = 320.0f;   // 松手速度低于它就不进入惯性（px/s）
+    float scroll_fling_max = 4200.0f;        // 速度上限（px/s，防止一甩到底）
     bool scroll_bar = true;
     bool scroll_bar_auto_hide = true;
     float scroll_bar_thickness = 5.0f;

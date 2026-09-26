@@ -157,7 +157,7 @@ public:
 | 几何 | `position / anchor / pivot / offset / margin / padding / size / min_size / max_size / aspect_ratio` |
 | 视觉 | `corner_radius`(+四角覆盖) / `background`(+`background_follows_theme`) / `border` / `shadow` / `opacity` / `visible` / `enabled` |
 | 布局 | `layout`(Free/Vertical/Horizontal) + `gap` + `align_x/align_y` |
-| 滚动 | `overflow`(Visible/Hidden/Scroll) / `scroll` / `scroll_target` / `scroll_max` / `scroll_smoothing` / `scroll_overscroll` / `scroll_bar*` |
+| 滚动 | `overflow`(Visible/Hidden/Scroll) / `scroll` / `scroll_target` / `scroll_max` / `scroll_smoothing` / `scroll_overscroll` / `scroll_inertia`+`scroll_friction`+`scroll_fling_threshold`+`scroll_fling_max`（拖动惯性）/ `scroll_bar*` |
 | 焦点 | `focusable` / `focus_on_hover` / `focus_zone` / `capture_horizontal` / `capture_vertical` / `focus_only_self` / `focus_frame*` / `focus_scale` / `focus_translate` |
 | 状态（只读） | `hovered / down / focused / selected / focus_mix` |
 | 信号 | `clicked / pressed / released / hoverEntered / hoverLeft / focusIn / focusOut / enabledChanged` |
@@ -645,6 +645,14 @@ if (p != nullptr) {
 **ScrollView 不需要新类型**：`Box + overflow = Overflow::Scroll` 就是滚动容器，
 焦点自动滚动由 `Page::Update()` 里的 `EnsureVisible` 负责（页面与弹窗内的滚动容器都覆盖）。
 
+**拖动惯性（横竖两轴都生效）**：`Widget::UpdateScroll` 在拖动期间按 `-mouse_delta / dt` 记录手指速度
+（`scroll_velocity`，做了一点平滑），松手后按这个速度继续推进 `scroll_target`，速度按 `exp(-friction*dt)` 衰减；
+`scroll_fling_threshold`（默认 320 px/s，默认值以下直接停）与 `scroll_fling_max`（默认 4200 px/s）会夹住速度，
+顶到边界立刻归零（`scroll_overscroll` 的容器还会补一点冲量让回弹看得见），
+`EnsureRectVisible` / `ScrollPage` 这类程序化滚动会清掉速度、不和惯性抢。
+关掉就是旧行为：`scroll_inertia = false`。横向滚动容器（`Overflow::Scroll` 且内容在 x 方向溢出）
+和纵向页面/弹窗滚动走的是同一段代码。
+
 复合控件（`ValueButton` / `CapsuleTabs` / `RichText` 开了 `SetScrollKeys(true)` 时…）会吃掉它用的那根轴，
 离开它用**另一根轴或 B**；弹窗关闭始终有明确路径（B / 关闭按钮 / 遮罩，按弹窗类型配置）。
 
@@ -782,4 +790,5 @@ Section Title（Header）
 | 富文本页 | Demo 新增「富文本」页（Basic/Color/Heading/List/Ordered/Link/Image/Mixed 八段），全部为真实 Markdown 输入 + 真实 RichText API |
 | 卡牌行 | CardCarousel（学习 GBAStation SwitchLayout 的游戏卡片行）：封面 = `Image(Cover)`、平台徽标查 `PlatformBadgeInfoOf()`、选中卡居中放大 + 全局流光框、空位占位卡；←/→ 相邻切（长按 0.30s 后 0.085s 连发）、L/R 整屏；触摸点选 / 再点启动 / **横向拖动时选中跟着手指走、松手吸附（不再弹回原焦点）** / 滚轮；封面走 `Global::image_source` |
 | 功能按钮行 | FunctionBar（学习 GBAStation SwitchLayout 的功能按钮行）：胶囊容器（左右半圆、上下直线）+ 等距排开的**无边框圆形 IconButton**；←/→ 移焦点、A/点击触发并汇总成 `activated(index)`；**名字只在聚焦时显示在容器下方**（淡入淡出、常驻行高不推布局）；分区随 `Rebuild()` 同步给子项 |
+| 拖动惯性 | 滚动容器拖动松手后继续滑一段（速度 = 手指速度、指数衰减、到边即停）：实测拖 210px 后惯性再滑 100px（`scroll_target` 210 → 310.7）平滑收尾；卡牌行自己的横向拖动同样带甩动（拖 300px 停在 2，甩动后到 4/5） |
 | 视觉特效 | 未引入 Glass / Neon / Glow / 渐变 / 粒子 |

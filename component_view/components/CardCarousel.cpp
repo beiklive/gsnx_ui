@@ -304,6 +304,8 @@ void CardCarousel::OnUpdate(float dt) {
         drag_start_x_ = Global::mouse.x;
         drag_base_scroll_ = scroll_;
         drag_base_index_ = index_;
+        drag_velocity_ = 0.0f;
+        fling_velocity_ = 0.0f; // 手再按住就停住上一次的甩动
         // 横向拖动由这一行自己处理（别让外层页面同时纵向滚）；
         // 一旦真的拖起来就置 pointer_dragging —— 基类看到它才不会把这次手势当成点击。
         Global::pointer_drag_host = nullptr;
@@ -312,10 +314,15 @@ void CardCarousel::OnUpdate(float dt) {
         if (!Global::mouse_down[0]) {
             drag_active_ = false;
             if (drag_moved_) {
-                // 松手：选中项 = 按下时那张 + 拖过的卡数，再把它吸附到行中心
-                // （差值不到半张卡宽，所以不会「弹回原来的焦点位置」）。
-                SyncIndexToDrag();
-                SnapScrollToIndex();
+                if (Absf(drag_velocity_) >= style.fling_threshold) {
+                    // 甩得够快：进入惯性，让行自己继续滑，滑到快停再吸附
+                    fling_velocity_ = Clampf(drag_velocity_, -style.fling_max, style.fling_max);
+                } else {
+                    // 松手：选中项 = 按下时那张 + 拖过的卡数，再把它吸附到行中心
+                    // （差值不到半张卡宽，所以不会「弹回原来的焦点位置」）。
+                    SyncIndexToDrag();
+                    SnapScrollToIndex();
+                }
                 Global::pointer_dragging = false;
             }
             // 没拖动的手指点击交给基类的 Activate()（见下面 Activate）：
@@ -332,20 +339,39 @@ void CardCarousel::OnUpdate(float dt) {
                 scroll_ = Clampf(drag_base_scroll_ - delta, 0.0f, Maxf(total - content_rect.Width(), 0.0f));
                 scroll_target_ = scroll_;
                 SyncIndexToDrag(); // 选中跟着手指走（只改下标与信号，不动 scroll_target_）
+                // 记手指速度（做一点平滑，避免单帧抖动）：正值 = 往后滚
+                const float safe_dt = Maxf(dt, 1.0f / 240.0f);
+                drag_velocity_ = Anim::SmoothTo(drag_velocity_, -Global::mouse_delta.x / safe_dt, 18.0f, dt);
             }
+        }
+    }
+
+    // ---- 甩动惯性：松手后继续滑，速度按 exp(-friction*dt) 衰减，快停了再吸附 ----
+    if (fling_velocity_ != 0.0f && !drag_active_) {
+        const float total =
+            static_cast<float>(cards_.size()) * (style.card_width + style.card_gap) - style.card_gap;
+        const float max_scroll = Maxf(total - content_rect.Width(), 0.0f);
+        scroll_target_ = Clampf(scroll_target_ + fling_velocity_ * dt, 0.0f, max_scroll);
+        fling_velocity_ *= std::exp(-style.friction * dt);
+        const bool at_edge = scroll_target_ <= 0.0f || scroll_target_ >= max_scroll;
+        if (at_edge || Absf(fling_velocity_) < 60.0f) {
+            fling_velocity_ = 0.0f;
+            SyncIndexToDrag(); // 停在哪张就选中哪张
+            SnapScrollToIndex();
         }
     }
 
     // 滚轮：横向滚卡（鼠标 / 触控板）
     if (inside && Global::mouse_wheel != 0.0f) {
+        fling_velocity_ = 0.0f; // 滚轮接管
         const float total =
             static_cast<float>(cards_.size()) * (style.card_width + style.card_gap) - style.card_gap;
         scroll_target_ = Clampf(scroll_target_ - Global::mouse_wheel * 60.0f, 0.0f,
                                 Maxf(total - content_rect.Width(), 0.0f));
     }
 
-    // 有焦点且没在拖：选中卡始终往行中心靠（= GBAStation 的 _updateTargetScroll）
-    if (focused && !drag_active_) {
+    // 有焦点且没在拖、也没有甩动在跑：选中卡始终往行中心靠（= GBAStation 的 _updateTargetScroll）
+    if (focused && !drag_active_ && fling_velocity_ == 0.0f) {
         SnapScrollToIndex();
     }
 }
