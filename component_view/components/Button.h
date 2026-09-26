@@ -77,6 +77,12 @@ public:
     Button& resize(float width, float height);
     Button& moveTo(float x, float y);
     Button& setContentPadding(float value);
+    // 隐藏边框 / 阴影（列表行这类「无框」按钮用）。显式设置过之后，切主题重新套用全局约定
+    // 也不会把它们重新打开。
+    Button& setBorderVisible(bool visible);
+    Button& setShadowVisible(bool visible);
+    bool borderVisible() const { return border_visible_; }
+    bool shadowVisible() const { return shadow_visible_; }
     Button& setSlotWidth(float value); // LR 选择器中间那一格的宽度
     // 覆盖全局约定样式（单实例）
     Button& setBorder(float width, ImVec4 color);
@@ -105,6 +111,10 @@ protected:
     // 焦点框改成页面级图层统一画：这里只描述「流光框长什么样」
     cv::FocusVisual BuildFocusVisual() const override;
     bool OnPadAction(InputAction action) override;
+
+    // 边框 / 阴影是否显示（setBorderVisible / setShadowVisible 设置；applyComponentStyle 会遵守）
+    bool border_visible_ = true;
+    bool shadow_visible_ = true;
 
     float mainFontSize() const { return font_size > 0.0f ? font_size : Theme::kFontBody; }
     float subFontSize() const { return subtitle_size > 0.0f ? subtitle_size : Theme::kFontSmall; }
@@ -262,12 +272,17 @@ public:
     // 左侧文件名的字号：**独立变量**，不跟着普通 Button 的正文走（文件名要更醒目）。
     // 0 表示回落到 Theme::kFontBody；右侧「文件夹 / 大小」始终用说明行字号（kFontSmall）。
     float name_font_size = Theme::kFontHeader; // 默认 20（比正文 16 大一档）
+    // 右侧信息开关：false = 右边什么都不画（「返回上层」「使用当前路径」这种纯导航行用），
+    // 此时文件名可以占满整行。
+    bool show_right = true;
 
     FileButton& setFile(FileKind value, std::string file_name, long long size = -1);
     FileButton& setFileKind(FileKind value);
     FileButton& setFileSize(long long value);
     // 只改左侧文件名的大小（传 0 = 用 Theme::kFontBody）
     FileButton& setNameFontSize(float value);
+    // 右侧信息显示 / 隐藏（隐藏时不占宽度，文件名可用满整行）
+    FileButton& setShowRight(bool visible);
     FileButton& setRightColor(ImVec4 color);
     // 右侧那行字：文件夹 → 「文件夹」；文件 → 大小（未知/0 之外都按 1024 进制换算）
     std::string rightText() const;

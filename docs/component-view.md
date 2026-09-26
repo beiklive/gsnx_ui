@@ -192,10 +192,11 @@ panel->focusVisual(1.04f);            // 聚焦时的缩放/位移/焦点框
 | `CustomButton` | 自定义右侧文字/颜色（`setRightText`） | 文字 |
 | `OptionButton` | LR 选项选择器：`[L] 选项 [R]`，L/R 切换 | `[L] 值 [R]`，超长跑马灯 |
 | `ValueButton` | LR 数值选择器：长按加速，松开才发 `valueChanged` | `[L] 值 [R]` |
-| `FileButton` | 文件列表行：图标按类型（文件夹/文件/图片/压缩包/文本），行高 `kRowHeight = 70`（= GBAStation FileListPage 的 `m_itemHeight`）；左侧文件名由**独立变量** `name_font_size` 控制（默认 `Theme::kFontHeader` = 20，`setNameFontSize()` 可改，0 = 回落正文 16） | 文件夹 → 「文件夹」；文件 → 大小（1024 进制、单位自动换算；未知则留空；始终用说明行字号 14） |
+| `FileButton` | 文件列表行：图标按类型（文件夹/文件/图片/压缩包/文本），行高 `kRowHeight = 70`（= GBAStation FileListPage 的 `m_itemHeight`）；左侧文件名由**独立变量** `name_font_size` 控制（默认 `Theme::kFontHeader` = 20，`setNameFontSize()` 可改，0 = 回落正文 16）；`setShowRight(false)` = 右侧不画字（「返回上层 / 使用当前路径」这种纯导航行），此时文件名可用满整行 | 文件夹 → 「文件夹」；文件 → 大小（1024 进制、单位自动换算；未知则留空；始终用说明行字号 14） |
 
 通用能力：`setIcon/setText/setSubtitle/showSubtitle/setTextAlign/setFontSize/setTextColors/setBorder/
-setCornerRadius/setShadow/setFlowingFocus/setContentPadding/resize/moveTo`；
+setCornerRadius/setShadow/setFlowingFocus/setContentPadding/setBorderVisible/setShadowVisible/resize/moveTo`；
+（`setBorderVisible(false)` / `setShadowVisible(false)` 用于无框列表行这类场景，显式关掉之后切主题重新套用全局约定也不会被打开）；
 信号：继承 Widget 的 `clicked` 等 + 各自的 `toggled/selectionChanged/valueChanged`。
 颜色属性默认跟主题（`text_color_follows_theme` 等），显式设色后不再跟随。
 
@@ -640,6 +641,10 @@ if (p != nullptr) {
 | `Image` | 图片，等比缩放 / 居中 / 限高，缺资源画占位 | `setTexture(tex.ImGuiRef(), w, h)` `setFit(Image::Fit::Contain)` |
 | `RichText`（`components/RichText.h`，**单文件零依赖**） | 富文本：标题 / 粗体 / 斜体 / 删除线 / 行内代码 / 无序·有序列表 / 引用 / 分隔线 / 链接 / 行内图片 / `[color=#RRGGBB]` 染色（代码块已移除）。详见 [RichText.md](component_view/components/RichText.md) 与本节 14.5 | `SetMarkdown(md)` + `SetImageResolver()` + `SetLinkCallback()` |
 
+**分割线**：`Separator`（`components/Content.h`）就是分割线控件 —— 水平/垂直、`setThickness()`、
+`setLength()`（0 = 撑满）、`setInset(start, end)` 缩进、`setColor()`（默认跟主题 `kBorder`），
+文件浏览页的「路径行 ↔ 列表」之间就是它。
+
 **设计基准**：组件与页面的一切尺寸都按 **1280×720** 设计空间写；后端用
 `min(drawable/1280, drawable/720) × UI 缩放` 映射到实际输出，桌面窗口默认 1280×720、UI 缩放默认 1.0（1:1）。
 各平台实际输出见 README「720p 设计基准」表；核对看启动日志那行 `设计基准 1280x720 | 窗口 … | 逻辑画布 …`。
@@ -800,4 +805,5 @@ Section Title（Header）
 | 功能按钮行 | FunctionBar（学习 GBAStation SwitchLayout 的功能按钮行）：胶囊容器（左右半圆、上下直线）+ 等距排开的**无边框圆形 IconButton**；←/→ 移焦点、A/点击触发并汇总成 `activated(index)`；**名字只在聚焦时显示在容器下方**（淡入淡出、常驻行高不推布局）；分区随 `Rebuild()` 同步给子项 |
 | 拖动惯性 | 滚动容器拖动松手后继续滑一段（速度 = 手指速度、指数衰减、到边即停）：实测拖 210px 后惯性再滑 100px（`scroll_target` 210 → 310.7）平滑收尾；卡牌行自己的横向拖动同样带甩动（拖 300px 停在 2，甩动后到 4/5） |
 | 文件列表行 | `FileButton`：左图标（类型字形：folder / insert_drive_file / image / archive / description）+ 文件名（独立 `name_font_size`，默认 20），右侧文件夹显示「文件夹」、文件显示大小（14）；实测 512 B / 4.71 KB / 1.25 MB / 3.40 GB 四档单位自动换算；行高 70（GBAStation FileListPage 同值）。字形自检从 42 项升到 43 项（新增 `insert_drive_file`，字体覆盖通过） |
+| 文件浏览页 | Demo 新增「文件浏览器」区块：`选择文件` / `选择目录` 两个按钮分别打开一个真实的新页面（`FileBrowserPage`，1280×720 的 `Page`）：路径行 + `Separator` 分割线 + `FileButton` 列表（无边框/无阴影）+ 底部动作行；根目录不显示「返回上层」，选文件模式不显示「使用当前路径」；选文件=点文件即返回，选目录=进入目录后按「使用当前路径」返回，B 在子目录=返回上层、在根目录=取消。实测四种路径：`选择文件→/Games→/Games/冒险者物语.gba`、`选择目录→/Games→「使用当前路径」→/Games`、根目录 B → 已取消；行数/单位/图标按类型正确 |
 | 视觉特效 | 未引入 Glass / Neon / Glow / 渐变 / 粒子 |

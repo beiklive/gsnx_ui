@@ -115,6 +115,19 @@ public:
 
     const char* Title() const override { return "component_view"; }
 
+    // 文件浏览器：由 DemoApp 注入（打开 / 关闭浏览页），结果回填到本页的说明行
+    std::function<void(bool pick_folder)> on_open_browser;
+    void ShowBrowserResult(const std::string& path, bool pick_folder) {
+        const std::string text = path.empty() ? std::string("结果：已取消")
+                                              : std::string(pick_folder ? "结果：已选择目录 " : "结果：已选择文件 ") + path;
+        browser_result_->setText(text);
+        if (path.empty()) {
+            Toasts().ShowInfo("已取消");
+        } else {
+            Toasts().ShowSuccess(text.substr(3));
+        }
+    }
+
     void OnBuild() override {
         BuildPanels();
         BuildTabColumn();
@@ -435,6 +448,29 @@ public:
                 button->enabled = enabled;
             }
         });
+
+        // ---- 文件浏览器：选择文件 / 选择目录 → 打开新的浏览页（见 FileBrowserPage） ----
+        header_browser_ = AddHeader(kTabPopups, "文件浏览器", "选择文件 / 选择目录 → 打开新的浏览页");
+        desc_browser_ = AddDescription(
+            kTabPopups,
+            "用 FileButton 模拟文件列表：点文件夹进入、点文件选择；根目录不显示「返回上层」，选文件不显示「使用当前路径」");
+        pick_file_button_ = AddTo(kTabPopups, content_panel_->Emplace<TextButton>("选择文件"));
+        pick_file_button_->SetName("browser_pick_file");
+        pick_file_button_->setFontSize(Theme::kFontBody);
+        connect(pick_file_button_, &Widget::clicked, this, [this] {
+            if (on_open_browser) {
+                on_open_browser(false);
+            }
+        });
+        pick_dir_button_ = AddTo(kTabPopups, content_panel_->Emplace<TextButton>("选择目录"));
+        pick_dir_button_->SetName("browser_pick_dir");
+        pick_dir_button_->setFontSize(Theme::kFontBody);
+        connect(pick_dir_button_, &Widget::clicked, this, [this] {
+            if (on_open_browser) {
+                on_open_browser(true);
+            }
+        });
+        browser_result_ = AddDescription(kTabPopups, "结果：尚未选择");
 
         // ---- 8 文件列表行：外观/布局同 CustomButton，右侧按「类型 + 大小」自动生成 ----
         header_files_ = AddHeader(kTabPopups, "文件列表行 FileButton",
@@ -1296,6 +1332,24 @@ public:
             }
             y += gap;
 
+            header_browser_->SetPosition(left, y);
+            header_browser_->size.x = w;
+            y += kHeaderHeight + 2.0f;
+            desc_browser_->SetPosition(left, y);
+            desc_browser_->size.x = w;
+            desc_browser_->size.y = 44.0f;
+            y += 44.0f + kPreviewGap;
+            pick_file_button_->resize(w, Theme::kControlHeight);
+            pick_file_button_->moveTo(left, y);
+            y += Theme::kControlHeight + kRowGap;
+            pick_dir_button_->resize(w, Theme::kControlHeight);
+            pick_dir_button_->moveTo(left, y);
+            y += Theme::kControlHeight + kRowGap;
+            browser_result_->SetPosition(left, y);
+            browser_result_->size.x = w;
+            browser_result_->size.y = kDescHeight;
+            y += kDescHeight + kSectionGap;
+
             header_files_->SetPosition(left, y);
             header_files_->size.x = w;
             y += kHeaderHeight + 2.0f;
@@ -1623,6 +1677,11 @@ private:
     Box* content_panel_ = nullptr;
     TabColumn* tab_column_ = nullptr;
     Header* header_buttons_ = nullptr;
+    Header* header_browser_ = nullptr;
+    Label* desc_browser_ = nullptr;
+    TextButton* pick_file_button_ = nullptr;
+    TextButton* pick_dir_button_ = nullptr;
+    Label* browser_result_ = nullptr;
     Header* header_files_ = nullptr;
     Label* desc_files_ = nullptr;
     std::vector<FileButton*> file_rows_;
@@ -1649,6 +1708,344 @@ private:
     IconButton* theme_button_ = nullptr;
     IconButton* focus_style_button_ = nullptr;
     bool subtitle_on_ = true;
+};
+
+// --------------------------------------------- 模拟文件树 + 文件浏览页 ----
+// 组件库自己不碰文件系统，所以 demo 用一棵假树把「文件列表 + 目录导航」演示完整；
+// 真实项目里把 MakeFakeTree() 换成宿主的目录枚举（std::filesystem / libnx fs）即可，
+// 页面本身只依赖 FileButton / Separator / Box / Label。
+struct FakeEntry {
+    std::string name;
+    bool folder = false;
+    long long size = 0;
+    std::vector<FakeEntry> children;
+};
+
+FakeEntry MakeFakeTree() {
+    auto file = [](std::string name, long long size) {
+        FakeEntry entry;
+        entry.name = std::move(name);
+        entry.size = size;
+        return entry;
+    };
+    auto dir = [](std::string name, std::vector<FakeEntry> children) {
+        FakeEntry entry;
+        entry.name = std::move(name);
+        entry.folder = true;
+        entry.children = std::move(children);
+        return entry;
+    };
+    return dir("/", {
+                       dir("Games",
+                           {file("冒险者物语.gba", 8912896), file("星海远征.gbc", 2097152),
+                            dir("saves", {file("slot1.sav", 32768), file("slot2.sav", 32768)})}),
+                       dir("Covers", {file("cover.png", 4823), file("wide.jpg", 225792)}),
+                       dir("docs",
+                           {file("readme.txt", 1229), file("notes.md", 512), file("config.json", 340),
+                            dir("old", {})}),
+                       file("saves.zip", 13107200),
+                       file("manual.pdf", 734003),
+                   });
+}
+
+// 扩展名 -> FileButton 的文件类型（图标 + 右侧信息都由它决定）
+FileButton::FileKind KindOfEntry(const FakeEntry& entry) {
+    if (entry.folder) {
+        return FileButton::FileKind::Folder;
+    }
+    const std::size_t dot = entry.name.find_last_of('.');
+    std::string ext = dot == std::string::npos ? std::string() : entry.name.substr(dot);
+    for (char& c : ext) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp") {
+        return FileButton::FileKind::Image;
+    }
+    if (ext == ".zip" || ext == ".7z" || ext == ".rar") {
+        return FileButton::FileKind::Archive;
+    }
+    if (ext == ".txt" || ext == ".md" || ext == ".json" || ext == ".log") {
+        return FileButton::FileKind::Text;
+    }
+    return FileButton::FileKind::File;
+}
+
+// 文件浏览页（选文件 / 选目录）：
+//   * 列表 = 若干 FileButton（无边框、无阴影，靠上下间距分隔）；
+//   * 底部动作行：返回上层（根目录时不显示）、使用当前路径（只有选目录时显示）；
+//   * 选文件模式点文件即完成；选目录模式点文件夹进入，按「使用当前路径」完成。
+class FileBrowserPage : public Page {
+public:
+    enum class Mode { PickFile, PickFolder };
+    using Done = std::function<void(std::string)>;
+
+    FileBrowserPage(Mode mode, Done done) : mode_(mode), done_(std::move(done)), tree_(MakeFakeTree()) {}
+
+    const char* Title() const override { return mode_ == Mode::PickFile ? "选择文件" : "选择目录"; }
+
+    void OnBuild() override {
+        title_ = Root().Emplace<Label>(Title());
+        title_->setFontSize(Theme::kFontTitle + 4.0f);
+
+        path_label_ = Root().Emplace<Label>();
+        path_label_->setFontSize(Theme::kFontSmall);
+        path_label_->setColor(Theme::kTextMuted);
+
+        // 分割线：路径行与文件列表之间
+        divider_ = Root().Emplace<Separator>();
+        divider_->setThickness(1.0f);
+
+        list_ = Root().Emplace<Box>("browser_list");
+        list_->overflow = Overflow::Scroll;
+        list_->scroll_bar_auto_hide = true;
+        list_->scroll_overscroll = true;
+        list_->background = 0;
+        list_->background_follows_theme = false;
+        list_->border.width = 0.0f;
+        list_->shadow.enabled = false;
+        list_->padding = EdgeInsets{};
+
+        back_button_ = MakeAction("返回上层", Icons::Glyph(Icons::Material::ArrowBack));
+        use_button_ = MakeAction("使用当前路径", Icons::Glyph(Icons::Material::Check));
+        connect(back_button_, &Widget::clicked, this, [this] { pending_up_ = true; });
+        connect(use_button_, &Widget::clicked, this, [this] { Finish(CurrentPath()); });
+
+        hint_ = Root().Emplace<Label>();
+        hint_->setFontSize(Theme::kFontSmall);
+        hint_->setColor(Theme::kTextMuted);
+
+        RebuildRows();
+    }
+
+    void OnUpdate(float dt) override {
+        (void)dt;
+        // 点击行 / 返回上层这些动作会在控件的 clicked 里触发，此时**不能**马上重建列表
+        // （会把正在处理事件的控件自己析构掉）。统一延迟到这一帧的这里执行。
+        if (pending_activate_ >= 0) {
+            const int index = pending_activate_;
+            pending_activate_ = -1;
+            ApplyActivate(index);
+        }
+        if (pending_up_) {
+            pending_up_ = false;
+            ApplyGoUp();
+        }
+        if (pending_cancel_) {
+            pending_cancel_ = false;
+            Finish(std::string());
+        }
+        Layout();
+        // OnUpdate 在 Page 的布局之后跑：这里重建过行，再排一次让新行当帧就有 rect
+        Root().LayoutTree(Global::canvas_pos, Global::canvas_size);
+    }
+
+    void OnInput() override {
+        if (!Global::pad.Pressed(InputAction::Cancel) || !Global::Available(InputAction::Cancel)) {
+            return;
+        }
+        if (!path_.empty()) {
+            pending_up_ = true; // 不在根目录：B = 返回上层（同样延迟到 OnUpdate）
+        } else {
+            pending_cancel_ = true; // 已在根目录：B = 取消
+        }
+        Global::MarkConsumed(InputAction::Cancel);
+    }
+
+private:
+    FileButton* MakeAction(const char* label, const char* glyph) {
+        FileButton* button = Root().Emplace<FileButton>(FileButton::FileKind::Folder, label, -1);
+        button->setFileKind(FileButton::FileKind::File);
+        button->setIcon(glyph);
+        button->setShowRight(false); // 动作行右边不写字
+        return button;
+    }
+
+    const FakeEntry& Node() const {
+        const FakeEntry* node = &tree_;
+        for (int index : path_) {
+            if (index < 0 || index >= static_cast<int>(node->children.size())) {
+                break;
+            }
+            node = &node->children[static_cast<std::size_t>(index)];
+        }
+        return *node;
+    }
+
+    std::string CurrentPath() const {
+        std::string path = "/";
+        const FakeEntry* node = &tree_;
+        for (int index : path_) {
+            if (index < 0 || index >= static_cast<int>(node->children.size())) {
+                break;
+            }
+            node = &node->children[static_cast<std::size_t>(index)];
+            if (path.size() > 1) {
+                path += "/";
+            }
+            path += node->name;
+        }
+        return path;
+    }
+
+    void RebuildRows() {
+        // 行要被销毁：先把焦点移开，避免 Global::focused 指向已释放的控件
+        if (Global::focused != nullptr && list_->ContainsDescendant(Global::focused)) {
+            Global::SetFocus(nullptr);
+        }
+        for (FileButton* row : rows_) {
+            list_->Remove(row);
+        }
+        rows_.clear();
+
+        const FakeEntry& node = Node();
+        for (std::size_t i = 0; i < node.children.size(); ++i) {
+            const FakeEntry& entry = node.children[i];
+            FileButton* row = list_->Emplace<FileButton>(KindOfEntry(entry), entry.name,
+                                                         entry.folder ? -1 : entry.size);
+            row->setBorderVisible(false); // 列表行：不要边框
+            row->setShadowVisible(false); // 也不要阴影（靠行距分隔）
+            const int index = static_cast<int>(i);
+            connect(row, &Widget::clicked, this, [this, index] { ActivateRow(index); });
+            rows_.push_back(row);
+        }
+        UpdatePathLabel();
+        FocusFirst();
+    }
+
+    void UpdatePathLabel() {
+        path_label_->setText("当前路径：" + CurrentPath() + "    （" +
+                             std::to_string(Node().children.size()) + " 项）");
+        hint_->setText(mode_ == Mode::PickFile ? "A 选择文件   ·   B 返回上层 / 取消"
+                                               : "A 进入目录   ·   B 返回上层 / 取消");
+    }
+
+    void Layout() {
+        const ImVec2 canvas = Global::canvas_size;
+        const float margin = 24.0f;
+        const float width = cv::Maxf(canvas.x - margin * 2.0f, 200.0f);
+        const float row_height = FileButton::kRowHeight;
+        float y = margin;
+
+        title_->position = ImVec2(margin, y);
+        title_->size = ImVec2(width, 40.0f);
+        y += 40.0f + 6.0f;
+
+        path_label_->position = ImVec2(margin, y);
+        path_label_->size = ImVec2(width, 24.0f);
+        y += 24.0f + 8.0f;
+
+        divider_->position = ImVec2(margin, y);
+        divider_->size = ImVec2(width, 1.0f);
+        divider_->setLength(width);
+        y += 1.0f + 12.0f;
+
+        float bottom = canvas.y - margin;
+        hint_->position = ImVec2(margin, bottom - 24.0f);
+        hint_->size = ImVec2(width, 24.0f);
+        bottom -= 24.0f + 8.0f;
+
+        // 底部动作行：使用当前路径（仅选目录）→ 返回上层（仅非根目录）
+        const bool show_use = mode_ == Mode::PickFolder;
+        const bool show_back = !path_.empty();
+        use_button_->visible = show_use;
+        if (show_use) {
+            use_button_->resize(width, row_height);
+            use_button_->moveTo(margin, bottom - row_height);
+            bottom -= row_height + 8.0f;
+        }
+        back_button_->visible = show_back;
+        if (show_back) {
+            back_button_->resize(width, row_height);
+            back_button_->moveTo(margin, bottom - row_height);
+            bottom -= row_height + 8.0f;
+        }
+
+        const float list_height = cv::Maxf(bottom - y, 80.0f);
+        list_->position = ImVec2(margin, y);
+        list_->size = ImVec2(width, list_height);
+        for (std::size_t i = 0; i < rows_.size(); ++i) {
+            rows_[i]->resize(width, row_height);
+            rows_[i]->moveTo(0.0f, static_cast<float>(i) * row_height);
+        }
+    }
+
+    void FocusFirst() {
+        if (!rows_.empty()) {
+            rows_.front()->RequestFocus();
+        } else if (use_button_->visible) {
+            use_button_->RequestFocus();
+        } else if (back_button_->visible) {
+            back_button_->RequestFocus();
+        }
+    }
+
+    void ActivateRow(int index) { pending_activate_ = index; }
+
+    void ApplyActivate(int index) {
+        const FakeEntry& node = Node();
+        if (index < 0 || index >= static_cast<int>(node.children.size())) {
+            return;
+        }
+        const FakeEntry& entry = node.children[static_cast<std::size_t>(index)];
+        if (entry.folder) {
+            path_.push_back(index);
+            RebuildRows();
+            if (TraceSignal()) {
+                std::printf("[signal] browser enter = %s\n", CurrentPath().c_str());
+                std::fflush(stdout);
+            }
+            return;
+        }
+        if (mode_ == Mode::PickFile) {
+            const std::string base = CurrentPath();
+            const std::string picked = base == "/" ? "/" + entry.name : base + "/" + entry.name;
+            if (TraceSignal()) {
+                std::printf("[signal] browser pick = %s\n", picked.c_str());
+                std::fflush(stdout);
+            }
+            Finish(picked);
+        } else {
+            Toasts().ShowInfo("请选择一个文件夹（或按「使用当前路径」）");
+        }
+    }
+
+    void ApplyGoUp() {
+        if (path_.empty()) {
+            return;
+        }
+        const int from = path_.back();
+        path_.pop_back();
+        RebuildRows();
+        // 焦点回到刚才进来的那一行
+        if (from >= 0 && from < static_cast<int>(rows_.size())) {
+            rows_[static_cast<std::size_t>(from)]->RequestFocus();
+        }
+    }
+
+    void Finish(std::string path) {
+        if (!done_) {
+            return;
+        }
+        Done callback = std::move(done_);
+        done_ = nullptr; // 防重复（B 与按钮都可能触发）
+        callback(std::move(path));
+    }
+
+    Mode mode_;
+    Done done_;
+    FakeEntry tree_;
+    std::vector<int> path_;      // 当前目录（从根开始的下标链）
+    int pending_activate_ = -1;  // 延迟动作：要点开的行
+    bool pending_up_ = false;    // 延迟动作：返回上层
+    bool pending_cancel_ = false; // 延迟动作：取消
+    Label* title_ = nullptr;
+    Label* path_label_ = nullptr;
+    Separator* divider_ = nullptr;
+    Box* list_ = nullptr;
+    std::vector<FileButton*> rows_;
+    FileButton* back_button_ = nullptr;
+    FileButton* use_button_ = nullptr;
+    Label* hint_ = nullptr;
 };
 
 // ------------------------------------------------------------------ App ----
@@ -1708,8 +2105,10 @@ public:
         gui_dev::cv::Global::ApplyTheme();
         Scenes().Reset(std::make_unique<HostScene>());
 
+        ui_ = &ui;
         page_ = std::make_unique<DemoPage>();
         page_->Bind(ui);
+        page_->on_open_browser = [this](bool pick_folder) { OpenBrowser(pick_folder); };
 
         if (const char* value = std::getenv("GUI_DEV_PERF")) {
             perf_ = value != nullptr && value[0] != '0';
@@ -1726,9 +2125,48 @@ public:
         }
     }
 
+    // 打开文件浏览页（选文件 / 选目录）：回调里不直接析构，避免在页面自己的 Update 里自杀
+    void OpenBrowser(bool pick_folder) {
+        if (browser_ != nullptr) {
+            return;
+        }
+        if (TraceSignal()) {
+            std::printf("[signal] browser open = %s\n", pick_folder ? "directory" : "file");
+            std::fflush(stdout);
+        }
+        browser_ = std::make_unique<FileBrowserPage>(
+            pick_folder ? FileBrowserPage::Mode::PickFolder : FileBrowserPage::Mode::PickFile,
+            [this, pick_folder](std::string path) {
+                pending_result_ = std::move(path);
+                pending_pick_folder_ = pick_folder;
+                has_pending_result_ = true;
+            });
+        browser_->Bind(*ui_);
+    }
+
+    void CloseBrowser() {
+        browser_.reset();
+        if (has_pending_result_) {
+            has_pending_result_ = false;
+            if (TraceSignal()) {
+                std::printf("[signal] browser result = %s\n",
+                            pending_result_.empty() ? "(cancelled)" : pending_result_.c_str());
+                std::fflush(stdout);
+            }
+            page_->ShowBrowserResult(pending_result_, pending_pick_folder_);
+            pending_result_.clear();
+        }
+    }
+
     void OnFrame(gui_dev::UiContext& ui, float dt) override {
         gui_dev::cv::Global::BeginFrame(ui);
-        if (page_ != nullptr) {
+        if (browser_ != nullptr) {
+            browser_->Update(dt);
+            browser_->Render(); // 浏览页铺满画布，盖住 demo 页
+            if (has_pending_result_) {
+                CloseBrowser(); // 选择完成：下一帧回到 demo 页并展示结果
+            }
+        } else if (page_ != nullptr) {
             page_->Update(dt);
             page_->Render();
         }
@@ -1757,11 +2195,17 @@ public:
     void OnShutdown(gui_dev::UiContext& ui) override {
         (void)ui;
         // 页面可能持有纹理等后端资源：必须在后端关闭前释放
+        browser_.reset();
         page_.reset();
     }
 
 private:
     std::unique_ptr<DemoPage> page_;
+    std::unique_ptr<FileBrowserPage> browser_; // 非空 = 文件浏览页打开中
+    gui_dev::UiContext* ui_ = nullptr;
+    std::string pending_result_;   // 浏览页的结果先存起来，回到 demo 页再展示
+    bool pending_pick_folder_ = false;
+    bool has_pending_result_ = false;
     int frame_ = 0;
     int exit_after_ = 0;
     bool perf_ = false;

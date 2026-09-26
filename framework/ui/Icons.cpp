@@ -110,6 +110,8 @@ constexpr MaterialEntry kMaterialTable[] = {
     {Material::ErrorOutline, "error_outline", 0xE001},
     {Material::Info, "info", 0xE88E},
     {Material::InsertDriveFile, "insert_drive_file", 0xE24D},
+    {Material::ArrowBack, "arrow_back", 0xE5C4},
+    {Material::Check, "check", 0xE5CA},
 };
 
 static_assert(sizeof(kMaterialTable) / sizeof(kMaterialTable[0]) == kMaterialCount,

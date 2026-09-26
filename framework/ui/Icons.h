@@ -100,6 +100,8 @@ enum class Material : std::uint8_t {
     ErrorOutline,
     Info,
     InsertDriveFile, // 普通文件（Material insert_drive_file）
+    ArrowBack,       // 返回上层（Material arrow_back）
+    Check,           // 确认 / 使用当前路径（Material check）
     Count,
 };
 

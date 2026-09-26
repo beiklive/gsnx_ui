@@ -37,10 +37,41 @@ Button::Button(std::string value) : Button() {
 Button& Button::applyComponentStyle() {
     const Global::ComponentStyle& style = Global::component_style;
     ApplyComponentBoxStyle();
+    // setBorderVisible(false) / setShadowVisible(false) 之后，重新套用全局约定也不能把它们打开
+    if (!border_visible_) {
+        border.width = 0.0f;
+    }
+    if (!shadow_visible_) {
+        shadow.enabled = false;
+    }
     padding = EdgeInsets::All(style.content_padding);
     if (background == 0) {
         background = Theme::U32(Theme::kBgWidget);
         background_follows_theme = true;
+    }
+    return *this;
+}
+
+Button& Button::setBorderVisible(bool visible) {
+    border_visible_ = visible;
+    if (!visible) {
+        border.width = 0.0f;
+    } else if (border.width <= 0.0f) {
+        border.width = Global::component_style.border_width;
+        border.color = Theme::U32(Global::component_style.border_color);
+    }
+    return *this;
+}
+
+Button& Button::setShadowVisible(bool visible) {
+    shadow_visible_ = visible;
+    if (!visible) {
+        shadow.enabled = false;
+    } else {
+        shadow.enabled = true;
+        shadow.offset = Global::component_style.shadow_offset;
+        shadow.blur = Global::component_style.shadow_blur;
+        shadow.color = Theme::U32(Global::component_style.shadow_color);
     }
     return *this;
 }
@@ -667,7 +698,15 @@ FileButton& FileButton::setRightColor(ImVec4 color) {
     return *this;
 }
 
+FileButton& FileButton::setShowRight(bool visible) {
+    show_right = visible;
+    return *this;
+}
+
 std::string FileButton::rightText() const {
+    if (!show_right) {
+        return {}; // 「返回上层」这类行右边不写字
+    }
     if (kind == FileKind::Folder) {
         return "文件夹"; // 目录不显示大小（与 GBAStation FileListPage 一致）
     }
