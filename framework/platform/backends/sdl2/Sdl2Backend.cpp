@@ -229,6 +229,35 @@ ImVec2 Sdl2Backend::LogicalSizeNow() const {
     return ImVec2(static_cast<float>(drawable_w) / scale, static_cast<float>(drawable_h) / scale);
 }
 
+// 鼠标事件坐标 -> 逻辑画布坐标。
+//
+// 坑：mac 上用 homebrew 的 sdl2-compat（底层是 SDL3）时，SDL_RenderSetScale 会连带把
+// 鼠标事件也换算进"渲染逻辑空间"（= drawable / 渲染缩放，正好等于 io.DisplaySize）；
+// 真 SDL2（Switch / Android / iOS / Windows）不做这个换算，事件给的是窗口坐标。
+// 两者差一个 window/logical 的因子，一律套 WindowToLogical 会在 sdl2-compat 上多缩
+// 一次 —— 命中区比画出来的大 window/logical 倍，鼠标还没到控件右下角就触发聚焦。
+//
+// 判据：SDL_GetMouseState() 在两种实现下都返回**窗口坐标**（已用 Quartz 直接读物理
+// 光标位置交叉验证），所以事件坐标与它一致 => 真 SDL2；不一致 => 事件已在逻辑空间。
+// 注意：两个空间在原点重合，判错的后果只在靠近原点处发生，而那里两者本来就相等。
+ImVec2 Sdl2Backend::MouseEventToLogical(const ImVec2& event_point) const {
+    int state_x = 0;
+    int state_y = 0;
+    SDL_GetMouseState(&state_x, &state_y);
+    const float dx = event_point.x - static_cast<float>(state_x);
+    const float dy = event_point.y - static_cast<float>(state_y);
+    const bool window_space = dx > -2.0f && dx < 2.0f && dy > -2.0f && dy < 2.0f;
+    if (window_space) {
+        return WindowToLogical(event_point);
+    }
+    // 已经是逻辑空间，只钳制边界
+    const ImVec2 logical = LogicalSizeNow();
+    const auto clamp = [](float value, float lo, float hi) {
+        return value < lo ? lo : (value > hi ? hi : value);
+    };
+    return ImVec2(clamp(event_point.x, 0.0f, logical.x), clamp(event_point.y, 0.0f, logical.y));
+}
+
 ImVec2 Sdl2Backend::WindowToLogical(const ImVec2& window_point) const {
     int window_w = 0;
     int window_h = 0;
@@ -364,12 +393,12 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
             SDL_Event imgui_event = e;
             if (e.type == SDL_MOUSEMOTION) {
                 const ImVec2 logical =
-                    WindowToLogical(ImVec2(static_cast<float>(e.motion.x), static_cast<float>(e.motion.y)));
+                    MouseEventToLogical(ImVec2(static_cast<float>(e.motion.x), static_cast<float>(e.motion.y)));
                 imgui_event.motion.x = static_cast<Sint32>(logical.x);
                 imgui_event.motion.y = static_cast<Sint32>(logical.y);
             } else if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) {
                 const ImVec2 logical =
-                    WindowToLogical(ImVec2(static_cast<float>(e.button.x), static_cast<float>(e.button.y)));
+                    MouseEventToLogical(ImVec2(static_cast<float>(e.button.x), static_cast<float>(e.button.y)));
                 imgui_event.button.x = static_cast<Sint32>(logical.x);
                 imgui_event.button.y = static_cast<Sint32>(logical.y);
             }

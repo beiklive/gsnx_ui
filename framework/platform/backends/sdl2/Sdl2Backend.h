@@ -59,6 +59,7 @@ private:
     // 窗口点（SDL 事件坐标，Retina 上是「点」）-> 逻辑画布坐标。
     // 鼠标和触摸都走这一个换算，避免两条路径各算一套导致对不上。
     ImVec2 WindowToLogical(const ImVec2& window_point) const;
+    ImVec2 MouseEventToLogical(const ImVec2& event_point) const;
 
     SDL_Window* window_ = nullptr;
     SDL_Renderer* renderer_ = nullptr;
