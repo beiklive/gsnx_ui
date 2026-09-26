@@ -23,6 +23,8 @@
 #include "component_view/components/Button.h"
 #include "component_view/Anim.h"
 #include "component_view/components/CapsuleTabs.h"
+#include "component_view/components/CardCarousel.h"
+#include "component_view/components/FunctionBar.h"
 #include "component_view/components/Content.h"
 #include "component_view/components/Header.h"
 #include "component_view/components/ImageViewer.h"
@@ -47,6 +49,8 @@ using gui_dev::cv::Widget;
 using gui_dev::cv::EmuPlatform;
 using gui_dev::cv::Button;
 using gui_dev::cv::CapsuleTabs;
+using gui_dev::cv::CardCarousel;
+using gui_dev::cv::FunctionBar;
 using gui_dev::cv::EdgeInsets;
 using gui_dev::cv::CustomButton;
 using gui_dev::cv::Image;
@@ -120,6 +124,7 @@ public:
         BuildBadgePage();  // tab 2 徽标
         BuildToastPage();  // tab 3 提示
         BuildNavPage();    // tab 4 导航
+        BuildHomePage();   // tab 6 主页布局（游戏卡牌行 + 功能按钮行，对齐 GBAStation 的 Switch 主界面）
 
         // 主题开关是「应用级」的：钉在内容面板右下角，任何 tab 下都能切，不放进 tab 页面
         theme_button_ = tab_panel_->Emplace<IconButton>(Icons::Glyph(ThemeIcon()));
@@ -197,6 +202,7 @@ public:
             {Icons::Glyph(Icons::Material::ImagePlaceholder), "徽标"},
             {Icons::Glyph(Icons::Material::Info), "提示"},
             {Icons::Glyph(Icons::Material::Games), "导航"},
+            {Icons::Glyph(Icons::Material::SportsEsports), "主页布局"},
         });
         // 选中项变了（焦点落上去就变）：切页面
         connect(tab_column_, &TabColumn::selectionChanged, this, [this](int index) {
@@ -688,6 +694,86 @@ public:
         header_separator_ = AddHeader(kTabBasics, "Separator", "分隔线");
         desc_separator_ = AddDescription(kTabBasics, "水平分隔线，颜色与缩进都跟主题走。");
         separator_ = AddTo(kTabBasics, content_panel_->Emplace<Separator>());
+    }
+
+    // ------------------------------------------- tab 6 主页布局 ----
+    // 学习 GBAStation SwitchLayout 的「游戏卡片行 + 功能按钮行」，用本组件库的风格重做：
+    //   卡牌行 = CardCarousel（封面用现成的 Image、焦点框用全局流光约定、←/→ 长按连发）
+    //   功能行 = FunctionBar（面板 + 现成 Button 的「图标在上、名字在下」形态）
+    void BuildHomePage() {
+        page_title_home_ = AddTo(kTabHome, content_panel_->Emplace<Label>("主页布局"));
+        page_title_home_->SetName("page_title");
+        page_title_home_->setFontSize(Theme::kFontTitle + 4.0f);
+
+        // ---- 游戏卡牌行 ----
+        header_cards_ = AddHeader(kTabHome, "游戏卡牌行 CardCarousel", "← / → 切卡（长按连发），L / R 整屏，A 启动，X 收藏");
+        desc_cards_ = AddDescription(
+            kTabHome,
+            "等距卡片：封面（Image 的 Cover 裁剪）+ 平台徽标 + 标题 + 副行；选中卡往行中心滚、放大，并套全局流光焦点框");
+        cards_ = AddTo(kTabHome, content_panel_->Emplace<CardCarousel>());
+        cards_status_ = AddDescription(kTabHome, "当前选中：冒险者物语");
+        cards_->SetCards({
+            {EmuPlatform::GBA, "冒险者物语", "12.5 小时 · 昨天", "img/photo.jpg", false, false},
+            {EmuPlatform::GBC, "星海远征", "48 分钟 · 3 天前", "img/image.png", false, false},
+            {EmuPlatform::NDS, "像素农场", "未游玩", "img/test.png", false, false},
+            {EmuPlatform::_3DS, "疾风赛车", "3.2 小时 · 上周", "img/wide.jpg", false, false},
+            {EmuPlatform::PSP, "迷宫回响", "26 分钟 · 2 小时前", "img/alpha_test.png", true, false},
+            {EmuPlatform::PS1, "纸片骑士", "8.0 小时 · 昨天", "img/border_gradient.png", false, false},
+            {EmuPlatform::SFC, "方块物语", "未游玩", "img/photo.jpg", false, false},
+            {EmuPlatform::Arcade, "雨夜侦探", "1.5 小时 · 上周", "img/image.png", false, false},
+        });
+        cards_->SetEmptySlots(2); // 一行末尾留两个空位（学习 GBAStation 的固定槽位）
+        connect(cards_, &CardCarousel::cardActivated, this, [this](int index) {
+            const CardCarousel::Card* card = cards_->cardAt(index);
+            const std::string title = card != nullptr ? card->title : std::string("?");
+            cards_status_->setText("已启动：" + title + "（第 " + std::to_string(index + 1) + " 张）");
+            if (TraceSignal()) {
+                std::printf("[signal] card activated = %d (%s)\n", index, title.c_str());
+                std::fflush(stdout);
+            }
+            Toasts().ShowSuccess("启动 " + title);
+        });
+        connect(cards_, &CardCarousel::selectionChanged, this, [this](int index) {
+            const CardCarousel::Card* card = cards_->cardAt(index);
+            if (card != nullptr) {
+                cards_status_->setText("当前选中：" + card->title);
+                if (TraceSignal()) {
+                    std::printf("[signal] card selection = %d (%s)\n", index, card->title.c_str());
+                    std::fflush(stdout);
+                }
+            }
+        });
+        connect(cards_, &CardCarousel::favouriteToggled, this, [this](int index) {
+            const CardCarousel::Card* card = cards_->cardAt(index);
+            if (card != nullptr) {
+                Toasts().ShowInfo(std::string(card->favourite ? "已收藏：" : "已取消收藏：") + card->title);
+            }
+        });
+
+        // ---- 功能按钮行 ----
+        header_functions_ = AddHeader(kTabHome, "功能按钮行 FunctionBar", "← / → 移动焦点，A / 点击触发");
+        desc_functions_ =
+            AddDescription(kTabHome, "一块面板里等分排开的动作项：图标在上、名字在下（复用 Button 的说明行形态）");
+        functions_ = AddTo(kTabHome, content_panel_->Emplace<FunctionBar>());
+        functions_status_ = AddDescription(kTabHome, "已触发：无");
+        functions_->SetItems({
+            {Icons::Glyph(Icons::Material::Games), "游戏库", nullptr},
+            {Icons::Glyph(Icons::Material::Folder), "文件列表", nullptr},
+            {Icons::Glyph(Icons::Material::Storage), "数据管理", nullptr},
+            {Icons::Glyph(Icons::Material::Settings), "设置", nullptr},
+            {Icons::Glyph(Icons::Material::Info), "关于", nullptr},
+            {Icons::Glyph(Icons::Material::Close), "退出", nullptr},
+        });
+        connect(functions_, &FunctionBar::activated, this, [this](int index) {
+            static const char* kNames[] = {"游戏库", "文件列表", "数据管理", "设置", "关于", "退出"};
+            const std::string name = index >= 0 && index < 6 ? kNames[index] : "?";
+            functions_status_->setText("已触发：" + name);
+            if (TraceSignal()) {
+                std::printf("[signal] function = %d (%s)\n", index, name.c_str());
+                std::fflush(stdout);
+            }
+            Toasts().ShowInfo("功能按钮：" + name);
+        });
     }
 
     // ------------------------------------------------- tab 2 富文本 ----
@@ -1232,6 +1318,44 @@ public:
                                       top + kHeaderHeight + kHeaderGap);
         }
 
+        // ---- 主页布局页（tab 6）：卡牌行 + 功能按钮行，按「标题 → 说明 → 控件」纵向排 ----
+        {
+            const float w = ContentWidth();
+            float y = top;
+            page_title_home_->SetPosition(left, y);
+            page_title_home_->size.x = w;
+            y += 44.0f;
+
+            header_cards_->SetPosition(left, y);
+            header_cards_->size.x = w;
+            y += kHeaderHeight + 2.0f;
+            desc_cards_->SetPosition(left, y);
+            desc_cards_->size.x = w;
+            desc_cards_->size.y = 44.0f; // 说明较长，给两行
+            y += 44.0f + kPreviewGap;
+            cards_->SetPosition(left, y);
+            cards_->size = ImVec2(w, kCardRowHeight);
+            y += kCardRowHeight + kRowGap;
+            cards_status_->SetPosition(left, y);
+            cards_status_->size.x = w;
+            cards_status_->size.y = kDescHeight;
+            y += kDescHeight + kSectionGap;
+
+            header_functions_->SetPosition(left, y);
+            header_functions_->size.x = w;
+            y += kHeaderHeight + 2.0f;
+            desc_functions_->SetPosition(left, y);
+            desc_functions_->size.x = w;
+            desc_functions_->size.y = kDescHeight;
+            y += kDescHeight + kPreviewGap;
+            functions_->SetPosition(left, y);
+            functions_->size = ImVec2(w, kFunctionBarHeight);
+            y += kFunctionBarHeight + kRowGap;
+            functions_status_->SetPosition(left, y);
+            functions_status_->size.x = w;
+            functions_status_->size.y = kDescHeight;
+        }
+
         // ---- 导航页：标题下面居中放胶囊条 ----
         header_nav_->position = ImVec2(left, top);
         header_nav_->size.x = header_w;
@@ -1283,7 +1407,16 @@ public:
 
 private:
     // 0 = 基础控件（不再放按钮），1 = 按钮 + 弹窗示例，后面是原有几页
-    enum TabIndex { kTabBasics = 0, kTabPopups, kTabRichText, kTabBadges, kTabToasts, kTabNav, kTabCount };
+    enum TabIndex {
+        kTabBasics = 0,
+        kTabPopups,
+        kTabRichText,
+        kTabBadges,
+        kTabToasts,
+        kTabNav,
+        kTabHome, // 主页布局：卡牌行 + 功能按钮行（对齐 GBAStation 的 Switch 主界面）
+        kTabCount
+    };
 
     // 子页面入 / 退场（对齐 examples/pause_menu 的菜单出场参数）
     struct PageAnim {
@@ -1304,6 +1437,8 @@ private:
     static constexpr float kToggleWidth = 340.0f;
     static constexpr float kControlSize = Theme::kControlHeight; // 统一控件尺寸（56）
     static constexpr float kCapsuleWidth = 440.0f;
+    static constexpr float kCardRowHeight = 172.0f;   // 卡牌行高（封面 106 + 标题 22 + 副行 20 + 余量）
+    static constexpr float kFunctionBarHeight = 108.0f; // 功能按钮行高（单项 84 + 上下内边距 12）
     static constexpr float kHeaderHeight = 58.0f;
     static constexpr float kHeaderGap = 8.0f;   // 标题到本区块内容
     static constexpr float kRowGap = 8.0f;      // 行间距
@@ -1324,6 +1459,7 @@ private:
         return Global::canvas_size.x - kMargin * 2.0f - TabPanelWidth() - kPanelGap;
     }
     static float ContentWidth() { return PanelInner(ContentPanelWidth(), kContentPanelPadding); }
+
     static float ContentHeight() {
         return PanelInner(Global::canvas_size.y - kMargin * 2.0f, kContentPanelPadding);
     }
@@ -1452,6 +1588,17 @@ private:
     Header* header_badges_ = nullptr;
     Header* header_toasts_ = nullptr;
     Header* header_nav_ = nullptr;
+
+    // ---- tab 6 主页布局（GBAStation 主界面那两行的重做版） ----
+    Label* page_title_home_ = nullptr;
+    Header* header_cards_ = nullptr;
+    Label* desc_cards_ = nullptr;
+    CardCarousel* cards_ = nullptr;
+    Label* cards_status_ = nullptr;
+    Header* header_functions_ = nullptr;
+    Label* desc_functions_ = nullptr;
+    FunctionBar* functions_ = nullptr;
+    Label* functions_status_ = nullptr;
     ToggleButton* disable_toggle_ = nullptr;
     Box* box_ = nullptr;
     IconButton* icon_square_ = nullptr;
