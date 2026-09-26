@@ -1,0 +1,18 @@
+== 校验 gui_dev_demo.ipa ==
+   app: /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.uQ0r8NGozF/Payload/gui_dev_demo.app
+   解包目录: /var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/tmp.uQ0r8NGozF
+  [ OK ] 可执行文件存在且有执行权限: gui_dev_demo
+  [ OK ] 架构: arm64
+  [ OK ] Mach-O platform = IOS
+  [ OK ] CFBundleIdentifier: com.beiklive.gui-dev.gui-dev-demo
+  [ OK ] CFBundleSupportedPlatforms: iPhoneOS
+  [ OK ] DTPlatformName: iphoneos
+  [ OK ] MinimumOSVersion: 13.0
+  [ OK ] LSRequiresIPhoneOS = true
+  [ OK ] UIDeviceFamily: Array{12}
+  [ OK ] 有启动屏配置
+  [ OK ] Info.plist 声明的图标文件都在包内
+  [ OK ] 运行期资源齐全 (assets/font, assets/img)
+  [WARN] app 未签名（CI 产出未签名包属正常）：安装前必须用自己的 Apple ID 重新签名并信任证书
+== 结果: FAIL=0 WARN=1 体积=10M ==
+=> 硬性检查全部通过。未签名包仍需自行重签名并在 设置→通用→VPN与设备管理 里信任证书。
