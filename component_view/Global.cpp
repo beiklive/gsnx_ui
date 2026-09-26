@@ -57,6 +57,7 @@ void BeginFrame(UiContext& ui) {
     platform_name = PlatformName();
     ++frame_index;
 
+    mouse_wheel = ui.Wheel();
     const bool finite = io.MousePos.x > -FLT_MAX * 0.5f && io.MousePos.y > -FLT_MAX * 0.5f;
     mouse_available = finite;
     mouse = finite ? io.MousePos : ImVec2(-FLT_MAX, -FLT_MAX);
@@ -105,6 +106,7 @@ void EndFrame() {
         mouse_pressed[button] = false;
         mouse_released[button] = false;
     }
+    mouse_wheel = 0.0f;
 }
 
 bool FocusScopeAllows(const Widget* widget) {

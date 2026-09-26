@@ -30,6 +30,7 @@
 #include "component_view/UILayer.h"
 #include "component_view/Widget.h"
 #include "component_view/components/Content.h"
+#include "component_view/components/ImageViewer.h"
 #include "component_view/components/RichText.h"
 
 namespace gui_dev::cv {
@@ -185,6 +186,8 @@ public:
     // Markdown：用组件库自带的 RichText 渲染（标题/粗体/斜体/列表/链接/代码块/图片/染色）。
     // 图片由宿主通过 resolver 提供纹理（控件层不碰平台接口）。
     Popup& setMarkdown(std::string markdown, RichText::ImageResolver resolver = {}, float view_height = 0.0f);
+    // 图片浏览器作为内容：自动按弹窗可用高度铺满，关闭按钮直接关弹窗
+    Popup& setImageViewer(std::string image_path);
     // 图片（等比缩放 / 居中 / 最大尺寸）
     Popup& setImage(ImTextureRef texture, float width, float height);
     // 进度内容（标题下方一行说明 + 进度条）
@@ -268,6 +271,8 @@ private:
 
     float progress_ = 0.0f;      // 出场/退场动画进度（0..1）
     float width_ = 0.0f;         // 上一帧算出来的窗口尺寸（滚动判定要用）
+    float last_header_block_ = 48.0f;   // 上一帧 Header 行高（ImageViewer 定高用）
+    float last_buttons_height_ = 56.0f; // 上一帧按钮组高
     bool scrollable_ = false;
 
     std::unique_ptr<Box> root_owner_; // 弹窗自己那棵树的根（覆盖画布、透明）
@@ -283,6 +288,7 @@ private:
     Image* image_ = nullptr;
     Box* markdown_scroll_ = nullptr; // Markdown 的滚动容器（Box + Overflow::Scroll）
     RichText* rich_text_ = nullptr;  // Markdown 正文（RichText 单文件组件）
+    ImageViewer* image_viewer_ = nullptr; // 图片浏览器（作为弹窗内容时）
 
     std::function<void(Widget&)> content_builder_;
 

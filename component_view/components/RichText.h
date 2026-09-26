@@ -17,8 +17,9 @@
 //     ImDrawList（复用 Draw:: 与 Theme::，不新造视觉体系）
 //
 // 支持范围：普通文本、段落、#~###### 标题、**粗体**、*斜体*、***粗斜体***、~~删除线~~、
-//   `行内代码`、```代码块```、- / * 无序列表（两级缩进）、1. 有序列表、> 引用、
+//   `行内代码`、- / * 无序列表（两级缩进）、1. 有序列表、> 引用、
 //   --- 分隔线、[文字](url) 链接、![alt](path) 行内/独占图片、[color=#RRGGBB(AA)]…[/color] 染色（可嵌套）。
+//   （``` 代码块已按反馈移除：项目没有等宽字体，显示效果不理想。）
 //
 // 不做（明确边界）：HTML / CSS / DOM / Table / Mermaid / LaTeX / WebView / 编辑器。
 //
@@ -89,7 +90,6 @@ enum class RichTextBlockKind {
     Bullet,     // - / * / +
     Ordered,    // 1.
     Quote,      // >
-    Code,       // ``` 代码块
     Divider,    // ---
 };
 
@@ -512,8 +512,6 @@ inline void ParseInline(const std::string& text, std::size_t start, std::size_t 
 inline RichTextDocument ParseMarkdown(const std::string& markdown, const RichText::ImageResolver& resolver) {
     RichTextDocument document;
     std::size_t index = 0;
-    bool in_code = false;
-    RichTextBlock code_block;
     RichTextBlock paragraph;
     auto flush_paragraph = [&]() {
         if (!paragraph.items.empty()) {
@@ -521,41 +519,12 @@ inline RichTextDocument ParseMarkdown(const std::string& markdown, const RichTex
             paragraph = RichTextBlock{};
         }
     };
-    auto flush_code = [&]() {
-        if (!code_block.items.empty()) {
-            document.blocks.push_back(std::move(code_block));
-            code_block = RichTextBlock{};
-        }
-    };
-
     while (index <= markdown.size()) {
         const std::size_t newline = markdown.find('\n', index);
         const bool last = newline == std::string::npos;
         const std::string raw = last ? markdown.substr(index) : markdown.substr(index, newline - index);
         const std::string line = Trim(raw);
         index = last ? markdown.size() + 1 : newline + 1;
-
-        // 代码块围栏
-        if (StartsWith(line, 0, "```")) {
-            if (in_code) {
-                flush_code();
-                in_code = false;
-            } else {
-                flush_paragraph();
-                in_code = true;
-                code_block = RichTextBlock{};
-                code_block.kind = RichTextBlockKind::Code;
-            }
-            continue;
-        }
-        if (in_code) {
-            RichTextInline item;
-            item.kind = RichTextInline::Kind::Text;
-            item.span.text = raw;
-            item.span.code = true;
-            code_block.items.push_back(std::move(item));
-            continue;
-        }
 
         if (line.empty()) {
             flush_paragraph();
@@ -648,7 +617,6 @@ inline RichTextDocument ParseMarkdown(const std::string& markdown, const RichTex
     }
 
     flush_paragraph();
-    flush_code();
     return document;
 }
 
@@ -799,36 +767,6 @@ inline void RichText::RebuildLayout(float width) {
             y += line.height + paragraph_gap;
             first_block = false;
             layout_.lines.push_back(std::move(line));
-            continue;
-        }
-
-        if (block.kind == RichTextBlockKind::Code) {
-            const float font_size = body_size * 0.95f;
-            const float padding = Theme::kGapSmall;
-            for (const RichTextInline& item : block.items) {
-                const std::string& text = item.span.text;
-                Line line;
-                line.code_line = true;
-                line.extra_gap = first_block ? 0.0f : (paragraph_gap * 0.35f);
-                line.y = y + line.extra_gap;
-                Glyph glyph;
-                glyph.kind = Glyph::Kind::Text;
-                glyph.span = &item.span;
-                glyph.text = text;
-                glyph.font_size = font_size;
-                glyph.color = Theme::kTextPrimary;
-                glyph.code = true;
-                glyph.pos = ImVec2(padding, padding);
-                glyph.size = ImVec2(content_width - padding * 2.0f, line_height_for(font_size));
-                glyph.baseline = glyph.size.y * 0.8f;
-                line.glyphs.push_back(std::move(glyph));
-                line.height = glyph.size.y + padding * 2.0f;
-                line.width = content_width;
-                y = line.y + line.height;
-                first_block = false;
-                layout_.lines.push_back(std::move(line));
-            }
-            y += paragraph_gap * 0.6f;
             continue;
         }
 

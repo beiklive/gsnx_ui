@@ -138,6 +138,9 @@ struct TouchPoint {
 struct InputFrame {
     PadState pad;
     TouchPoint touch;
+    // 鼠标滚轮 / 触控板滚动：一帧内累计的刻度（正 = 向上/放大，负 = 向下/缩小）。
+    // ImageViewer 之类需要"滚轮缩放"的控件用它；普通页面滚动仍然走拖动/焦点滚动。
+    float wheel = 0.0f;
 };
 
 } // namespace gui_dev

@@ -4,6 +4,8 @@
 // 每帧由宿主（demo.cpp / Page::Update）调用 BeginFrame / EndFrame 刷新。
 #pragma once
 
+#include <functional>
+#include <string>
 #include <vector>
 
 #include <imgui.h>
@@ -91,6 +93,7 @@ inline bool pointer_activity = false;
 inline bool pointer_dragging = false;
 inline ImVec2 pointer_drag_origin{-FLT_MAX, -FLT_MAX};
 inline Widget* pointer_drag_host = nullptr;
+inline float mouse_wheel = 0.0f; // 本帧滚轮累计刻度（EndFrame 清零）
 
 // ---- 手柄 / 键盘（后端抽象后的动作） --------------------------------------
 inline PadState pad;
@@ -126,6 +129,26 @@ BoxVisual ComponentBoxVisual();
 // 让「约定样式」跟随当前主题（边框色 / 阴影浓淡）。切完主题调一次，
 // 再对页面根节点调 Widget::RefreshThemeTree() 让组件重新取色。
 void ApplyTheme();
+
+// ---- 图片加载（宿主注入）--------------------------------------------------
+// 组件层不直接调平台接口：宿主（App / Page）启动时注册「按路径加载 / 释放」，
+// 需要按路径显示图片的组件（ImageViewer）只消费这个钩子 —— 不新建 ImageLoader / TextureCache。
+// 现成实现见 demo.cpp / examples：load 里用 Backend::LoadTexture + 自己的缓存保活。
+struct ImageHandle {
+    ImTextureRef texture{};
+    int width = 0;
+    int height = 0;
+    std::string error; // 失败原因（直接显示在 Failed 界面上）
+
+    bool Valid() const { return texture.GetTexID() != ImTextureID_Invalid && width > 0 && height > 0; }
+};
+
+struct ImageSource {
+    std::function<ImageHandle(const char* path)> load;
+    std::function<void(ImageHandle& handle)> release;
+};
+
+inline ImageSource image_source;
 
 // ---- 组件 ID -------------------------------------------------------------
 inline WidgetId next_widget_id = 1;

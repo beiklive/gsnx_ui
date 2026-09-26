@@ -6,6 +6,7 @@
 //   3. 保留三个调试开关：GUI_DEV_WINDOW=WxH、GUI_DEV_NO_VSYNC=1、GUI_DEV_EXIT_AFTER=<帧数>
 #include <atomic>
 #include <chrono>
+#include <cctype>
 #include <cstdio>
 #include <map>
 #include <cstdlib>
@@ -309,6 +310,18 @@ public:
         return header;
     }
 
+    // 图片浏览器按钮：真实调用 Popups().ShowImageViewer(...)
+    TextButton* AddViewerButton(const char* name, const char* label, const char* image_path) {
+        TextButton* button = AddTo(kTabBasics, content_panel_->Emplace<TextButton>(label));
+        button->SetName(name);
+        button->setFontSize(Theme::kFontBody);
+        connect(button, &Widget::clicked, this, [this, path = std::string(image_path), title = std::string(label)] {
+            Popups().ShowImageViewer(title, path);
+        });
+        viewer_buttons_.push_back(button);
+        return button;
+    }
+
     // Section 的说明行：单行小字浅色（规范：Section Title → 说明 → 控件预览）
     Label* AddDescription(int tab, const char* text) {
         Label* label = AddTo(tab, content_panel_->Emplace<Label>(text));
@@ -468,7 +481,45 @@ public:
     // 一页把「最基础的那批控件」摆全：文本 / 分隔 / 进度 / 图片 / 开关 / 选择 / 标签 / 滚动列表。
     // 走查顺序固定：Label → Separator → ProgressBar → Image → Checkbox → Switch → Radio →
     // Selector → Slider → Tab → ScrollView（焦点上下移动即可逐个验证手柄与触摸）。
+    // 宿主注册图片加载：ImageViewer（按路径显示）只消费这个钩子，不新建 ImageLoader / 缓存。
+    // 当前后端只有 libpng → 只支持 PNG；JPG/JPEG 会带着明确原因进 Failed 界面。
+    void InstallImageSource() {
+        gui_dev::cv::Global::image_source.load = [this](const char* path) {
+            gui_dev::cv::Global::ImageHandle handle;
+            if (path == nullptr || path[0] == '\0') {
+                handle.error = "路径为空";
+                return handle;
+            }
+            const std::string full(path);
+            const std::size_t dot = full.find_last_of('.');
+            std::string extension = dot == std::string::npos ? std::string() : full.substr(dot);
+            for (char& c : extension) {
+                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            }
+            if (extension != ".png") {
+                handle.error = "当前图片解码器只有 libpng：仅支持 PNG（不支持 " +
+                               (extension.empty() ? std::string("无扩展名") : extension) + "）";
+                return handle;
+            }
+            auto found = image_cache_.find(full);
+            if (found == image_cache_.end()) {
+                found = image_cache_.emplace(full, gui_dev::TextureRef(ui().GetBackend(), full.c_str())).first;
+            }
+            if (!found->second.Valid()) {
+                handle.error = "找不到文件或解码失败：" + full;
+                return handle;
+            }
+            handle.texture = found->second.ImGuiRef();
+            handle.width = found->second.Width();
+            handle.height = found->second.Height();
+            return handle;
+        };
+        // 纹理由页面持有的缓存保活，这里不需要释放
+        gui_dev::cv::Global::image_source.release = [](gui_dev::cv::Global::ImageHandle&) {};
+    }
+
     void BuildBasicsPage() {
+        InstallImageSource();
         // 页首 Page Title（规范 §6）→ 下面每个区块是「Section Title → 说明 → 控件预览」。
         // 不实现 Checkbox / Radio：需要状态选择时用 Switch / Selector / Tab（规范 §9）。
         page_title_basics_ = AddTo(kTabBasics, content_panel_->Emplace<Label>("基础控件"));
@@ -534,6 +585,14 @@ public:
         image_limited_->setTexture(test_tex_.ImGuiRef(), source_w, source_h);
         image_limited_->setFit(Image::Fit::Contain);
         image_limited_->max_size = ImVec2(0.0f, 190.0f);
+
+        // 图片浏览器：真实打开 ImageViewer 弹窗（手柄 / 触屏 / 鼠标同一套状态）
+        image_cap_viewer_ = AddDescription(kTabBasics, "点按钮真实打开 ImageViewer（Fit / 100% / 缩放 / 重置 / 关闭）");
+        viewer_png_button_ = AddViewerButton("viewer_png", "查看图片（PNG）", "img/image.png");
+        viewer_big_button_ = AddViewerButton("viewer_big", "查看大图（1920×1056）", "img/image.png");
+        viewer_transparent_button_ = AddViewerButton("viewer_alpha", "查看透明 PNG", "img/border_gradient.png");
+        viewer_jpg_button_ = AddViewerButton("viewer_jpg", "查看 JPG（当前后端不支持 → Failed）", "img/test.jpg");
+        viewer_missing_button_ = AddViewerButton("viewer_missing", "查看缺失图片（Failed）", "img/not_found.png");
 
         // ---- ProgressBar ----
         header_progress_ = AddHeader(kTabBasics, "ProgressBar", "确定进度 / 不确定进度");
@@ -666,7 +725,6 @@ public:
                                      "宽图会按可用宽度等比缩放：\n\n"
                                      "![Wide](img/image.png)\n\n"
                                      "---\n\n"
-                                     "```\ncomponent_view/\n  components/\n  popup/\n```\n\n"
                                      "> 引用：RichText 只负责显示，滚动与焦点由外部现有系统负责。");
         for (RichText* text : rich_texts_) {
             text->SetImageResolver(MakeImageResolver());
@@ -822,9 +880,9 @@ public:
     // Markdown 图片：![alt](path) 走这里拿纹理（懒加载 + 缓存；控件层不碰平台接口）
     RichText::ImageResolver MakeImageResolver() {
         return [this](const std::string& path) {
-            auto found = markdown_textures_.find(path);
-            if (found == markdown_textures_.end()) {
-                found = markdown_textures_.emplace(path, gui_dev::TextureRef(ui().GetBackend(), path.c_str())).first;
+            auto found = image_cache_.find(path);
+            if (found == image_cache_.end()) {
+                found = image_cache_.emplace(path, gui_dev::TextureRef(ui().GetBackend(), path.c_str())).first;
             }
             RichTextImage image;
             if (!found->second.Valid()) {
@@ -1007,6 +1065,12 @@ public:
             imagePreview(image_cap_cover_, image_cover_, 150.0f);
             imagePreview(image_cap_native_, image_native_, 170.0f);
             imagePreview(image_cap_limit_, image_limited_, 190.0f);
+            placeLabel(image_cap_viewer_, kDescHeight);
+            for (TextButton* button : viewer_buttons_) {
+                button->resize(w, Theme::kControlHeight);
+                button->moveTo(left, y);
+                y += Theme::kControlHeight + kRowGap;
+            }
             y += kSectionGap - kImageGap;
 
             // ---- ProgressBar ----
@@ -1292,13 +1356,20 @@ private:
     Label* image_cap_cover_ = nullptr;
     Label* image_cap_native_ = nullptr;
     Label* image_cap_limit_ = nullptr;
+    Label* image_cap_viewer_ = nullptr;
+    TextButton* viewer_png_button_ = nullptr;
+    TextButton* viewer_big_button_ = nullptr;
+    TextButton* viewer_transparent_button_ = nullptr;
+    TextButton* viewer_jpg_button_ = nullptr;
+    TextButton* viewer_missing_button_ = nullptr;
+    std::vector<TextButton*> viewer_buttons_;
+    std::map<std::string, gui_dev::TextureRef> image_cache_; // 与 RichText 图片共用同一份纹理缓存
     Image* image_contain_ = nullptr;
     Image* image_cover_ = nullptr;
     Image* image_native_ = nullptr;
     Image* image_limited_ = nullptr;
     gui_dev::TextureRef test_tex_;              // assets/img/test.png
     gui_dev::TextureRef gradient_tex_;          // assets/img/border_gradient.png
-    std::map<std::string, gui_dev::TextureRef> markdown_textures_; // Markdown 图片纹理（懒加载）
     ToggleButton* switch_ = nullptr;
     OptionButton* selector_ = nullptr;
     ValueButton* slider_ = nullptr;

@@ -631,7 +631,7 @@ if (p != nullptr) {
 | `Separator` | 分隔线（水平/垂直 + 缩进） | `setThickness()` `setInset()` |
 | `ProgressBar` | 确定 / 不确定进度 | `setValue()` `setIndeterminate()` `setLabel()` |
 | `Image` | 图片，等比缩放 / 居中 / 限高，缺资源画占位 | `setTexture(tex.ImGuiRef(), w, h)` `setFit(Image::Fit::Contain)` |
-| `RichText`（`components/RichText.h`，**单文件零依赖**） | 富文本：标题 / 粗体 / 斜体 / 删除线 / 行内代码 / 代码块 / 无序·有序列表 / 引用 / 分隔线 / 链接 / 行内图片 / `[color=#RRGGBB]` 染色。详见 [RichText.md](component_view/components/RichText.md) 与本节 14.5 | `SetMarkdown(md)` + `SetImageResolver()` + `SetLinkCallback()` |
+| `RichText`（`components/RichText.h`，**单文件零依赖**） | 富文本：标题 / 粗体 / 斜体 / 删除线 / 行内代码 / 无序·有序列表 / 引用 / 分隔线 / 链接 / 行内图片 / `[color=#RRGGBB]` 染色（代码块已移除）。详见 [RichText.md](component_view/components/RichText.md) 与本节 14.5 | `SetMarkdown(md)` + `SetImageResolver()` + `SetLinkCallback()` |
 
 **当前不提供 Checkbox / Radio**（规范约定）：需要状态选择时用 `Switch`（`ToggleButton`）、
 `Selector`（`OptionButton`）或 `Tab`（`CapsuleTabs`），保持整库只有一套选择语义。
@@ -771,6 +771,7 @@ Section Title（Header）
 | 独立滚动容器 | 未新增；弹窗内 Markdown 的滚动仍是 `Box + Overflow::Scroll` |
 | Checkbox / Radio | 已从代码与 Demo 移除，改用 Switch / Selector / Tab |
 | Image | 用 `assets/img/test.png` 演示 Contain / Cover / None(裁剪) / 限高+居中 四种能力 |
+| 图片浏览器 | ImageViewer：Fit / 100% / 缩放 / 平移 / 重置 / 关闭；手柄 L·R·ZL·ZR 缩放、方向键平移、X 重置、Y 适应、A 切换；触摸点按钮缩放（29%→75% 实测）、拖动平移；不支持的格式进 Failed 并显示原因 |
 | 富文本 | RichText 渲染：标题 / 粗体 / 斜体 / 删除线 / 行内代码 / 列表（两级）/ 有序列表 / 引用 / 分隔线 / 链接 / 行内图片 / 染色全部正常；缺图占位正常；链接点击回调实测触发；长文在弹窗里可上下键滚动，焦点框框住可见文本区 |
 | 富文本页 | Demo 新增「富文本」页（Basic/Color/Heading/List/Ordered/Link/Image/Mixed 八段），全部为真实 Markdown 输入 + 真实 RichText API |
 | 视觉特效 | 未引入 Glass / Neon / Glow / 渐变 / 粒子 |

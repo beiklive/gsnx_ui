@@ -50,6 +50,9 @@ public:
     Backend& GetBackend() const { return backend_; }
     PadState& Pad() { return input_.pad; }
     const PadState& Pad() const { return input_.pad; }
+    // 本帧鼠标滚轮 / 触控板滚动刻度（正 = 上/放大）
+    float Wheel() const { return input_.wheel; }
+    const InputFrame& FrameInput() const { return input_; }
     float DeltaTime() const { return backend_.DeltaTime(); }
     std::uint32_t DisplayGeneration() const { return backend_.DisplayGeneration(); }
     // 用户缩放（放大 / 缩小按钮）：转给后端，切换后字体密度会跟着重建

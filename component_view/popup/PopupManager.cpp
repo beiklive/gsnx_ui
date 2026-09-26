@@ -153,6 +153,17 @@ Popup* PopupManager::ShowProgress(std::string title, std::string message, bool i
     return Show(std::move(popup));
 }
 
+Popup* PopupManager::ShowImageViewer(std::string title, std::string image_path, PopupKind kind) {
+    auto popup = std::make_unique<Popup>("image_viewer", kind);
+    popup->setStyle(defaults_);
+    popup->setTitle(std::move(title));
+    popup->setSize(0.88f, 0.94f);          // 图片浏览器尽量占满
+    popup->setDismissOnBackdrop(true);     // B / 点遮罩都能关
+    popup->setDismissOnCancel(true);
+    popup->setImageViewer(std::move(image_path));
+    return Show(std::move(popup));
+}
+
 Popup* PopupManager::ShowMarkdown(std::string title, std::string markdown, RichText::ImageResolver resolver,
                                  float view_height, PopupKind kind) {
     auto popup = std::make_unique<Popup>("markdown", kind);

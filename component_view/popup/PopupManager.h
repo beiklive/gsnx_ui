@@ -45,6 +45,8 @@ public:
     Popup* ShowMarkdown(std::string title, std::string markdown, RichText::ImageResolver resolver = {},
                         float view_height = 0.0f, PopupKind kind = PopupKind::Info);
     Popup* ShowImage(std::string title, ImTextureRef texture, float width, float height);
+    // 图片浏览器弹窗：内部是 ImageViewer（Fit / 100% / 缩放 / 重置 / 关闭，手柄+触屏+鼠标统一）
+    Popup* ShowImageViewer(std::string title, std::string image_path, PopupKind kind = PopupKind::Info);
     Popup* ShowCustom(std::string title, std::function<void(Widget& content)> builder,
                       PopupKind kind = PopupKind::Custom);
 

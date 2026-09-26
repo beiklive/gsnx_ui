@@ -366,6 +366,7 @@ void Popup::RebuildContent() {
     image_ = nullptr;
     rich_text_ = nullptr;
     markdown_scroll_ = nullptr;
+    image_viewer_ = nullptr;
     if (content_builder_) {
         content_builder_(*content_host_);
     }
@@ -381,6 +382,17 @@ Popup& Popup::setText(std::string text) {
         label->setWrap(true, 6.0f);
         label->font_size = Theme::kFontBody;
         label->setColor(Theme::kTextPrimary);
+    };
+    RebuildContent();
+    return *this;
+}
+
+Popup& Popup::setImageViewer(std::string image_path) {
+    content_builder_ = [this, image_path = std::move(image_path)](Widget& host) {
+        ImageViewer* viewer = host.Emplace<ImageViewer>(image_path);
+        viewer->size.y = 0.0f; // 高度由 Popup::Layout 按可用区给
+        viewer->SetCloseCallback([this] { Close(); });
+        image_viewer_ = viewer;
     };
     RebuildContent();
     return *this;
@@ -679,6 +691,13 @@ void Popup::Layout() {
     if (title_ != nullptr && title_->visible) {
         title_->size.x = Maxf(inner_width - style_.header_size - style_.header_gap, 40.0f);
     }
+    // 图片浏览器：铺满弹窗内容区（Header / 按钮组高度用上一帧的值，稳定后逐帧一致）
+    if (image_viewer_ != nullptr) {
+        const float free_for_viewer = Maxf(height_limit - chrome - last_header_block_ - last_buttons_height_ -
+                                                (buttons_.empty() ? 0.0f : style_.gap),
+                                            160.0f);
+        image_viewer_->size = ImVec2(inner_width, free_for_viewer);
+    }
     // Markdown 正文自带"内容高度"（上一帧排好的）；滚动容器高度 = 固定视口 或 内容高度
     if (markdown_scroll_ != nullptr && rich_text_ != nullptr) {
         rich_text_->size.x = inner_width;
@@ -725,6 +744,8 @@ void Popup::Layout() {
     const float header_height = Maxf(style_.header_size, title_height);
     const float gaps = (buttons_.empty() ? 0.0f : style_.gap);
     const float header_block = header_height + style_.gap; // Header 行 + 它下面那一行间距
+    last_header_block_ = header_block;
+    last_buttons_height_ = buttons_height;
     const float desired_height = chrome + header_block + content_height + gaps + buttons_height;
 
     // ---- 定高决策：内容装不下就让内容容器自己滚（ScrollView），窗口不再长高 ----

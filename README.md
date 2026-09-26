@@ -12,7 +12,7 @@ GBAStation 模拟器家族的**统一前端组件库**：各模拟器核心共�
 | 层 | 目录 | 说明 |
 |---|---|---|
 | 引擎 | `framework/` | App 主循环、UiContext、主题、图标、输入抽象、SDL2 后端、暂停菜单 UI 层 |
-| 组件库 | `component_view/` | 业务无关的组件与页面：Widget / Box / Button(7) / Label / Separator / ProgressBar / Image / RichText / Badge / Header / TabColumn / CapsuleTabs / Toast / FocusRing / **Popup 弹窗系统**（层级 + 焦点作用域 + 模态） |
+| 组件库 | `component_view/` | 业务无关的组件与页面：Widget / Box / Button(7) / Label / Separator / ProgressBar / Image / RichText / ImageViewer / Badge / Header / TabColumn / CapsuleTabs / Toast / FocusRing / **Popup 弹窗系统**（层级 + 焦点作用域 + 模态） |
 | 使用方 | `demo.cpp`、`examples/` | 演示、示例、测试；组件库不反向依赖它们 |
 
 📖 组件 API 与规范：[docs/component-view.md](docs/component-view.md) ·
@@ -41,6 +41,7 @@ GUI_DEV/
 │   │                            #   RichText / Badge / Header / …
 │   ├── popup/                   # Popup 基类 + PopupManager（弹窗栈 / 遮罩 / 输入优先级）
 │   ├── RichText.h               # 单文件富文本 Widget（零第三方依赖，见 RichText.md）
+│   ├── ImageViewer.{h,cpp}      # 图片浏览器（Fit/Zoom/Pan，手柄+触屏+鼠标统一，见 ImageViewer.md）
 │   ├── UILayer.h                # 统一渲染层级（Background/Content/Popup/Focus/Toast）
 │   ├── FocusManager.*           # 焦点作用域（Focus Trap）与焦点恢复
 │   └── pages/                   # Page 基类（宿主：根 Box + 弹窗 + Toast + 焦点框图层）
@@ -216,7 +217,7 @@ macOS runner 上跑同一条脚本，手动 *Run workflow*、推 iOS 相关文�
 
 业务无关、可整体搬走的一层。现有组件：`Box`（容器 / 可聚焦控件）、`Button`（7 种形态：
 纯文字 / 图标+文字 / 纯图标 / 开关 / 自定义右侧文字 / LR 选项 / LR 数值）、
-`Label` / `Separator` / `ProgressBar` / `Image` / `RichText`（文本、分隔、进度、图片、单文件富文本）、
+`Label` / `Separator` / `ProgressBar` / `Image` / `RichText` / `ImageViewer`（文本、分隔、进度、图片、单文件富文本、图片浏览器）、
 `Popup` + `PopupManager`（统一弹窗系统：Info / Confirm / Selection / Progress / 富文本 / 图片 / 自定义页，
 含弹窗栈、遮罩、层级、Focus Trap、焦点恢复、异步进度）、`Badge`（机种徽标）、
 `Header`（竖条 + 标题 + 分隔线）、`TabColumn`（左侧纵向 Tab 列）、`CapsuleTabs`（横向胶囊标签条）、
