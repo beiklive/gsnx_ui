@@ -3,6 +3,7 @@
 # 触发方式：
 #   * 手动：Actions → 左侧 “iOS IPA” → Run workflow（可填目标名 / 配置 / 是否 ad-hoc 签名）
 #   * 自动：往 main 推 iOS 相关文件（本 workflow、scripts/build_ios_ipa.sh、iOS 工具链 / Info.plist）
+#   * 自动：推 v* tag（与 platform-*.yml 各平台 workflow 一起触发）
 #
 # 产物：Actions 页面该次运行的 Artifacts → ios-ipa-<目标>/<目标>.ipa（未签名，安装前需重签：
 #       AltStore / Sideloadly / TrollStore / zsign；选 adhoc 的话可直接装到越狱/TrollStore 设备）。
@@ -27,6 +28,8 @@ on:
         default: "none"
   push:
     branches: ["main"]
+    # 推 v* tag 时也会跑（tag 推送不评估 paths 过滤；inputs 为空时用默认目标/Release/不签名）
+    tags: ["v*"]
     paths:
       - ".github/workflows/ios-ipa.yml"
       - "scripts/build_ios_ipa.sh"

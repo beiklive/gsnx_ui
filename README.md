@@ -76,7 +76,7 @@ GUI_DEV/
 | Switch | `bash scripts/build_switch.sh` | `build/switch/dist/gui_dev_demo.nro` |
 
 查看参数：PowerShell 脚本加 `-Help`，Shell 脚本加 `--help`。Android 脚本支持 `-NativeOnly` 只编 `libmain.so`；
-Switch 脚本在已安装 devkitPro 的环境中运行，Docker CI 命令见 `.github/workflows/platform-builds.yml`。
+Switch 脚本在已安装 devkitPro 的环境中运行，Docker CI 命令见 `.github/workflows/platform-switch.yml`。
 
 | 模式 | 命令 | 适用 |
 |---|---|---|

@@ -1,0 +1,35 @@
+# Windows 平台构建（按平台拆分的独立 workflow；见 platform-linux.yml 顶部说明）。
+name: Windows build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows x64 demo
+    # CMake preset 固定使用 Visual Studio 17 2022；不要跟随
+    # windows-latest 漂移到不含 VS 2022 实例的未来镜像。
+    runs-on: windows-2022
+    steps:
+      - name: Checkout (including ImGui submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure and build demo
+        run: |
+          cmake --preset windows
+          cmake --build --preset windows --target gui_dev_demo --parallel
+
+      - name: Upload demo executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-demo
+          path: build/windows/Release/gui_dev_demo.exe
+          if-no-files-found: error

@@ -1,0 +1,48 @@
+# Linux 平台构建（按平台拆分的独立 workflow）。
+#
+# 为什么拆：一个平台一个 workflow，推 tag 后是 5 个独立 run ——
+#   * 某个平台失败时只重跑它，不用把其它平台再编一遍；
+#   * 也能在 Actions 里手动只跑某一个平台（workflow_dispatch）。
+#
+# 触发：推 `v*` tag（与其它平台 workflow 同时触发）；或手动 Run workflow。
+name: Linux build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux x64 demo
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout (including ImGui submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install SDL2 and libpng
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ninja-build libsdl2-dev libpng-dev pkg-config
+
+      - name: Configure and build demo
+        run: |
+          cmake -S . -B build/linux -G Ninja \
+            -DGUI_DEV_PLATFORM=linux \
+            -DGUI_DEV_BACKEND=sdl2 \
+            -DGUI_DEV_DEPS_MODE=package \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/linux --target gui_dev_demo --parallel 2
+
+      - name: Upload demo executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64-demo
+          path: build/linux/gui_dev_demo
+          if-no-files-found: error

@@ -1,0 +1,36 @@
+# Nintendo Switch 平台构建（按平台拆分的独立 workflow；见 platform-linux.yml 顶部说明）。
+name: Switch build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  switch:
+    name: Nintendo Switch NRO
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout (including ImGui submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure and build demo
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace \
+            devkitpro/devkita64:20260219 \
+            bash -lc 'set -euo pipefail; cmake --preset switch; cmake --build --preset switch --parallel 2'
+
+      - name: Upload NRO
+        uses: actions/upload-artifact@v4
+        with:
+          name: switch-demo
+          path: build/switch/dist/gui_dev_demo.nro
+          if-no-files-found: error

@@ -1,0 +1,57 @@
+# Android 平台构建（按平台拆分的独立 workflow；见 platform-linux.yml 顶部说明）。
+name: Android build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android arm64 APK
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout (including ImGui submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # `tools` 已从 Android SDK 仓库移除；显式覆盖 action 默认值，避免
+          # action 更新或 runner 镜像把废弃包名带进 sdkmanager。
+          packages: platform-tools
+
+      - name: Install Android NDK and CMake
+        run: sdkmanager "ndk;27.0.12077973" "cmake;3.22.1"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build APK (native target is demo only)
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.0.12077973"
+          cmake --preset android
+          cmake --build --preset android --target main --parallel 2
+          gradle --project-dir android --no-daemon :app:assembleRelease \
+            -Psdl2SourceDir="$GITHUB_WORKSPACE/build/android/_deps/sdl2-src"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-arm64-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error

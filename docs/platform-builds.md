@@ -233,8 +233,19 @@ xcrun simctl launch booted com.beiklive.gui_dev.gui_dev_demo
 | iOS（本机链路） | ⚠️ **部分验证**：本机只有 Command Line Tools，没有 iOS SDK（`xcrun --sdk iphoneos` 直接报错），所以**编译与签名这两步没跑过**。已验证的是：没 Xcode 时脚本/工具链给出明确提示（不是一堆 CMake 报错）、`--package-only` 能把任意 `.app` 打成结构正确的 `.ipa`（`unzip -l` 核对 `Payload/<app>.app/…`）；Xcode 装好后再跑 `scripts/build_ios_ipa.sh` 即可出 IPA |
 
 推送符合 `v*` 的 Git tag 会运行平台构建：Windows x64、Android arm64 APK、Linux x64、Switch NRO
-由 [platform-builds.yml](../.github/workflows/platform-builds.yml) 负责；iOS IPA 与安装性校验由
-[ios-ipa.yml](../.github/workflows/ios-ipa.yml) 负责。默认都只编译主 demo，产物作为 Actions artifact 上传。
+**按平台拆成独立 workflow**（推 tag 后是 5 个独立 run，失败可以只重跑某一个平台，
+也能在 Actions 里手动只跑某一个平台）：
+
+| 平台 | workflow | 手动触发 |
+|---|---|---|
+| Windows x64 | [platform-windows.yml](../.github/workflows/platform-windows.yml) | ✅ |
+| Android arm64 APK | [platform-android.yml](../.github/workflows/platform-android.yml) | ✅ |
+| Linux x64 | [platform-linux.yml](../.github/workflows/platform-linux.yml) | ✅ |
+| Switch NRO | [platform-switch.yml](../.github/workflows/platform-switch.yml) | ✅ |
+| iOS IPA（含安装性校验） | [ios-ipa.yml](../.github/workflows/ios-ipa.yml) | ✅（可填目标/配置/签名） |
+
+每个 workflow 的触发条件都是 `push: tags: ["v*"]` + `workflow_dispatch`。默认都只编译主 demo，
+产物作为 Actions artifact 上传（iOS 额外把诊断归档到 `ci-logs` 分支）。
 
 **已知限制（Android）**
 
