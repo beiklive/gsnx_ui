@@ -148,17 +148,13 @@ void Page::Render() {
     // ---- UILayer::Popup（模态弹窗，栈底 → 栈顶）----
     popups_.Draw(dl);
 
-    // 下面两层画到 **前景** draw list：UI 主体在背景层，ImGui 窗口（含 imgui_markdown
-    // 的排版子窗口）夹在两者之间，所以焦点框与 Toast 仍然是最高层。
-    ImDrawList* overlay = ImGui::GetForegroundDrawList();
-
     // ---- UILayer::Focus（焦点框 Overlay）----
     // 画在弹窗之上：弹窗里的按钮有焦点时焦点框不会被弹窗盒子压住（需求 §5/§13）。
     // 焦点框只是绘制，不参与命中测试，所以不会挡鼠标/触摸。
-    focus_ring_.Draw(overlay, Global::focused);
+    focus_ring_.Draw(dl, Global::focused);
 
     // ---- UILayer::Toast（全局通知，视觉最顶层，默认不拦输入）----
-    toasts_.Draw(overlay);
+    toasts_.Draw(dl);
 }
 
 } // namespace gui_dev::cv

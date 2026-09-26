@@ -30,7 +30,7 @@
 #include "component_view/UILayer.h"
 #include "component_view/Widget.h"
 #include "component_view/components/Content.h"
-#include "component_view/components/MarkdownView.h"
+#include "component_view/components/RichText.h"
 
 namespace gui_dev::cv {
 
@@ -182,9 +182,9 @@ public:
     // ---- 内容 --------------------------------------------------------------
     // 单行 / 多行文本（MultiLineText：自动换行）
     Popup& setText(std::string text);
-    // Markdown：用第三方 imgui_markdown 渲染（标题/粗体/列表/链接/代码块/图片）。
+    // Markdown：用组件库自带的 RichText 渲染（标题/粗体/斜体/列表/链接/代码块/图片/染色）。
     // 图片由宿主通过 resolver 提供纹理（控件层不碰平台接口）。
-    Popup& setMarkdown(std::string markdown, MarkdownView::ImageResolver resolver = {}, float view_height = 0.0f);
+    Popup& setMarkdown(std::string markdown, RichText::ImageResolver resolver = {}, float view_height = 0.0f);
     // 图片（等比缩放 / 居中 / 最大尺寸）
     Popup& setImage(ImTextureRef texture, float width, float height);
     // 进度内容（标题下方一行说明 + 进度条）
@@ -274,8 +274,7 @@ private:
     Box* root_ = nullptr;
     Box* backdrop_ = nullptr;        // 遮罩（z_order = -1：画在最下、命中测试最后）
     Box* window_ = nullptr;          // 弹窗窗口
-    Box* header_badge_ = nullptr;    // Header 左侧的方形图标 Box
-    Label* header_icon_ = nullptr;   // 放在方形 Box 里的图标字形
+    Box* header_badge_ = nullptr;    // Header 左侧的方形图标 Box（透明底 + 语义色描边 + 居中图标）
     Label* title_ = nullptr;
     Box* content_host_ = nullptr;    // 内容容器（需要滚动时它自己就是 ScrollView）
     Box* buttons_box_ = nullptr;     // 按钮组容器
@@ -283,7 +282,8 @@ private:
     ProgressBar* progress_bar_ = nullptr;
     Image* image_ = nullptr;
     Box* markdown_scroll_ = nullptr; // Markdown 的滚动容器（Box + Overflow::Scroll）
-    MarkdownView* markdown_view_ = nullptr;
+    RichText* rich_text_ = nullptr;  // Markdown 正文（RichText 单文件组件）
+
     std::function<void(Widget&)> content_builder_;
 
     struct ButtonEntry {

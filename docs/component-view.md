@@ -427,7 +427,7 @@ Ellipsize / MarqueeText / FlowingRing / Hsv / CheckMark / TriangleRight / Rounde
 
 `ImageButton`、`List`（列表/列表行）、`Menu`、`InputField`、`VirtualKeyboard`。
 
-已补齐：`Label` / `Separator` / `ProgressBar` / `Image` / `MarkdownView`（见 12.5）、
+已补齐：`Label` / `Separator` / `ProgressBar` / `Image` / `RichText`（见 12.5）、
 `Popup` + `PopupManager`（见 12.3/12.4）；`Slider` = `ValueButton`，`Selector` = `OptionButton`。
 
 按当前规范**不打算补**：`Checkbox` / `RadioGroup`（用 Switch / Selector / Tab 表达）、
@@ -555,8 +555,8 @@ IsOpening() / IsOpen() / IsClosing() / IsClosed()      openProgress() 取 0..1
 
 ```cpp
 popup->setText("单行或多行文本（自动换行）");
-popup->setMarkdown(md, image_resolver, 300.0f);    // Markdown：标题/粗体/列表/链接/代码块/图片
-                                                   //（第三方 imgui_markdown 渲染，见 14.5）
+popup->setMarkdown(md, image_resolver, 300.0f);    // Markdown：标题/粗体/斜体/列表/链接/代码块/图片/染色
+                                                   //（自研单文件 RichText 渲染，见 14.5）
 popup->setImage(tex.ImGuiRef(), w, h);             // 等比缩放 + 居中 + 限高
 popup->setProgressContent("说明文字", false);       // 进度条 + 说明
 popup->setContentBuilder([](Widget& content) {     // 自定义页面：Tab / Selector / Switch / Slider / Button
@@ -631,7 +631,7 @@ if (p != nullptr) {
 | `Separator` | 分隔线（水平/垂直 + 缩进） | `setThickness()` `setInset()` |
 | `ProgressBar` | 确定 / 不确定进度 | `setValue()` `setIndeterminate()` `setLabel()` |
 | `Image` | 图片，等比缩放 / 居中 / 限高，缺资源画占位 | `setTexture(tex.ImGuiRef(), w, h)` `setFit(Image::Fit::Contain)` |
-| `MarkdownView`（`components/MarkdownView.h`） | Markdown 富文本：标题 / 粗体 / 斜体 / 列表 / 链接 / 行内代码 / 代码块 / 图片。渲染走第三方 **imgui_markdown**，见 14.5 | `setText(md)` + `setImageResolver()` |
+| `RichText`（`components/RichText.h`，**单文件零依赖**） | 富文本：标题 / 粗体 / 斜体 / 删除线 / 行内代码 / 代码块 / 无序·有序列表 / 引用 / 分隔线 / 链接 / 行内图片 / `[color=#RRGGBB]` 染色。详见 [RichText.md](component_view/components/RichText.md) 与本节 14.5 | `SetMarkdown(md)` + `SetImageResolver()` + `SetLinkCallback()` |
 
 **当前不提供 Checkbox / Radio**（规范约定）：需要状态选择时用 `Switch`（`ToggleButton`）、
 `Selector`（`OptionButton`）或 `Tab`（`CapsuleTabs`），保持整库只有一套选择语义。
@@ -639,7 +639,7 @@ if (p != nullptr) {
 **ScrollView 不需要新类型**：`Box + overflow = Overflow::Scroll` 就是滚动容器，
 焦点自动滚动由 `Page::Update()` 里的 `EnsureVisible` 负责（页面与弹窗内的滚动容器都覆盖）。
 
-复合控件（`ValueButton` / `CapsuleTabs` / `MarkdownView`…）会吃掉它用的那根轴（`capture_vertical/horizontal`），
+复合控件（`ValueButton` / `CapsuleTabs` / `RichText` 开了 `SetScrollKeys(true)` 时…）会吃掉它用的那根轴，
 离开它用**另一根轴或 B**；弹窗关闭始终有明确路径（B / 关闭按钮 / 遮罩，按弹窗类型配置）。
 
 ### 12.6 输入自动重复
@@ -741,22 +741,22 @@ Section Title（Header）
 * 复合控件（`Selector` / `Slider` / `Radio` 式的组 / 富文本）会吃掉它使用的那根轴，
   离开它用**另一根轴或 B**；弹窗始终保留明确关闭路径（B / 关闭按钮 / 遮罩，按类型配置）。
 
-### 14.5 Markdown 富文本（第三方 imgui_markdown）
+### 14.5 富文本：单文件 RichText（零第三方依赖）
 
-渲染使用 **enkisoftware/imgui_markdown**（`third_party/imgui_markdown/`，zlib，已记录上游
-commit 于 `UPSTREAM.txt`），不再自己维护一套 runs 渲染：
+富文本由 `component_view/components/RichText.h` 提供（**单文件**实现，无 Markdown 第三方库），
+文档见 [RichText.md](component_view/components/RichText.md)。要点：
 
-* 库是即时模式实现（内部用 `ImGui::TextUnformatted / Indent / Bullet / Image` 排版），
-  所以 `MarkdownView` 给它一个铺在内容区上的**无装饰无输入窗口**，排版交给库、裁剪与滚动仍由本框架负责
-  （子窗口 `NoInputs`：命中测试 / 焦点 / 触摸全部不受影响）；
-* 这也带来一个层级约定：UI 主体画在 **背景** draw list，焦点框与 Toast 画在 **前景** draw list，
-  ImGui 窗口夹在两者之间 —— 见 `Global::BeginFrame` 与 `Page::Render` 的注释；
-* 图片：`![alt](path)` 走宿主的 `MarkdownView::ImageResolver`（`path → 纹理 + 像素尺寸`），
-  控件层不碰平台接口；找不到就退化成链接文本；
-* 支持范围：普通文字、标题（#/##/###）、粗体、斜体、无序/有序列表、链接文本、行内代码、代码块、换行、图片；
-* **不做**：图表、数据可视化、Mermaid、数学公式、复杂 HTML、WebView、网页排版；
-* 斜体：当前字体没有斜体字重，解析结果里保留 `italic` 语义，视觉上暂按正文渲染
-  （以后换带斜体的字体即可直接生效，不需要改解析）。
+* 三层分离：`Parse`（只跑一次）→ `RichTextDocument` → `Layout`（按需）→ `Renderer`（每帧）；
+  颜色/尺寸全部取 `Theme::` 与 `Global::component_style`，组件内没有硬编码色值；
+* 支持：标题 / 粗体 / 斜体 / 粗斜体 / 删除线 / 行内代码 / 代码块 / 无序·有序列表（两级）/
+  引用 / 分隔线 / 链接 / `![alt](path)` 行内与独占图片 / `[color=#RRGGBB(AA)]…[/color]` 染色（可嵌套）；
+* 图片走宿主的 `SetImageResolver`（`source → 纹理 + 尺寸`），解析阶段调用一次并缓存；
+  等比缩放、限宽限高、独占时居中、缺图画占位，控件层不碰平台接口；
+* 中文/英文/数字都按真实字体测量换行（UTF-8 逐 codepoint，中文逐字断行、英文整词断行）；
+* 不做滚动容器：只算内容高度 + 绘制，超出屏幕由外部页面/弹窗的现有滚动系统负责；
+* 默认 `focusable = false`；要用方向键滚外部容器时，宿主打开 `focusable` 并 `SetScrollKeys(true)`
+  （弹窗里的 Markdown 就是这么配的；页面里多个 RichText 之间则保持默认，把方向键留给焦点导航）；
+* 字体只有一套字重：粗体=半像素重绘、斜体=顶点绕基线剪切模拟，代码块退化为正文字体（已在文档写明）。
 
 ### 14.6 本轮规范对齐后的实测
 
@@ -764,11 +764,13 @@ commit 于 `UPSTREAM.txt`），不再自己维护一套 runs 渲染：
 |---|---|
 | 弹窗 Header | 方形图标 Box（语义色）+ 图标 + 文字，整体在 Padding 之内 |
 | 弹窗抖动 | 图片 / 自定义弹窗连续 250 帧几何量完全不变（window.y / content.y / 高度 / 子控件 y 均恒定） |
+| 弹窗 Header | 方形 Box 透明底 + 语义色描边（描边色 = 图标色）+ 图标居中且小于 Box |
 | 圆角 / 阴影 | 与 Button 同一套（`component_style.corner_radius` / `shadow_*`），无自定义阴影 |
 | 单栏布局 | 基础控件页 / 按钮·弹窗页全部改为「Section Title → 说明 → 预览」纵向排列 |
 | 页面滚动 | 整页纵向滚动；触摸拖动可上下滑动（已实测） |
 | 独立滚动容器 | 未新增；弹窗内 Markdown 的滚动仍是 `Box + Overflow::Scroll` |
 | Checkbox / Radio | 已从代码与 Demo 移除，改用 Switch / Selector / Tab |
 | Image | 用 `assets/img/test.png` 演示 Contain / Cover / None(裁剪) / 限高+居中 四种能力 |
-| Markdown | imgui_markdown 渲染：标题（带下划线）/ 粗体 / 列表 / 链接 / 代码块 / 图片；长文可上下键滚动，焦点框框住可见文本区 |
+| 富文本 | RichText 渲染：标题 / 粗体 / 斜体 / 删除线 / 行内代码 / 列表（两级）/ 有序列表 / 引用 / 分隔线 / 链接 / 行内图片 / 染色全部正常；缺图占位正常；链接点击回调实测触发；长文在弹窗里可上下键滚动，焦点框框住可见文本区 |
+| 富文本页 | Demo 新增「富文本」页（Basic/Color/Heading/List/Ordered/Link/Image/Mixed 八段），全部为真实 Markdown 输入 + 真实 RichText API |
 | 视觉特效 | 未引入 Glass / Neon / Glow / 渐变 / 粒子 |

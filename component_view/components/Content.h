@@ -1,6 +1,5 @@
 // Content：弹窗与页面共用的「内容型」基础控件 —— Label / Separator / ProgressBar / Image。
-// 富文本一律走 Markdown（component_view/components/MarkdownView.h + 第三方 imgui_markdown），
-// 不再自己维护一套 runs 渲染。
+// 富文本一律走 Markdown（component_view/components/RichText.h，单文件零依赖实现）。
 //
 // 它们和 Button 是同一层的组件（都继承 Widget），所以：
 //   * 布局、焦点、命中测试、裁剪、滚动、主题跟随全部复用基类；

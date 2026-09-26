@@ -23,7 +23,7 @@
 #include "component_view/components/CapsuleTabs.h"
 #include "component_view/components/Content.h"
 #include "component_view/components/Header.h"
-#include "component_view/components/MarkdownView.h"
+#include "component_view/components/RichText.h"
 #include "component_view/components/TabColumn.h"
 #include "component_view/pages/Page.h"
 #include "component_view/popup/Popup.h"
@@ -48,7 +48,8 @@ using gui_dev::cv::EdgeInsets;
 using gui_dev::cv::CustomButton;
 using gui_dev::cv::Image;
 using gui_dev::cv::Label;
-using gui_dev::cv::MarkdownView;
+using gui_dev::cv::RichText;
+using gui_dev::cv::RichTextImage;
 using gui_dev::cv::Popup;
 using gui_dev::cv::PopupButtonLayout;
 using gui_dev::cv::PopupKind;
@@ -111,6 +112,7 @@ public:
 
         BuildBasicsPage(); // tab 0 基础控件（Label/Separator/ProgressBar/Image/Checkbox/RadioGroup/开关/选择器/标签/滚动列表）
         BuildPopupPage();  // tab 1 按钮变体 + 7 个弹窗示例
+        BuildRichTextPage(); // tab 2 富文本（RichText 单文件组件）
         BuildBadgePage();  // tab 2 徽标
         BuildToastPage();  // tab 3 提示
         BuildNavPage();    // tab 4 导航
@@ -150,7 +152,6 @@ public:
 
         // 弹窗页：后台扫描任务的进度回传（UI 线程只做读取 + 刷 UI）
         UpdateProgressDemo();
-
         
         
     }
@@ -188,6 +189,7 @@ public:
         tab_column_->setItems({
             {Icons::Glyph(Icons::Material::Settings), "基础控件"},
             {Icons::Glyph(Icons::Material::Description), "按钮 / 弹窗"},
+            {Icons::Glyph(Icons::Material::Description), "富文本"},
             {Icons::Glyph(Icons::Material::ImagePlaceholder), "徽标"},
             {Icons::Glyph(Icons::Material::Info), "提示"},
             {Icons::Glyph(Icons::Material::Games), "导航"},
@@ -602,6 +604,88 @@ public:
         separator_ = AddTo(kTabBasics, content_panel_->Emplace<Separator>());
     }
 
+    // ------------------------------------------------- tab 2 富文本 ----
+    // RichText 单文件组件的验收页：普通文本 / 颜色 / 标题 / 列表 / 有序列表 / 链接 / 图片 / 混合。
+    // 全部是真实 Markdown 输入 + 真实 RichText API，没有为 Demo 另写一套富文本。
+    void BuildRichTextPage() {
+        page_title_rich_ = AddTo(kTabRichText, content_panel_->Emplace<Label>("富文本"));
+        page_title_rich_->SetName("page_title");
+        page_title_rich_->setFontSize(Theme::kFontTitle + 4.0f);
+
+        auto addSection = [&](gui_dev::Icons::Material icon, const char* title, const char* subtitle) {
+            Header* header = AddHeader(kTabRichText, title, subtitle);
+            (void)icon;
+            return header;
+        };
+
+        header_rt_basic_ = addSection(Icons::Material::Description, "Basic", "普通文本 / 粗体 / 斜体 / 删除线 / 行内代码");
+        rich_rt_basic_ = AddRichText(kTabRichText,
+                                     "这是普通文本。\n\n"
+                                     "这是 **粗体**、*斜体*、***粗斜体***，还有 ~~删除线~~ 和 `inline code`。\n\n"
+                                     "中文 English 123456 混排：中文会自动逐字换行，English words wrap by word。");
+
+        header_rt_color_ = addSection(Icons::Material::Info, "Color", "[color=#RRGGBB]…[/color]，可以嵌套其他样式");
+        rich_rt_color_ = AddRichText(kTabRichText,
+                                     "普通文字 [color=#FF5555]错误[/color] "
+                                     "[color=#55FF55]成功[/color] [color=#5599FF]通知[/color]\n\n"
+                                     "[color=#FF5555]错误 **非常严重**[/color]，"
+                                     "[color=#55CC88]成功但 *带强调*[/color]，以及 [color=#FFAA00AA]带透明度的颜色[/color]。");
+
+        header_rt_heading_ = addSection(Icons::Material::Edit, "Heading", "标题字号来自 Theme Typography");
+        rich_rt_heading_ = AddRichText(kTabRichText,
+                                       "# 一级标题\n## 二级标题\n### 三级标题\n#### 四级标题（按三级样式）");
+
+        header_rt_list_ = addSection(Icons::Material::SelectAll, "List", "无序列表，支持两级缩进");
+        rich_rt_list_ = AddRichText(kTabRichText,
+                                    "- FC\n- SFC\n- GBA\n- NDS\n\n"
+                                    "- 第一项\n  - 子项目 A\n  - 子项目 B\n- 第二项");
+
+        header_rt_ordered_ = addSection(Icons::Material::Update, "Ordered List", "有序列表");
+        rich_rt_ordered_ = AddRichText(kTabRichText, "1. Load\n2. Configure\n3. Start");
+
+        header_rt_link_ = addSection(Icons::Material::Games, "Link", "链接只显示 + 回调，不直接开浏览器");
+        rich_rt_link_ = AddRichText(kTabRichText, "项目主页 [GitHub](https://github.com)，文档 [组件文档](docs/component-view.md)。");
+        rich_rt_link_->SetLinkCallback([this](const std::string& url) {
+    
+            Toasts().ShowInfo("打开链接：" + url);
+        });
+
+        header_rt_image_ = addSection(Icons::Material::PhotoLibrary, "Image", "独占居中 / 行内小图 / 等比缩放 / 缺图占位");
+        rich_rt_image_ = AddRichText(kTabRichText,
+                                     "![Game Cover](img/test.png)\n\n"
+                                     "行内图片：这是一个图标 ![icon](img/test.png) 后面的文字，图片参与这一行的排版。\n\n"
+                                     "缺图会画占位：![missing](img/not_found.png)");
+
+        header_rt_mixed_ = addSection(Icons::Material::VideogameAsset, "Mixed", "标题 + 段落 + 颜色 + 列表 + 图片 + 代码块");
+        rich_rt_mixed_ = AddRichText(kTabRichText,
+                                     "# GBAStation\n\n"
+                                     "这是一个 **Switch 模拟器前端**，同一套 UI 跑在 Switch / Windows / macOS。\n\n"
+                                     "[color=#55CC88]运行成功[/color]\n\n"
+                                     "支持：\n\n- FC\n- SFC\n- GBA\n- NDS\n\n"
+                                     "![Cover](img/test.png)\n\n"
+                                     "宽图会按可用宽度等比缩放：\n\n"
+                                     "![Wide](img/image.png)\n\n"
+                                     "---\n\n"
+                                     "```\ncomponent_view/\n  components/\n  popup/\n```\n\n"
+                                     "> 引用：RichText 只负责显示，滚动与焦点由外部现有系统负责。");
+        for (RichText* text : rich_texts_) {
+            text->SetImageResolver(MakeImageResolver());
+            text->SetMaxImageSize(0.0f, 220.0f);
+        }
+    }
+
+    // 统一登记：宽度由 LayoutContent 每帧给，高度由 RichText 自撑（auto_height）
+    RichText* AddRichText(int tab, const char* markdown) {
+        RichText* text = AddTo(tab, content_panel_->Emplace<RichText>());
+        text->SetMarkdown(markdown);
+        text->SetName("rich_text");
+        text->focusable = true;          // 打开后可用上下键滚整页
+        text->focus_frame = true;
+        text->focus_frame_offset = 3.0f;
+        rich_texts_.push_back(text);
+        return text;
+    }
+
     // ------------------------------------------------------- tab 1 徽标 ----
     // 徽标墙：两列、每个徽标同样大小、文字一律白色（不套容器 Box，直接画在面板上）
     void BuildBadgePage() {
@@ -736,24 +820,25 @@ public:
     }
 
     // Markdown 图片：![alt](path) 走这里拿纹理（懒加载 + 缓存；控件层不碰平台接口）
-    MarkdownView::ImageResolver MakeImageResolver() {
-        return [this](const std::string& path, ImTextureRef& texture, float& width, float& height) {
+    RichText::ImageResolver MakeImageResolver() {
+        return [this](const std::string& path) {
             auto found = markdown_textures_.find(path);
             if (found == markdown_textures_.end()) {
                 found = markdown_textures_.emplace(path, gui_dev::TextureRef(ui().GetBackend(), path.c_str())).first;
             }
+            RichTextImage image;
             if (!found->second.Valid()) {
-                return false; // 没有这张图：imgui_markdown 会退化成链接文本
+                return image; // 没有这张图：RichText 画占位
             }
-            texture = found->second.ImGuiRef();
-            width = static_cast<float>(found->second.Width());
-            height = static_cast<float>(found->second.Height());
-            return true;
+            image.valid = true;
+            image.texture = found->second.ImGuiRef();
+            image.size = ImVec2(static_cast<float>(found->second.Width()), static_cast<float>(found->second.Height()));
+            return image;
         };
     }
 
     void ShowMarkdownDemo() {
-        // 真实调用 PopupManager + imgui_markdown：标题/粗体/斜体/列表/链接/代码块/图片
+        // 真实调用 PopupManager + RichText：标题/粗体/斜体/列表/链接/代码块/图片/染色
         Popups().ShowMarkdown("游戏说明", MarkdownDemoText(), MakeImageResolver(), 300.0f, PopupKind::Info);
     }
 
@@ -961,6 +1046,34 @@ public:
             separator_->size = ImVec2(w, 9.0f);
         }
 
+        // ---- 富文本页（tab 2）：单栏纵向 ----
+        {
+            const float w = ContentWidth();
+            float y = top;
+            page_title_rich_->SetPosition(left, y);
+            page_title_rich_->size.x = w;
+            y += 44.0f;
+
+            auto section = [&](Header* header, RichText* text, float gap_after) {
+                header->SetPosition(left, y);
+                header->size.x = w;
+                y += kHeaderHeight + 2.0f;
+                y += kPreviewGap;
+                text->SetPosition(left, y);
+                text->size.x = w;
+                text->size.y = 0.0f; // 自撑高
+                y += text->ContentHeight() + gap_after;
+            };
+            section(header_rt_basic_, rich_rt_basic_, kSectionGap);
+            section(header_rt_color_, rich_rt_color_, kSectionGap);
+            section(header_rt_heading_, rich_rt_heading_, kSectionGap);
+            section(header_rt_list_, rich_rt_list_, kSectionGap);
+            section(header_rt_ordered_, rich_rt_ordered_, kSectionGap);
+            section(header_rt_link_, rich_rt_link_, kSectionGap);
+            section(header_rt_image_, rich_rt_image_, kSectionGap);
+            section(header_rt_mixed_, rich_rt_mixed_, kSectionGap);
+        }
+
         // ---- 按钮 + 弹窗页（tab 1）：同样单栏纵向 ----
         {
             const float w = ContentWidth();
@@ -1079,7 +1192,7 @@ public:
 
 private:
     // 0 = 基础控件（不再放按钮），1 = 按钮 + 弹窗示例，后面是原有几页
-    enum TabIndex { kTabBasics = 0, kTabPopups, kTabBadges, kTabToasts, kTabNav, kTabCount };
+    enum TabIndex { kTabBasics = 0, kTabPopups, kTabRichText, kTabBadges, kTabToasts, kTabNav, kTabCount };
 
     // 子页面入 / 退场（对齐 examples/pause_menu 的菜单出场参数）
     struct PageAnim {
@@ -1191,6 +1304,26 @@ private:
     ValueButton* slider_ = nullptr;
     CapsuleTabs* tabs_demo_ = nullptr;
     float basics_progress_ = 0.0f;
+
+    // 富文本页（tab 2）
+    Label* page_title_rich_ = nullptr;
+    Header* header_rt_basic_ = nullptr;
+    Header* header_rt_color_ = nullptr;
+    Header* header_rt_heading_ = nullptr;
+    Header* header_rt_list_ = nullptr;
+    Header* header_rt_ordered_ = nullptr;
+    Header* header_rt_link_ = nullptr;
+    Header* header_rt_image_ = nullptr;
+    Header* header_rt_mixed_ = nullptr;
+    RichText* rich_rt_basic_ = nullptr;
+    RichText* rich_rt_color_ = nullptr;
+    RichText* rich_rt_heading_ = nullptr;
+    RichText* rich_rt_list_ = nullptr;
+    RichText* rich_rt_ordered_ = nullptr;
+    RichText* rich_rt_link_ = nullptr;
+    RichText* rich_rt_image_ = nullptr;
+    RichText* rich_rt_mixed_ = nullptr;
+    std::vector<RichText*> rich_texts_;
 
     // 按钮 / 弹窗页（tab 1）
     Header* header_popups_ = nullptr;

@@ -153,7 +153,7 @@ Popup* PopupManager::ShowProgress(std::string title, std::string message, bool i
     return Show(std::move(popup));
 }
 
-Popup* PopupManager::ShowMarkdown(std::string title, std::string markdown, MarkdownView::ImageResolver resolver,
+Popup* PopupManager::ShowMarkdown(std::string title, std::string markdown, RichText::ImageResolver resolver,
                                  float view_height, PopupKind kind) {
     auto popup = std::make_unique<Popup>("markdown", kind);
     popup->setStyle(defaults_);
