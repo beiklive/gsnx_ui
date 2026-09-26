@@ -663,7 +663,12 @@ public:
             spec.text = std::string(names[i]) + "    " + notes[i];
             spec.icon = Icons::Glyph(Icons::Material::Play);
             spec.primary = (i == 0);
-            spec.on_click = [this, name = std::string(names[i])] { Toasts().ShowInfo("已选择核心：" + name); };
+            spec.close_on_click = false; // 选择弹窗保持开着，确认弹窗叠在它上面（弹窗栈）
+            // 选择之后在它上面再叠一个确认弹窗：验证弹窗栈（关闭顶部后焦点回到下面这层）
+            spec.on_click = [this, name = std::string(names[i])] {
+                Popups().ShowConfirm("使用该核心启动？", "已选择 " + name + "，是否立即用它加载当前 ROM？",
+                                     [this, name] { Toasts().ShowSuccess("正在用 " + name + " 启动…"); });
+            };
             options.push_back(std::move(spec));
         }
         Popup::ButtonSpec cancel;
