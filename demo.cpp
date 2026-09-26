@@ -318,6 +318,10 @@ public:
 
     // ------------------------------------------------------- tab 0 按钮 ----
     void BuildPopupPage() {
+        page_title_popups_ = AddTo(kTabPopups, content_panel_->Emplace<Label>("按钮 / 弹窗"));
+        page_title_popups_->SetName("page_title");
+        page_title_popups_->setFontSize(Theme::kFontTitle + 4.0f);
+
         header_buttons_ = AddHeader(kTabPopups, "按钮变体", "点击 / A 触发，+ 键切说明行");
 
         // 1 普通按钮（弹窗的确认 / 取消这类提示文字）：文字居中，字号比其它按钮大一档
@@ -462,8 +466,11 @@ public:
     // 走查顺序固定：Label → Separator → ProgressBar → Image → Checkbox → Switch → Radio →
     // Selector → Slider → Tab → ScrollView（焦点上下移动即可逐个验证手柄与触摸）。
     void BuildBasicsPage() {
-        // 每个区块都是「Section Title → 说明 → 控件预览」，纵向排列；说明与预览之间的间距统一。
+        // 页首 Page Title（规范 §6）→ 下面每个区块是「Section Title → 说明 → 控件预览」。
         // 不实现 Checkbox / Radio：需要状态选择时用 Switch / Selector / Tab（规范 §9）。
+        page_title_basics_ = AddTo(kTabBasics, content_panel_->Emplace<Label>("基础控件"));
+        page_title_basics_->SetName("page_title");
+        page_title_basics_->setFontSize(Theme::kFontTitle + 4.0f);
 
         // ---- Box ----
         header_box_ = AddHeader(kTabBasics, "Box", "容器 / 可聚焦控件");
@@ -870,6 +877,10 @@ public:
         {
             const float w = ContentWidth();
             float y = top;
+            // Page Title
+            page_title_basics_->SetPosition(left, y);
+            page_title_basics_->size.x = w;
+            y += 44.0f;
             auto placeLabel = [&](Label* label, float height) {
                 label->SetPosition(left, y);
                 label->size.x = w;
@@ -966,6 +977,10 @@ public:
             const float w = ContentWidth();
             float y = top;
             const float gap = kSectionGap;
+
+            page_title_popups_->SetPosition(left, y);
+            page_title_popups_->size.x = w;
+            y += 44.0f;
 
             header_buttons_->SetPosition(left, y);
             header_buttons_->size.x = w;
@@ -1140,6 +1155,8 @@ private:
     static constexpr float kBadgeGapY = 8.0f;
 
     // 基础控件页（tab 0）：单栏纵向，每个区块 = Section Title + 说明 + 控件预览
+    Label* page_title_basics_ = nullptr;
+    Label* page_title_popups_ = nullptr;
     Header* header_box_ = nullptr;
     Header* header_label_ = nullptr;
     Header* header_button_ = nullptr;
