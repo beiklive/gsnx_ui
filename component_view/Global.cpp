@@ -135,9 +135,22 @@ void NavigateFocus(const std::vector<Widget*>& focusables) {
             break;
         }
     }
-    if (!valid && !pointer_activity) {
-        SetFocus(focusables.front());
-        current = focused;
+    const bool navigation_requested =
+        pad.Pressed(InputAction::Left) || pad.Pressed(InputAction::Right) ||
+        pad.Pressed(InputAction::Up) || pad.Pressed(InputAction::Down) ||
+        pad.Pressed(InputAction::Confirm);
+    if (!valid) {
+        // 触摸模式没有“默认导航焦点”。切页后旧页控件会从 focusables 消失，
+        // 如果下一空闲帧照手柄逻辑回退到 front()，front 恰好总是第一个 Tab，
+        // 于是任意触摸之后都会再次切回 Tab 0。触摸下清掉失效焦点并等待下一次
+        // 手指按下明确选择；只有键盘/手柄模式才自动建立初始焦点。
+        if ((pointer_touch || pointer_activity) && !navigation_requested) {
+            SetFocus(nullptr);
+            current = nullptr;
+        } else {
+            SetFocus(focusables.front());
+            current = focused;
+        }
     }
     if (current == nullptr) {
         return;

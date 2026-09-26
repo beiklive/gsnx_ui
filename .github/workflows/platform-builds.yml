@@ -70,6 +70,10 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # `tools` 已从 Android SDK 仓库移除；显式覆盖 action 默认值，避免
+          # action 更新或 runner 镜像把废弃包名带进 sdkmanager。
+          packages: platform-tools
 
       - name: Install Android NDK and CMake
         run: sdkmanager "ndk;27.0.12077973" "cmake;3.22.1"

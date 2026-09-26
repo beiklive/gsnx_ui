@@ -58,6 +58,19 @@ GUI_DEV/
 五个平台共用一份 `CMakeLists.txt`，差异只在 **preset + 工具链 + 依赖模式**。
 依赖有两种拿法，任选：
 
+仓库提供了一键构建脚本（默认只构建主 demo）：
+
+| 平台 | 脚本 | 主要产物 |
+|---|---|---|
+| Windows x64 | `scripts\build_windows.bat` | `build/windows/Release/gui_dev_demo.exe` |
+| Android arm64 | `scripts\build_android.bat` | `android/app/build/outputs/apk/release/app-release.apk` |
+| iOS | `scripts/build_ios_ipa.sh` | `dist/ios/gui_dev_demo.ipa` |
+| Linux | `bash scripts/build_linux.sh` | `build/linux/gui_dev_demo` |
+| Switch | `bash scripts/build_switch.sh` | `build/switch/dist/gui_dev_demo.nro` |
+
+查看参数：PowerShell 脚本加 `-Help`，Shell 脚本加 `--help`。Android 脚本支持 `-NativeOnly` 只编 `libmain.so`；
+Switch 脚本在已安装 devkitPro 的环境中运行，Docker CI 命令见 `.github/workflows/platform-builds.yml`。
+
 | 模式 | 命令 | 适用 |
 |---|---|---|
 | `package`（默认） | 直接 `cmake --preset <平台>` | macOS / Linux（系统包）、Windows（vcpkg） |

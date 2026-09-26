@@ -493,10 +493,13 @@ void Widget::UpdateInteraction(float dt) {
         Global::active = nullptr;
         down = false;
         if (hovered && enabled && !cancel_click) {
-            if (!OnPadAction(InputAction::Confirm)) {
-                Activate();
-                emit clicked();
-            }
+            // 指针点击不是手柄 Confirm。二者共用 OnPadAction(Confirm) 会让复合控件
+            // 同时执行两套行为：例如 TabItem 的手柄 Confirm 本意是“进入内容区”，
+            // 触摸松开时却也会调用它，焦点随即从刚点中的 tab 跳走。
+            // 指针路径只做命中控件自己的 Activate/clicked；手柄语义留给下面的
+            // focused + pad.Pressed(Confirm) 分支。
+            Activate();
+            emit clicked();
         }
         emit released();
     }

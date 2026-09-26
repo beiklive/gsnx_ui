@@ -18,6 +18,16 @@ namespace {
 constexpr float kDesignWidth = 1280.0f;
 constexpr float kDesignHeight = 720.0f;
 
+// 这些平台的主指针是触摸屏。SDL 在部分 Android 设备上即使关闭了
+// SDL_HINT_TOUCH_MOUSE_EVENTS，仍会额外投递一组普通 SDL_MOUSE* 事件（which 不一定
+// 是 SDL_TOUCH_MOUSEID）。若和 SDL_FINGER* 一起送进 ImGui，同一次手势会产生两次
+// press/release，第二次还可能使用 (0,0) 或旧坐标，表现为任意位置都会误触左上控件。
+#if defined(GUI_DEV_PLATFORM_android) || defined(GUI_DEV_PLATFORM_ios) || defined(GUI_DEV_PLATFORM_switch)
+constexpr bool kTouchFirstPlatform = true;
+#else
+constexpr bool kTouchFirstPlatform = false;
+#endif
+
 inline std::size_t Idx(InputAction a) { return static_cast<std::size_t>(a); }
 
 // 扳机轴转按键的阈值（ZL/ZR 在 SDL 里是模拟轴，不是按钮）
@@ -90,6 +100,13 @@ Sdl2Backend::~Sdl2Backend() { Shutdown(); }
 BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
     cfg_ = cfg;
 
+    // 必须在 SDL_Init / 创建窗口之前设置；放到 CreateWindow 之后时 Android video
+    // driver 可能已经决定要生成触摸合成鼠标事件。PollEvents 里仍有去重兜底。
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+#ifdef SDL_HINT_MOUSE_TOUCH_EVENTS
+    SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "0");
+#endif
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_TIMER) != 0) {
         std::fprintf(stderr, "[gui_dev] SDL_Init failed: %s\n", SDL_GetError());
         return BackendStatus::InitFailed;
@@ -141,11 +158,6 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
 
     // 非整数倍缩放时用线性过滤，避免锯齿
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
-    // 触摸统一走 SDL_FINGER*（下面自己翻译成 ImGui 鼠标事件）：
-    // 关掉 SDL 的「触摸合成鼠标」避免同一个手指触发两次点击；
-    // 个别平台不认这个 hint 时，下面还有 SDL_TOUCH_MOUSEID 的去重兜底。
-    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
-
     if (SDL_NumJoysticks() > 0 && SDL_IsGameController(0)) {
         controller_ = SDL_GameControllerOpen(0);
     }
@@ -334,14 +346,34 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
     }
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
-        // 触摸统一由 SDL_FINGER* 路径翻译一次。SDL 默认还可能为同一手势
-        // 合成 SDL_TOUCH_MOUSEID 鼠标事件；若也交给 ImGui SDL 后端，会造成一次
-        // 手势同时走 native mouse 与自定义 touch 两条输入队列。
+        const bool mouse_event = e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEBUTTONDOWN ||
+                                 e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEWHEEL;
+        // 桌面触屏通常正确标 SDL_TOUCH_MOUSEID；移动端某些 SDL/系统组合却会报普通
+        // mouse id，因此 touch-first 平台屏蔽全部 SDL_MOUSE*，只认 SDL_FINGER*。
         const bool synthesized_touch_mouse =
             (e.type == SDL_MOUSEMOTION && e.motion.which == SDL_TOUCH_MOUSEID) ||
-            ((e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) && e.button.which == SDL_TOUCH_MOUSEID);
-        if (!synthesized_touch_mouse) {
-            ImGui_ImplSDL2_ProcessEvent(&e);
+            ((e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) &&
+             e.button.which == SDL_TOUCH_MOUSEID) ||
+            (e.type == SDL_MOUSEWHEEL && e.wheel.which == SDL_TOUCH_MOUSEID);
+        // 移动端统一只走 finger 队列。部分 Android 驱动会先投递合成 mouse、再投递
+        // FINGERDOWN，无法靠 touch_engaged_ 判断先后，必须整条屏蔽才不会重复点击。
+        const bool duplicate_touch_mouse = synthesized_touch_mouse || (kTouchFirstPlatform && mouse_event);
+        if (!duplicate_touch_mouse) {
+            // SDL mouse event 是窗口坐标，ImGui/组件使用逻辑画布坐标。必须在事件
+            // 入队前只转换一次；对 io.MousePos 每帧再转换会把旧坐标不断缩向 (0,0)。
+            SDL_Event imgui_event = e;
+            if (e.type == SDL_MOUSEMOTION) {
+                const ImVec2 logical =
+                    WindowToLogical(ImVec2(static_cast<float>(e.motion.x), static_cast<float>(e.motion.y)));
+                imgui_event.motion.x = static_cast<Sint32>(logical.x);
+                imgui_event.motion.y = static_cast<Sint32>(logical.y);
+            } else if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) {
+                const ImVec2 logical =
+                    WindowToLogical(ImVec2(static_cast<float>(e.button.x), static_cast<float>(e.button.y)));
+                imgui_event.button.x = static_cast<Sint32>(logical.x);
+                imgui_event.button.y = static_cast<Sint32>(logical.y);
+            }
+            ImGui_ImplSDL2_ProcessEvent(&imgui_event);
         }
 
         switch (e.type) {
@@ -523,15 +555,6 @@ void Sdl2Backend::NewImGuiFrame() {
     // 字号已经在设计空间里定死，这里不能再乘一次（否则会双重放大）。
     ImGui::GetStyle().FontScaleMain = 1.0f;
     io.DeltaTime = delta_time_ > 0.0f ? delta_time_ : (1.0f / 60.0f);
-
-    // 鼠标坐标修正：imgui_impl_sdl2 给的是「窗口点数」，而控件命中测试用的是
-    // io.DisplaySize（720p 逻辑空间）。窗口不是 1280x720 时两者差一个比例
-    // （例如 640x360 窗口下 mouse=(98,203) 实际对应逻辑 (196,406)），
-    // 不修正的话小窗口/异形窗口里点击位置会整体偏移。
-    if (ImGui::IsMousePosValid(&io.MousePos)) {
-        const ImVec2 logical_mouse = WindowToLogical(io.MousePos);
-        io.AddMousePosEvent(logical_mouse.x, logical_mouse.y);
-    }
 
     // 触摸 → 鼠标：必须在这里喂（ImGui_ImplSDL2_NewFrame 之后、ImGui::NewFrame 之前）。
     // 放在 PollEvents 里喂会被 imgui_impl_sdl2 的 UpdateMouseData 覆盖（窗口没被真鼠标悬停时
