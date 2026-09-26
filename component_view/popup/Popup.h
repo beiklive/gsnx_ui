@@ -164,6 +164,8 @@ public:
     Popup& setTitle(std::string value);
     Popup& setHeaderText(std::string value) { return setTitle(std::move(value)); }
     Popup& setHeaderIcon(std::string glyph); // 覆盖默认图标（按 kind 自动给）
+    // Header 副文字（主文字下方一行小号浅色；例如图片浏览器的「尺寸 · 文件大小 · 缩放」）
+    Popup& setHeaderSubtitle(std::string value);
     Popup& setModal(bool value);
     Popup& setBackdrop(bool enabled, float alpha = -1.0f);
     Popup& setDismissOnBackdrop(bool enabled);
@@ -254,6 +256,8 @@ private:
     void ApplyKindColors();
     void ApplyKindHeader();
     float ResolveWidth(float canvas_width) const;
+    // 内容自然宽度（自适应宽度用）：Header 行 / 内容 / 按钮组里最宽的那个
+    float MeasureNaturalWidth(float inner_width, float height_limit);
     float ResolveHeightLimit(float canvas_height) const;
     void PositionChildren();
 
@@ -275,6 +279,7 @@ private:
 
     float progress_ = 0.0f;      // 出场/退场动画进度（0..1）
     float width_ = 0.0f;         // 上一帧算出来的窗口尺寸（滚动判定要用）
+    float inner_width_ = 0.0f;   // 上一帧窗口内容区宽度（自适应宽度测量时复位用）
     float last_header_block_ = 48.0f;   // 上一帧 Header 行高（ImageViewer 定高用）
     float last_buttons_height_ = 56.0f; // 上一帧按钮组高
     bool scrollable_ = false;
@@ -285,6 +290,7 @@ private:
     Box* window_ = nullptr;          // 弹窗窗口
     Box* header_badge_ = nullptr;    // Header 左侧的方形图标 Box（透明底 + 语义色描边 + 居中图标）
     Label* title_ = nullptr;
+    Label* header_subtitle_ = nullptr; // Header 副文字（可选）
     Box* content_host_ = nullptr;    // 内容容器（需要滚动时它自己就是 ScrollView）
     Box* buttons_box_ = nullptr;     // 按钮组容器
     Label* message_ = nullptr;       // 进度/说明文字

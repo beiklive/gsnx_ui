@@ -12,6 +12,9 @@
 namespace gui_dev::cv {
 namespace {
 
+// Header 主文字与副文字之间的行距
+constexpr float kHeaderLineGap = 2.0f;
+
 // 弹窗里的按钮统一用 TextButton（文字居中，适合确认/取消这类提示文字）
 TextButton* MakeButton(Widget& parent, std::string text, std::string icon) {
     TextButton* button = parent.Emplace<TextButton>(std::move(text));
@@ -207,6 +210,14 @@ void Popup::BuildChrome() {
     title_->vertical_align = VerticalAlign::Middle;
     title_->visible = false;
 
+    // Header 副文字：主文字下方一行小号浅色（例如 ImageViewer 的「尺寸 · 文件大小 · 缩放」）
+    header_subtitle_ = window_->Emplace<Label>("popup_subtitle");
+    header_subtitle_->setFontSize(Theme::kFontSmall);
+    header_subtitle_->setColor(Theme::kTextMuted);
+    header_subtitle_->vertical_align = VerticalAlign::Middle;
+    header_subtitle_->ellipsize = true;
+    header_subtitle_->visible = false;
+
     // 内容容器：纵向排列，宽度里塞什么就排什么（Checkbox / RadioGroup / Slider / 可滚动容器…）
     content_host_ = window_->Emplace<Box>("popup_content");
     content_host_->layout = LayoutMode::Vertical;
@@ -267,6 +278,14 @@ Popup& Popup::setTitle(std::string value) {
     if (title_ != nullptr) {
         title_->setText(std::move(value));
         title_->visible = !title_->text.empty();
+    }
+    return *this;
+}
+
+Popup& Popup::setHeaderSubtitle(std::string value) {
+    if (header_subtitle_ != nullptr) {
+        header_subtitle_->setText(std::move(value));
+        header_subtitle_->visible = !header_subtitle_->text.empty();
     }
     return *this;
 }
@@ -409,8 +428,20 @@ Popup& Popup::setImageViewer(std::string image_path) {
     content_builder_ = [this, image_path = std::move(image_path)](Widget& host) {
         ImageViewer* viewer = host.Emplace<ImageViewer>(image_path);
         viewer->size.y = 0.0f; // 高度由 Popup::Layout 按可用区给
+        viewer->SetShowInfo(false); // 信息行改由 Header 副文字显示，Viewer 里不再重复
         viewer->SetCloseCallback([this] { Close(); });
         image_viewer_ = viewer;
+        // Header：主文字 = 文件名，副文字 = 图片信息（尺寸 · 文件大小 · 缩放）
+        setTitle(viewer->fileName());
+        setHeaderSubtitle(viewer->InfoText());
+        connect(viewer, &ImageViewer::infoChanged, this, [this](const std::string& info) {
+            setHeaderSubtitle(info);
+        });
+        connect(viewer, &ImageViewer::stateChanged, this, [this](ImageViewer::State) {
+            if (image_viewer_ != nullptr) {
+                setTitle(image_viewer_->fileName());
+            }
+        });
     };
     RebuildContent();
     return *this;
@@ -646,9 +677,48 @@ float Popup::ResolveWidth(float canvas_width) const {
     if (style_.width > 1.0f) {
         return style_.width;
     }
+    // 自适应宽度（style_.width == 0）：先按上限摆，再由 MeasureNaturalWidth 按内容收紧
     const float limit = Minf(canvas_width * style_.max_width_ratio, style_.max_width);
     const float base = style_.width > 0.0f ? canvas_width * style_.width : limit;
     return Clampf(base, style_.min_width, Maxf(limit, style_.min_width));
+}
+
+// 自适应宽度用：量出「按内容需要的宽度」。三种内容形态里取最宽的一个：
+//   Header 行（图标 + 主/副文字） / 内容容器 / 按钮组。
+// 都用控件自己的自然测量（size.x 临时置 0），量完由 Layout 的收尾重新摆位，不会留下脏布局。
+float Popup::MeasureNaturalWidth(float measure_width, float height_limit) {
+    float natural = 0.0f;
+
+    // Header 行
+    const bool has_title = title_ != nullptr && title_->visible;
+    if (has_title) {
+        const ImVec2 main_extent = Draw::MeasureText(nullptr, style_.title_size, title_->text.c_str(), 0.0f);
+        float text_width = main_extent.x;
+        if (header_subtitle_ != nullptr && header_subtitle_->visible) {
+            text_width = Maxf(text_width, header_subtitle_->TextSize(0.0f).x);
+        }
+        natural = Maxf(natural, style_.header_size + style_.header_gap + text_width);
+    }
+
+    // 内容容器（纵向排列；size.x 置 0 → 由子控件自然宽度决定）
+    if (content_host_ != nullptr && !content_host_->children.empty()) {
+        content_host_->size.x = 0.0f;
+        // LayoutTree = Measure + Place：这里只关心量出来的自然宽度，落位稍后由 Layout 重排
+        content_host_->LayoutTree(ImVec2(0.0f, 0.0f), ImVec2(measure_width, Maxf(height_limit, 1.0f)));
+        natural = Maxf(natural, content_host_->measured_size.x);
+        content_host_->size.x = inner_width_; // 由 Layout 里的 apply_width 重新赋值，这里先复位
+    }
+
+    // 按钮组：等宽按钮 + 间距（按钮最小宽度是 Global::component_style.popup_button_min_width）
+    if (!buttons_.empty()) {
+        const float count = static_cast<float>(buttons_.size());
+        float row = count * style_.button_min_width + (count - 1.0f) * style_.button_gap;
+        if (button_layout_ == PopupButtonLayout::Vertical) {
+            row = style_.button_min_width;
+        }
+        natural = Maxf(natural, row);
+    }
+    return natural;
 }
 
 float Popup::ResolveHeightLimit(float canvas_height) const {
@@ -656,20 +726,28 @@ float Popup::ResolveHeightLimit(float canvas_height) const {
 }
 
 void Popup::PositionChildren() {
-    // 第一行是 Header：方形图标 Box + 文字（标题），后面依次是内容 / 按钮
-    const float header_height =
-        Maxf(style_.header_size, (title_ != nullptr && title_->visible) ? title_->measured_size.y : 0.0f);
+    // 第一行是 Header：方形图标 Box + 文字（主文字 [+ 副文字]），后面依次是内容 / 按钮
+    const bool has_title = title_ != nullptr && title_->visible;
+    const bool has_subtitle = header_subtitle_ != nullptr && header_subtitle_->visible;
+    const float title_height = has_title ? title_->measured_size.y : 0.0f;
+    const float subtitle_height = has_subtitle ? header_subtitle_->measured_size.y : 0.0f;
+    const float text_block = title_height + (has_subtitle ? subtitle_height + kHeaderLineGap : 0.0f);
+    const float header_height = Maxf(style_.header_size, text_block);
     if (header_badge_ != nullptr) {
         header_badge_->position = ImVec2(0.0f, (header_height - style_.header_size) * 0.5f);
         header_badge_->size = ImVec2(style_.header_size, style_.header_size);
     }
     float y = header_height + style_.gap;
-    const float title_height = (title_ != nullptr && title_->visible) ? title_->measured_size.y : 0.0f;
+    const float text_x = style_.header_size + style_.header_gap;
     if (title_height > 0.0f) {
-        title_->position = ImVec2(style_.header_size + style_.header_gap, (header_height - title_height) * 0.5f);
+        title_->position = ImVec2(text_x, (header_height - text_block) * 0.5f);
         title_->size.y = title_height;
     } else if (title_ != nullptr) {
-        title_->position = ImVec2(style_.header_size + style_.header_gap, 0.0f);
+        title_->position = ImVec2(text_x, 0.0f);
+    }
+    if (header_subtitle_ != nullptr && has_subtitle) {
+        header_subtitle_->position = ImVec2(text_x, title_->position.y + title_height + kHeaderLineGap);
+        header_subtitle_->size.y = subtitle_height;
     }
 
     const float content_height = content_host_->measured_size.y;
@@ -694,72 +772,105 @@ void Popup::Layout() {
     backdrop_->visible = style_.backdrop && modal_;
     root_->interactive = modal_;
 
-    const float width = ResolveWidth(canvas.Width());
-    width_ = width;
     const float chrome = (style_.padding + window_->border.width) * 2.0f;
-    const float inner_width = Maxf(width - chrome, 40.0f);
+    // 自适应宽度（style_.width == 0）：先按上限摆一遍，量出内容自然宽度后再收紧；显式/比例宽度不动
+    const bool auto_width = style_.width <= 0.0f;
+    float width = ResolveWidth(canvas.Width());
+    float inner_width = Maxf(width - chrome, 40.0f);
+    inner_width_ = inner_width;
+    width_ = width;
 
     // 关键：测量阶段的窗口高度先钉在「高度上限」，不要用自适应高度去测自适应内容。
     // 自适应高度本身依赖子节点测量结果，而 Image 这类控件又会按 available 反向撑满 →
     // 高度会来回震荡（表现为弹窗里的图片和底部按钮上下抖）。
     const float height_limit = ResolveHeightLimit(canvas.Height());
-    window_->size.x = width;
     window_->size.y = style_.height > 1.0f ? Minf(style_.height, height_limit) : height_limit;
 
-    if (title_ != nullptr && title_->visible) {
-        title_->size.x = Maxf(inner_width - style_.header_size - style_.header_gap, 40.0f);
-    }
-    // 图片浏览器：铺满弹窗内容区（Header / 按钮组高度用上一帧的值，稳定后逐帧一致）
-    if (image_viewer_ != nullptr) {
-        const float free_for_viewer = Maxf(height_limit - chrome - last_header_block_ - last_buttons_height_ -
-                                                (buttons_.empty() ? 0.0f : style_.gap),
-                                            160.0f);
-        image_viewer_->size = ImVec2(inner_width, free_for_viewer);
-    }
-    // Markdown 正文自带"内容高度"（上一帧排好的）；滚动容器高度 = 固定视口 或 内容高度
-    if (markdown_scroll_ != nullptr && rich_text_ != nullptr) {
-        rich_text_->size.x = inner_width;
-        const float content_height = Maxf(rich_text_->ContentHeight(), 40.0f);
-        markdown_scroll_->size.x = inner_width;
-        markdown_scroll_->size.y = style_.markdown_height > 1.0f ? style_.markdown_height : content_height;
-    }
-    content_host_->size.x = inner_width;
-    if (!scrollable_) {
-        content_host_->size.y = 0.0f;
-    }
-    content_host_->overflow = scrollable_ ? Overflow::Scroll : Overflow::Visible;
-    buttons_box_->size.x = inner_width;
-
-    // 按钮等宽：第一次布局量出各自需要的宽度，取最大值（不低于最小宽度）
-    if (!buttons_.empty()) {
+    // 按钮等宽：量出各自需要的宽度取最大值（不低于最小宽度）
+    auto layout_buttons = [&] {
+        if (buttons_.empty()) {
+            return;
+        }
         if (button_layout_ == PopupButtonLayout::Vertical) {
             for (ButtonEntry& entry : buttons_) {
                 entry.button->size = ImVec2(inner_width, style_.button_height);
             }
-        } else {
-            root_->LayoutTree(canvas.min, canvas.Size());
-            float max_width = style_.button_min_width;
-            for (ButtonEntry& entry : buttons_) {
-                max_width = Maxf(max_width, entry.button->measured_size.x);
-            }
-            const float total = static_cast<float>(buttons_.size()) * max_width +
-                                static_cast<float>(buttons_.size() - 1) * style_.button_gap;
-            const float width_use = total > inner_width ? (inner_width - static_cast<float>(buttons_.size() - 1) *
-                                                                              style_.button_gap) /
-                                                              static_cast<float>(buttons_.size())
-                                                        : max_width;
-            for (ButtonEntry& entry : buttons_) {
-                entry.button->size = ImVec2(Maxf(width_use, 60.0f), style_.button_height);
-            }
+            return;
+        }
+        root_->LayoutTree(canvas.min, canvas.Size());
+        float max_width = style_.button_min_width;
+        for (ButtonEntry& entry : buttons_) {
+            max_width = Maxf(max_width, entry.button->measured_size.x);
+        }
+        const float total = static_cast<float>(buttons_.size()) * max_width +
+                            static_cast<float>(buttons_.size() - 1) * style_.button_gap;
+        const float width_use = total > inner_width
+                                    ? (inner_width - static_cast<float>(buttons_.size() - 1) * style_.button_gap) /
+                                          static_cast<float>(buttons_.size())
+                                    : max_width;
+        for (ButtonEntry& entry : buttons_) {
+            entry.button->size = ImVec2(Maxf(width_use, 60.0f), style_.button_height);
+        }
+    };
+
+    // 换一个宽度：窗口 / 标题 / 内容 / 按钮组的宽度一起改（宽度变了要重新布局）
+    auto apply_width = [&](float next_width) {
+        width = next_width;
+        width_ = next_width;
+        inner_width = Maxf(next_width - chrome, 40.0f);
+        inner_width_ = inner_width;
+        window_->size.x = next_width;
+        const float text_width = Maxf(inner_width - style_.header_size - style_.header_gap, 40.0f);
+        if (title_ != nullptr && title_->visible) {
+            title_->size.x = text_width;
+        }
+        if (header_subtitle_ != nullptr && header_subtitle_->visible) {
+            header_subtitle_->size.x = text_width;
+        }
+        // 图片浏览器：铺满弹窗内容区（Header / 按钮组高度用上一帧的值，稳定后逐帧一致）
+        if (image_viewer_ != nullptr) {
+            const float free_for_viewer = Maxf(height_limit - chrome - last_header_block_ - last_buttons_height_ -
+                                                    (buttons_.empty() ? 0.0f : style_.gap),
+                                                160.0f);
+            image_viewer_->size = ImVec2(inner_width, free_for_viewer);
+        }
+        // Markdown 正文自带"内容高度"（上一帧排好的）；滚动容器高度 = 固定视口 或 内容高度
+        if (markdown_scroll_ != nullptr && rich_text_ != nullptr) {
+            rich_text_->size.x = inner_width;
+            const float content_height = Maxf(rich_text_->ContentHeight(), 40.0f);
+            markdown_scroll_->size.x = inner_width;
+            markdown_scroll_->size.y = style_.markdown_height > 1.0f ? style_.markdown_height : content_height;
+        }
+        content_host_->size.x = inner_width;
+        if (!scrollable_) {
+            content_host_->size.y = 0.0f;
+        }
+        content_host_->overflow = scrollable_ ? Overflow::Scroll : Overflow::Visible;
+        buttons_box_->size.x = inner_width;
+        layout_buttons();
+    };
+
+    apply_width(width);
+
+    // ---- 第一次布局（窗口固定为高度上限）：量高度，自适应宽度也在这里收紧 ----
+    root_->LayoutTree(canvas.min, canvas.Size());
+    if (auto_width) {
+        const float width_limit = Minf(canvas.Width() * style_.max_width_ratio, style_.max_width);
+        const float natural = MeasureNaturalWidth(Maxf(canvas.Width(), inner_width), height_limit);
+        const float next = Clampf(natural + chrome, style_.min_width, Maxf(width_limit, style_.min_width));
+        if (Absf(next - width) > 0.5f) {
+            apply_width(next);                      // 内容装得下就收窄，装不下就顶到上限
+            root_->LayoutTree(canvas.min, canvas.Size()); // 用最终宽度重新量（换行 / 高度都会变）
         }
     }
 
-    // ---- 第一次布局（窗口固定为高度上限）：量出 Header / 内容 / 按钮组 的高度 ----
-    root_->LayoutTree(canvas.min, canvas.Size());
+    const bool has_subtitle_now = header_subtitle_ != nullptr && header_subtitle_->visible;
     const float title_height = (title_ != nullptr && title_->visible) ? title_->measured_size.y : 0.0f;
+    const float subtitle_height = has_subtitle_now ? header_subtitle_->measured_size.y : 0.0f;
     const float content_height = content_host_->measured_size.y;
     const float buttons_height = buttons_.empty() ? 0.0f : buttons_box_->measured_size.y;
-    const float header_height = Maxf(style_.header_size, title_height);
+    const float header_height =
+        Maxf(style_.header_size, title_height + (has_subtitle_now ? subtitle_height + kHeaderLineGap : 0.0f));
     const float gaps = (buttons_.empty() ? 0.0f : style_.gap);
     const float header_block = header_height + style_.gap; // Header 行 + 它下面那一行间距
     last_header_block_ = header_block;
@@ -932,6 +1043,9 @@ void Popup::RefreshTheme() {
     buttons_box_->background_follows_theme = false;
     buttons_box_->border.width = 0.0f;
     buttons_box_->shadow.enabled = false;
+    if (header_subtitle_ != nullptr) {
+        header_subtitle_->setColor(Theme::kTextMuted); // Label 固定色，切主题时重新取一次
+    }
     ApplyKindColors();
     SyncVisualStyleFromGlobal();
 }

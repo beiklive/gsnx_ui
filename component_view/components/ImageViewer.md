@@ -8,7 +8,7 @@
 
 `Empty / Loading / Loaded / Failed` 四态；
 Fit（等比适应）、100%、25%~400% 分档缩放、Pan（带边界）、Reset；
-底部工具条（适应屏幕 / 100% / − / ＋ / 重置 / 关闭）+ 顶部信息（文件名 · 尺寸 · 缩放）；
+底部工具条（适应 / 100% / 缩小 / 放大 / 重置 / 确认 / 关闭）；
 手柄 / 触屏 / 鼠标 **同一套状态与同一组 API**；可作为 Popup 内容使用。
 
 ## 2. 支持格式
@@ -90,6 +90,9 @@ Global::image_source.release = [](Global::ImageHandle&) {};  // 缓存由宿主�
 实现上 Toolbar 按钮是一个内部 `ToolbarButton : TextButton`，它把 `Confirm` 吃掉（`OnPadAction` 返回 true 不做动作），
 所以手柄 A 永远不会触发 Toolbar；触屏 / 鼠标点击照常走 `clicked`。
 
+Toolbar 尺寸（比统一控件高度矮一档，视觉上更轻）：
+按钮高度 40（`Theme::kControlHeight` 是 56）、图标方形格 22px、**文字用 `Theme::kFontHeader`（20，与 Header 主文字同号）**。
+
 ## 10. Touch 操作
 
 单指拖动 = 平移；点工具条按钮 = 缩放 / 重置 / 适应 / 关闭；点图片 = 让工具条重新出现。
@@ -112,7 +115,10 @@ viewer->SetConfirmCallback([](const std::string& path){ /* 记录选择结果 */
 ```
 
 确认 Popup 里恢复正常的 Button + Focus + A/B（Focus Trap、默认焦点在「取消」）。
-ImageViewer 本身**不是 Popup**：它有自己的 Viewer Surface（Header / Canvas / Toolbar）；
+作为弹窗内容打开时，**弹窗 Header 的主文字 = 文件名、副文字 = 图片信息（尺寸 · 文件大小 · 缩放比例）**，
+Viewer 内部不再重复画信息行（`Popup::setImageViewer()` 里 `SetShowInfo(false)` + 订阅 `infoChanged`）。
+
+ImageViewer 本身**不是 Popup**：它有自己的 Viewer Surface（Canvas / Toolbar）；
 只有 `ConfirmCurrentImage()` 会创建 Popup。作为弹窗内容打开时用 `Popup::setFrameless(true)`，
 弹窗只提供模态与焦点容器，不画 Popup Box。
 
@@ -151,6 +157,8 @@ Failed 状态显示：错误图标 + 「图片加载失败」+ 具体原因（�
 
 `SetImagePath()` 只在路径变化时触发加载；渲染阶段只读已加载纹理；
 缩放 / 平移只改数值（不重新解码、不重建纹理）；信息行只在布局/缩放变化时重新格式化。
+文件名与文件大小来自宿主：`Global::ImageHandle{width,height,file_size}`（`file_size` 不填就不显示大小）。
+独立使用时 Viewer 内部仍画一行信息（`SetShowInfo(true)`，默认），放进弹窗时改由 Header 副文字承担。
 
 ## 18. 当前限制
 

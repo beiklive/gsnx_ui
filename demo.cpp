@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <map>
 #include <cstdlib>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <thread>
@@ -515,6 +516,14 @@ public:
                 handle.error = "不支持的图片格式：" + (extension.empty() ? std::string("(无扩展名)") : extension) +
                                "（支持 PNG / JPG / JPEG）";
                 return handle;
+            }
+            // 文件大小：给 Header 副文字显示用（按后端的 assets 解析路径读；读不到就留 0，界面自动不显示）
+            {
+                const std::string resolved = ui().GetBackend().ResolveAssetPath(full.c_str());
+                std::ifstream file(resolved, std::ios::binary | std::ios::ate);
+                if (file) {
+                    handle.file_size = static_cast<long long>(file.tellg());
+                }
             }
             auto found = image_cache_.find(full);
             if (found == image_cache_.end()) {

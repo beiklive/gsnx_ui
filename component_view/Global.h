@@ -63,7 +63,7 @@ struct ComponentStyle {
     float popup_header_size = 32.0f;    // Header 左边那个方形图标 Box 的边长
     float popup_header_gap = 12.0f;     // 方形图标 Box 与文字之间的间距
     float popup_gap = 16.0f;            // 弹窗内部各行间距
-    float popup_min_width = 380.0f;
+    float popup_min_width = 300.0f; // 弹窗最小宽度 = 自适应宽度的下限（内容决定宽度，只有很窄时才用它兜底）
     float popup_max_width_ratio = 0.74f; // 相对画布宽度
     float popup_max_height_ratio = 0.82f;
     float popup_backdrop_alpha = 0.55f;
@@ -144,7 +144,8 @@ struct ImageHandle {
     ImTextureRef texture{};
     int width = 0;
     int height = 0;
-    std::string error; // 失败原因（直接显示在 Failed 界面上）
+    long long file_size = 0; // 文件字节数（宿主填；0 = 未知，界面不显示）
+    std::string error;       // 失败原因（直接显示在 Failed 界面上）
 
     bool Valid() const { return texture.GetTexID() != ImTextureID_Invalid && width > 0 && height > 0; }
 };

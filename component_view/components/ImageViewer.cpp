@@ -18,6 +18,9 @@ namespace {
 
 constexpr float kInfoHeight = 24.0f;
 constexpr float kStateIconSize = 40.0f;
+// 底部工具条：比统一控件高度（Theme::kControlHeight）矮一截，图标收小、文字和 Header 一样大
+constexpr float kToolbarButtonHeight = 40.0f;
+constexpr float kToolbarIconCell = 22.0f;
 
 std::string LowerExtension(const std::string& path) {
     const std::size_t dot = path.find_last_of('.');
@@ -28,6 +31,25 @@ std::string LowerExtension(const std::string& path) {
     std::transform(extension.begin(), extension.end(), extension.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return extension;
+}
+
+// 文件大小：B / KB / MB（宿主没给（0）时不显示）
+std::string FormatFileSize(long long bytes) {
+    if (bytes <= 0) {
+        return {};
+    }
+    char buffer[32];
+    constexpr double kb = 1024.0;
+    constexpr double mb = kb * 1024.0;
+    const double value = static_cast<double>(bytes);
+    if (value < kb) {
+        std::snprintf(buffer, sizeof(buffer), "%lld B", bytes);
+    } else if (value < mb) {
+        std::snprintf(buffer, sizeof(buffer), "%.1f KB", value / kb);
+    } else {
+        std::snprintf(buffer, sizeof(buffer), "%.1f MB", value / mb);
+    }
+    return buffer;
 }
 
 std::string BaseName(const std::string& path) {
@@ -65,8 +87,10 @@ protected:
 ToolbarButton* MakeToolButton(Widget& parent, const char* name, const char* text, Icons::Button glyph) {
     ToolbarButton* button = parent.Emplace<ToolbarButton>(text);
     button->SetName(name);
-    button->setFontSize(Theme::kFontSmall);
-    button->setIcon(Icons::Glyph(glyph)); // 手柄按键提示
+    button->setFontSize(Theme::kFontHeader); // 文字与 Header 主文字同号
+    button->setIcon(Icons::Glyph(glyph));    // 手柄按键提示
+    button->setIconCellSize(kToolbarIconCell); // 图标收小
+    button->setContentPadding(Global::component_style.content_padding * 0.5f);
     button->focus_margin = -1.0f;
     return button;
 }
@@ -172,19 +196,28 @@ void ImageViewer::ApplyLabels() {
     if (fit_button_ == nullptr) {
         return;
     }
-    // 信息行按需求只显示：文件名 + 尺寸 + 缩放比例（不显示完整路径）
-    char info[160];
+    // 信息行只放图片信息：尺寸 · 文件大小 · 缩放比例（文件名是 Header 主文字，这里不重复）
     const int percent = static_cast<int>(scale_ * 100.0f + 0.5f);
+    const std::string size_text = FormatFileSize(image_.size_bytes);
+    char info[160];
     if (state_ == State::Loaded) {
-        std::snprintf(info, sizeof(info), "%s    %d × %d    %d%%", file_name_.c_str(), image_.width, image_.height,
-                      percent);
-    } else if (!file_name_.empty()) {
-        std::snprintf(info, sizeof(info), "%s", file_name_.c_str());
+        if (size_text.empty()) {
+            std::snprintf(info, sizeof(info), "%d × %d · %d%%", image_.width, image_.height, percent);
+        } else {
+            std::snprintf(info, sizeof(info), "%d × %d · %s · %d%%", image_.width, image_.height, size_text.c_str(),
+                          percent);
+        }
+    } else if (state_ == State::Loading) {
+        std::snprintf(info, sizeof(info), "正在加载…");
     } else {
-        std::snprintf(info, sizeof(info), "未选择图片");
+        info[0] = '\0';
     }
     info_->SetName("viewer_info");
     info_->setText(info);
+    if (info_text_ != info) {
+        info_text_ = info;
+        emit infoChanged(info_text_);
+    }
 }
 
 // ------------------------------------------------------------ 状态机 -----
@@ -277,6 +310,7 @@ void ImageViewer::LoadIfPending() {
     image_.texture = handle.texture;
     image_.width = handle.width;
     image_.height = handle.height;
+    image_.size_bytes = handle.file_size;
     loaded_once_ = true;
     fit_mode_ = true;
     pan_ = ImVec2(0.0f, 0.0f);
@@ -296,6 +330,10 @@ void ImageViewer::Unload() {
         Global::image_source.release(handle);
     }
     image_ = ImageData{};
+    if (!info_text_.empty()) {
+        info_text_.clear();
+        emit infoChanged(info_text_);
+    }
 }
 
 // ------------------------------------------------------------ 内容 / 视图 --
@@ -551,7 +589,7 @@ void ImageViewer::RevealToolbar() {
 
 void ImageViewer::LayoutChildren(const ImVec2& inner) {
     const float info_height = show_info_ ? kInfoHeight + Theme::kGapSmall : 0.0f;
-    const float toolbar_height = Theme::kControlHeight + Theme::kGapSmall;
+    const float toolbar_height = kToolbarButtonHeight + Theme::kGapSmall;
     const float status_block = 96.0f;
     const float width = Maxf(inner.x, 1.0f);
     const float height = Maxf(inner.y, 1.0f);
@@ -564,8 +602,8 @@ void ImageViewer::LayoutChildren(const ImVec2& inner) {
 
     // 工具条：一屏宽度内等分（响应式，不写死平台布局）
     if (toolbar_ != nullptr) {
-        toolbar_->position = ImVec2(0.0f, height - Theme::kControlHeight);
-        toolbar_->size = ImVec2(width, Theme::kControlHeight);
+        toolbar_->position = ImVec2(0.0f, height - kToolbarButtonHeight);
+        toolbar_->size = ImVec2(width, kToolbarButtonHeight);
         const int count = 7;
         const float gap = toolbar_->gap.x;
         const float each = Clampf((width - gap * static_cast<float>(count - 1)) / static_cast<float>(count), 52.0f,
@@ -574,7 +612,7 @@ void ImageViewer::LayoutChildren(const ImVec2& inner) {
                                   reset_button_, confirm_button_, close_button_};
         for (int i = 0; i < count; ++i) {
             if (buttons[i] != nullptr) {
-                buttons[i]->resize(each, Theme::kControlHeight);
+                buttons[i]->resize(each, kToolbarButtonHeight);
             }
         }
     }
@@ -630,7 +668,7 @@ ImVec2 ImageViewer::MeasureContent(const ImVec2& available) {
 void ImageViewer::OnDrawContent(ImDrawList* dl, const Rect& content) {
     // 画布区：图片（透明 PNG 保持 alpha，不填白底）
     const float info_height = show_info_ ? kInfoHeight + Theme::kGapSmall : 0.0f;
-    const float toolbar_height = toolbar_visible_ ? Theme::kControlHeight + Theme::kGapSmall : 0.0f;
+    const float toolbar_height = toolbar_visible_ ? kToolbarButtonHeight + Theme::kGapSmall : 0.0f;
     const Rect canvas{ImVec2(content.min.x, content.min.y + info_height),
                       ImVec2(content.max.x, Maxf(content.max.y - toolbar_height, content.min.y + info_height + 1.0f))};
     if (!canvas.Valid()) {

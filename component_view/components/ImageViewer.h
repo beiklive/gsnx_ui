@@ -54,6 +54,7 @@ public:
         ImTextureRef texture{};
         int width = 0;
         int height = 0;
+        long long size_bytes = 0; // 文件大小（宿主 ImageHandle::file_size；0 = 未知）
     };
 
     ImageViewer();
@@ -69,6 +70,8 @@ public:
     int imageWidth() const { return image_.width; }
     int imageHeight() const { return image_.height; }
     const std::string& fileName() const { return file_name_; }
+    // 副标题文字：尺寸 · 文件大小 · 缩放比例（Header 副文字 / 独立使用时自己的信息行都用它）
+    const std::string& InfoText() const { return info_text_; }
 
     // ---- 视图（Gamepad / Touch / Mouse 统一入口）--------------------------
     ImageViewer& SetZoom(float scale);           // 绝对缩放，1.0 = 100%
@@ -107,6 +110,7 @@ signals:
     Signal<State> stateChanged; // 状态变化
     Signal<float> zoomChanged;  // 缩放变化
     Signal<std::string> confirmRequested; // 确认了当前图片（带路径）
+    Signal<std::string> infoChanged;      // 信息行文字变化（文件名 / 尺寸 / 文件大小 / 缩放）
 
 protected:
     ImVec2 MeasureContent(const ImVec2& available) override;
@@ -133,6 +137,7 @@ private:
     std::string path_;
     std::string file_name_;
     std::string error_text_;
+    std::string info_text_; // ApplyLabels 生成的「尺寸 · 文件大小 · 缩放」
     State state_ = State::Empty;
     bool load_pending_ = false;
     bool loaded_once_ = false;

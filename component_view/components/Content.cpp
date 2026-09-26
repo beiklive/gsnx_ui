@@ -162,7 +162,10 @@ ImVec2 Label::TextSize(float wrap_width) const {
     }
     float width = 0.0f;
     for (const auto& line : lines) {
-        width = Maxf(width, Draw::MeasureText(font, size, line.first, (line.second - line.first)).x);
+        // 只量这一行的子串：Draw::MeasureText 第 4 个参数是 wrap_width（不是长度），
+        // 传字节长度会变成"按字节数换行"，量出来的宽度会明显偏小。
+        const std::string line_text(line.first, line.second);
+        width = Maxf(width, Draw::MeasureText(font, size, line_text.c_str(), 0.0f).x);
     }
     const float height = static_cast<float>(lines.size()) * LineHeight() +
                          static_cast<float>(lines.size() - 1) * line_gap;
