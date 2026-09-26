@@ -83,11 +83,11 @@ namespace Theme = gui_dev::cv::Theme;
 namespace Global = gui_dev::cv::Global;
 namespace Anim = gui_dev::cv::Anim;
 
-// 启动缩放：1.2 = 整套 UI（含字体与控件几何）放大 1.2 倍。
-// 后端把 drawable 除以 (auto_scale * zoom) 得到逻辑画布，所以放大后逻辑画布变成 1067x600，
-// 布局全部按画布尺寸自适应（面板/内容区尺寸都从 Global::canvas_size 推）。
-// 想回到 1:1 用 GUI_DEV_ZOOM=1，或直接改这里。
-constexpr float kDefaultZoom = 1.2f;
+// 启动缩放：1.0 = 与 1280x720 设计基准 1:1（窗口开 720p，逻辑画布就是 1280x720，
+// 界面里写的尺寸与设计稿完全一致）。后端把 drawable 除以 (auto_scale * zoom) 得到逻辑画布，
+// 所以这里 >1 就是「整体放大」（画布变小、内容按比例放大，适合小屏/远距离观看）。
+// 想放大用 GUI_DEV_ZOOM=1.2，或直接改这里。
+constexpr float kDefaultZoom = 1.0f;
 
 // 验收用开关：GUI_DEV_TRACE_SIGNAL=1 时把按钮状态变化打到终端，方便脚本化测试
 bool TraceSignal() {
@@ -1694,7 +1694,7 @@ public:
     }
 
     void OnStart(gui_dev::UiContext& ui) override {
-        // 720p 手持基准下整体放大 1.25 倍（右侧控制列的放大/缩小还能再调）
+        // 720p 设计基准 1:1（GUI_DEV_ZOOM=1.2 之类的可整体放大）
         ui.SetUiZoom(kDefaultZoom);
         // 默认浅色主题（桌面端白底看着舒服），右侧控制列的按钮还能一键切成深色
         // 初始主题：GUI_DEV_THEME=dark 可以深色启动（截图核对两套主题用）

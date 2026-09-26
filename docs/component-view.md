@@ -640,6 +640,10 @@ if (p != nullptr) {
 | `Image` | 图片，等比缩放 / 居中 / 限高，缺资源画占位 | `setTexture(tex.ImGuiRef(), w, h)` `setFit(Image::Fit::Contain)` |
 | `RichText`（`components/RichText.h`，**单文件零依赖**） | 富文本：标题 / 粗体 / 斜体 / 删除线 / 行内代码 / 无序·有序列表 / 引用 / 分隔线 / 链接 / 行内图片 / `[color=#RRGGBB]` 染色（代码块已移除）。详见 [RichText.md](component_view/components/RichText.md) 与本节 14.5 | `SetMarkdown(md)` + `SetImageResolver()` + `SetLinkCallback()` |
 
+**设计基准**：组件与页面的一切尺寸都按 **1280×720** 设计空间写；后端用
+`min(drawable/1280, drawable/720) × UI 缩放` 映射到实际输出，桌面窗口默认 1280×720、UI 缩放默认 1.0（1:1）。
+各平台实际输出见 README「720p 设计基准」表；核对看启动日志那行 `设计基准 1280x720 | 窗口 … | 逻辑画布 …`。
+
 **通用文本格式化**：`component_view/Format.h` 的 `FormatFileSize(bytes)`（1024 进制、B 不带小数、KB 以上 2 位）
 是文件大小显示的唯一来源，`FileButton` 与 `ImageViewer` 的信息行都用它（`bytes < 0` = 未知 → 空串）。
 

@@ -53,6 +53,9 @@ private:
     void UpdateFaceButtonSwap();
     // with_zoom=false 时只按分辨率算（字体密度用这个，不含用户缩放）
     float ComputeUiScale(bool with_zoom = true) const;
+    // 启动与分辨率变化时打一行：设计基准 1280x720 ↔ 窗口/drawable/渲染缩放/逻辑画布，
+    // 各平台「打开时是不是 720p」看这一行即可（Switch 手持/底座切换也会重打）。
+    void LogDisplayBasis() const;
     // 当前逻辑画布尺寸 = drawable / 渲染缩放。用当前值算，不依赖上一帧的 io.DisplaySize
     // （窗口尺寸/缩放刚变的那一帧，io.DisplaySize 还是旧值，触摸就会偏）。
     ImVec2 LogicalSizeNow() const;

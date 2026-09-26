@@ -170,6 +170,7 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
     auto_scale_ = ComputeUiScale(false); // 只按分辨率算；用户缩放另外乘
     ui_scale_ = auto_scale_ * ui_zoom_;
     perf_counter_ = SDL_GetPerformanceCounter();
+    LogDisplayBasis(); // 打开时把「是不是 720p」打出来，各平台可核对
 
     // 驱动描述：只在这里拼一次（每帧读的是 c_str()，不产生分配）
     {
@@ -221,6 +222,28 @@ float Sdl2Backend::ComputeUiScale(bool with_zoom) const {
         scale = 6.0f;
     }
     return scale;
+}
+
+// 设计基准与实际输出的对照：设计基准 1280x720 固定不变，缩放由 min(drawable/设计) 推出，
+// 所以 720p 窗口 = 1:1、1080p = 1.5x；非 16:9 表面会把多出来的空间给布局（逻辑画布变大）。
+void Sdl2Backend::LogDisplayBasis() const {
+    int window_w = 0;
+    int window_h = 0;
+    int drawable_w = 0;
+    int drawable_h = 0;
+    if (window_ != nullptr) {
+        SDL_GetWindowSize(window_, &window_w, &window_h);
+    }
+    GetDrawableSize(drawable_w, drawable_h);
+    const float scale = ui_scale_ > 0.0f ? ui_scale_ : 1.0f;
+    std::fprintf(stderr,
+                 "[gui_dev] 设计基准 %.0fx%.0f | 窗口 %dx%d | drawable %dx%d | 渲染缩放 %.3f | "
+                 "逻辑画布 %.0fx%.0f | UI 缩放 %.2fx\n",
+                 static_cast<double>(kDesignWidth), static_cast<double>(kDesignHeight), window_w, window_h,
+                 drawable_w, drawable_h, static_cast<double>(scale),
+                 static_cast<double>(drawable_w) / scale, static_cast<double>(drawable_h) / scale,
+                 static_cast<double>(ui_zoom_));
+    std::fflush(stderr);
 }
 
 ImVec2 Sdl2Backend::LogicalSizeNow() const {
@@ -293,6 +316,7 @@ void Sdl2Backend::SetUiZoom(float zoom) {
     // —— Switch 上点放大/缩小崩溃就是死在那条重建路径上。
     std::fprintf(stderr, "[gui_dev] UI 缩放 %.2fx（渲染缩放 %.3f）\n", static_cast<double>(ui_zoom_),
                  static_cast<double>(ui_scale_));
+    LogDisplayBasis(); // 用户缩放生效后重新对照一次（逻辑画布 = 设计基准 / zoom）
 }
 
 void Sdl2Backend::Shutdown() {
@@ -525,6 +549,7 @@ void Sdl2Backend::PollEvents(InputFrame& in) {
         auto_scale_ = ComputeUiScale(false);
         ui_scale_ = auto_scale_ * ui_zoom_;
         ++display_generation_;
+        LogDisplayBasis(); // 手持<->底座 / 窗口缩放 / 换屏：重新对照一次
         // 分辨率切换后上一帧的计时无意义，避免 dt 尖峰。
         perf_counter_ = SDL_GetPerformanceCounter();
     }
