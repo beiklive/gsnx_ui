@@ -216,6 +216,12 @@ float Sdl2Backend::ComputeUiScale(bool with_zoom) const {
         const float by_x = static_cast<float>(drawable_w) / static_cast<float>(window_w);
         const float by_y = static_cast<float>(drawable_h) / static_cast<float>(window_h);
         scale = (by_x + by_y) * 0.5f; // 两轴一般相等；取平均更稳
+        // 物理像素不可能比逻辑点还少：出现 <1 说明这个平台的 SDL_GetWindowSize 报的不是
+        // 「点尺寸」（例如全屏平台上返回的是创建窗口时请求的尺寸）——此时按 1.0 处理，
+        // 否则画布会被误放大（表现为控件突然变得很小）。
+        if (scale < 0.999f) {
+            scale = 1.0f;
+        }
     }
     // 用户缩放（GUI_DEV_ZOOM / SetUiZoom）乘在这里：画布 = window / zoom，zoom 变大 = 界面变大。
     if (with_zoom) {

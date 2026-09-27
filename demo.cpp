@@ -85,10 +85,18 @@ namespace Global = gui_dev::cv::Global;
 namespace Anim = gui_dev::cv::Anim;
 
 // 启动缩放：1.0 = 与 1280x720 设计基准 1:1（窗口开 720p，逻辑画布就是 1280x720，
-// 界面里写的尺寸与设计稿完全一致）。后端把 drawable 除以 (auto_scale * zoom) 得到逻辑画布，
-// 所以这里 >1 就是「整体放大」（画布变小、内容按比例放大，适合小屏/远距离观看）。
-// 想放大用 GUI_DEV_ZOOM=1.2，或直接改这里。
+// 界面里写的尺寸与设计稿完全一致）。后端把 drawable 除以 (像素密度 * zoom) 得到逻辑画布，
+// 所以这里 >1 就是「整体放大」（画布变小、内容按比例放大）。
+//
+// 平台差异：桌面（鼠标近距离）默认 1.0 = 严格按设计稿；**Switch 默认 1.25** —— 掌机 720p 屏幕小、
+// 观看距离远，1:1 时正文 16px 会明显偏小（这也是之前用 1.2 时的手感），放大一档后正文 = 20px，
+// 和 GBAStation 在 720p 上的字号对齐。
+// 覆盖方式：桌面用 GUI_DEV_ZOOM=1.25；Switch 没有环境变量，直接改这里的常量。
+#if defined(GUI_DEV_PLATFORM_switch)
+constexpr float kDefaultZoom = 1.25f;
+#else
 constexpr float kDefaultZoom = 1.0f;
+#endif
 
 // 验收用开关：GUI_DEV_TRACE_SIGNAL=1 时把按钮状态变化打到终端，方便脚本化测试
 bool TraceSignal() {
