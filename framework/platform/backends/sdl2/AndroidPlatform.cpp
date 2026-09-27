@@ -63,6 +63,14 @@ void AddAssetFont(std::vector<FontSource>& out, const char* relative_path, FontR
 
 } // namespace
 
+void PlatformLogLine(const char* line) {
+    (void)line; // 桌面看 stderr；Android 的 stderr 进 logcat
+}
+
+const char* PlatformLogPath() {
+    return ""; // 没有独立的日志文件
+}
+
 bool PlatformServicesInit() { return true; }
 
 void PlatformServicesShutdown() {

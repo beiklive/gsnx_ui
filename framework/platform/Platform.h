@@ -11,4 +11,12 @@ namespace gui_dev {
 bool PlatformServicesInit();
 void PlatformServicesShutdown();
 
+// 平台日志落地：把一行诊断同时写到「平台自己的日志位置」。
+//   Switch      : 追加到 sdmc:/switch/GUI_DEV/gui_dev.log（掌机没有控制台，这个文件就是唯一的日志）
+//   桌面 / Android: 空实现（桌面看 stderr；Android 的 stderr 会进 logcat）
+// 宿主自己的日志也可以直接调它，不必各写一套。
+void PlatformLogLine(const char* line);
+// 平台日志文件路径（桌面/Android 返回空串）。启动时打印一次，方便知道去哪找日志。
+const char* PlatformLogPath();
+
 } // namespace gui_dev

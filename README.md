@@ -129,6 +129,16 @@ cmake --preset switch && cmake --build --preset switch
 `assets/icon.png` 存在时自动作为图标。部署：把 `.nro` 拷到 `sdmc:/switch/`；
 要换图不用重编，直接覆盖 `sdmc:/switch/GUI_DEV/assets/`。
 
+**日志（Switch 没有控制台）**：
+
+| 方式 | 位置 / 命令 | 说明 |
+|---|---|---|
+| 文件日志 | **`sdmc:/switch/GUI_DEV/gui_dev.log`** | 追加写；启动 banner、渲染驱动、显示基准（窗口/drawable/像素密度/画布/UI 缩放）、手持↔底座分辨率变化各一行。用 FTP / 读卡器 / hbmenu 的 `nxlink` 取回 |
+| 实时 stderr | `nxlink -s build/switch/dist/gui_dev_demo.nro` | SDL / libnx / 框架的全部 `fprintf(stderr, ...)` 都走这里（含字体自检、找不到资源等） |
+| 屏幕内 | demo 启动时弹一次 Toast | 内容 = 显示基准一行（`Backend::DisplayInfo()`），不用任何工具就能核对缩放 |
+
+宿主自己的日志也可以直接调 `gui_dev::PlatformLogLine("...")`（Switch 写上面那个文件，桌面/Android 空实现）。
+
 ### Windows x64
 
 ```powershell

@@ -185,6 +185,19 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
         std::snprintf(buffer, sizeof(buffer), "SDL %d.%d.%d + %s", version.major, version.minor,
                       version.patch, renderer_name);
         driver_name_ = buffer;
+        std::fprintf(stderr, "[gui_dev] 渲染驱动：%s\n", driver_name_.c_str());
+        {
+            char line[192];
+            std::snprintf(line, sizeof(line), "渲染驱动：%s", driver_name_.c_str());
+            PlatformLogLine(line);
+        }
+        // 日志文件路径（Switch 上是唯一能离线查看的位置）——启动时打一次，方便排查
+        if (const char* log_path = PlatformLogPath(); log_path != nullptr && log_path[0] != '\0') {
+            std::fprintf(stderr, "[gui_dev] 日志文件：%s（追加写）\n", log_path);
+            char line[192];
+            std::snprintf(line, sizeof(line), "=== 启动：日志文件 %s ===", log_path);
+            PlatformLogLine(line);
+        }
     }
 
     // 平台服务：Switch 上是 pl:u（共享字体）与 romfs（打包资源）。
@@ -259,10 +272,12 @@ std::string Sdl2Backend::DisplayInfo() const {
 }
 
 void Sdl2Backend::LogDisplayBasis() const {
-    const std::string info = DisplayInfo();
-    std::fprintf(stderr, "[gui_dev] 设计基准 %.0fx%.0f | %s\n", static_cast<double>(kDesignWidth),
-                 static_cast<double>(kDesignHeight), info.c_str());
+    char buffer[320];
+    std::snprintf(buffer, sizeof(buffer), "设计基准 %.0fx%.0f | %s", static_cast<double>(kDesignWidth),
+                  static_cast<double>(kDesignHeight), DisplayInfo().c_str());
+    std::fprintf(stderr, "[gui_dev] %s\n", buffer);
     std::fflush(stderr);
+    PlatformLogLine(buffer); // Switch：同时写 sdmc:/switch/GUI_DEV/gui_dev.log
 }
 
 ImVec2 Sdl2Backend::LogicalSizeNow() const {

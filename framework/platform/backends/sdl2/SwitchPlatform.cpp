@@ -9,7 +9,9 @@
 #include <switch.h>
 
 #include <cstdio>
+#include <filesystem>
 #include <string>
+#include <system_error>
 #include <utility>
 
 #include "platform/AssetPaths.h"
@@ -21,6 +23,12 @@ namespace {
 
 bool g_pl_initialized = false;
 bool g_romfs_initialized = false;
+
+// 日志文件：和资源目录同一处（见 AssetPaths.cpp 的 sdmc:/switch/GUI_DEV/assets/）。
+// 目录只尝试创建一次；SD 没插/没权限时静默降级（不写文件，控制台/ nxlink 仍可用）。
+constexpr const char* kLogDir = "sdmc:/switch/GUI_DEV";
+constexpr const char* kLogPath = "sdmc:/switch/GUI_DEV/gui_dev.log";
+bool g_log_dir_ready = false;
 
 void AddSharedFont(std::vector<FontSource>& out, PlSharedFontType type, FontRole role,
                    FontContent content, const char* what) {
@@ -45,6 +53,32 @@ void AddSharedFont(std::vector<FontSource>& out, PlSharedFontType type, FontRole
 }
 
 } // namespace
+
+void PlatformLogLine(const char* line) {
+    if (line == nullptr || line[0] == '\0') {
+        return;
+    }
+    if (!g_log_dir_ready) {
+        g_log_dir_ready = true;
+        std::error_code ec;
+        std::filesystem::create_directories(kLogDir, ec);
+        if (ec) {
+            // 一般 libnx 启动时已经挂好 sdmc:；没挂上就补挂一次再试
+            fsdevMountSdmc();
+            ec.clear();
+            std::filesystem::create_directories(kLogDir, ec);
+        }
+    }
+    if (std::FILE* file = std::fopen(kLogPath, "ab")) {
+        std::fputs(line, file);
+        std::fputc('\n', file);
+        std::fclose(file);
+    }
+}
+
+const char* PlatformLogPath() {
+    return kLogPath;
+}
 
 bool PlatformServicesInit() {
     g_romfs_initialized = R_SUCCEEDED(romfsInit());
