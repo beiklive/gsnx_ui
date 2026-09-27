@@ -140,6 +140,11 @@ cmake --preset switch && cmake --build --preset switch
 
 宿主自己的日志也可以直接调 `gui_dev::PlatformLogLine("...")`（Switch 写上面那个文件，桌面/Android 空实现）。
 
+**左下角三个开关（焦点框 / 主题 / 比例）**：装在 `tab_panel` 底部的一个透明 Box（`tab_controls`）里，
+与 tab 列一起排版；容器保持默认焦点分区，并在**焦点位于子页面（内容区）时 `focus_inert`** ——
+否则内容区靠下的控件按 ← 会就近跳到这三个按钮上，而不是回到左列 tab。
+（实测：`R,D×7,L` 焦点回到 `tab_item`；关掉保护后同一脚本落到 `btn_zoom`。）
+
 **掌机 / 底座自动切比例**：demo 按当前模式自动换 UI 缩放 —— 掌机/底座两档现在都是 **1.25**
 （固定设计空间下画布同为 1024×576；要电视上再放大一档就改 `kZoomDocked`，例如 1.5 → 画布 853×480）。
 判定来自 `Backend::IsLargeScreenMode()`（Switch 上 = drawable 高度 ≥ 1080p），模式变化时每帧自动生效；
@@ -233,7 +238,7 @@ macOS runner 上跑同一条脚本，手动 *Run workflow*、推 iOS 相关文�
 | `GUI_DEV_MAX_FPS=60` | 帧率上限（0 = 不限；Switch 默认 60） |
 | `GUI_DEV_NO_VSYNC=1` | 关垂直同步（测帧率用） |
 | `GUI_DEV_EXIT_AFTER=60` | 跑满 N 帧正常退出（冒烟测试，退出码应为 0） |
-| `GUI_DEV_TRACE_SIGNAL=1` | 打印按钮信号变化（脚本化验收） |
+| `GUI_DEV_TRACE_SIGNAL=1` | 打印按钮信号 / 页面切换 / 焦点落点（脚本化验收） |
 
 ### 720p 设计基准 + 定标策略（各平台输出）
 

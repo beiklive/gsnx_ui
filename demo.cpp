@@ -169,8 +169,9 @@ public:
         BuildNavPage();    // tab 4 导航
         BuildHomePage();   // tab 6 主页布局（游戏卡牌行 + 功能按钮行，对齐 GBAStation 的 Switch 主界面）
 
-        // 主题开关是「应用级」的：钉在内容面板右下角，任何 tab 下都能切，不放进 tab 页面
-        theme_button_ = tab_panel_->Emplace<IconButton>(Icons::Glyph(ThemeIcon()));
+        // 三个「应用级」开关（主题 / 焦点框 / 比例）：装在 tab 面板底部的容器 controls_box_ 里，
+        // 任何 tab 下都能用；不属于任何子页面，所以子页面操作时会被摘出方向键导航（见 OnUpdate）
+        theme_button_ = controls_box_->Emplace<IconButton>(Icons::Glyph(ThemeIcon()));
         theme_button_->SetName("btn_theme");
         theme_button_->setSide(kControlSize);
         theme_button_->setShape(IconButtonShape::RoundedSquare);
@@ -179,7 +180,7 @@ public:
         buttons_.push_back(theme_button_);
 
         // 主题旁边的焦点框样式开关：流光框 / pause_menu 角标框。
-        focus_style_button_ = tab_panel_->Emplace<IconButton>(Icons::Glyph(FocusStyleIcon()));
+        focus_style_button_ = controls_box_->Emplace<IconButton>(Icons::Glyph(FocusStyleIcon()));
         focus_style_button_->SetName("btn_focus_style");
         focus_style_button_->setSide(kControlSize);
         focus_style_button_->setShape(IconButtonShape::RoundedSquare);
@@ -189,7 +190,7 @@ public:
 
         // 比例切换（测试用）：循环 自动 / 1.00x / 1.25x / 1.50x，
         // 「自动」在固定设计空间平台（Switch）按掌机/底座自动取档，桌面上没有模式概念。
-        zoom_button_ = tab_panel_->Emplace<IconButton>(Icons::Glyph(Icons::Material::ZoomIn));
+        zoom_button_ = controls_box_->Emplace<IconButton>(Icons::Glyph(Icons::Material::ZoomIn));
         zoom_button_->SetName("btn_zoom");
         zoom_button_->setSide(kControlSize);
         zoom_button_->setShape(IconButtonShape::RoundedSquare);
@@ -197,11 +198,33 @@ public:
         connect(zoom_button_, &IconButton::clicked, this, [this] { CycleZoom(); });
         buttons_.push_back(zoom_button_);
 
+        // 注意：容器保持默认分区（0），**不要**设成 tab 列的分区（1）——
+        // 那样从 tab 项按 → 会先命中同分区里「右下方的开关」而不是进内容页。
+        // 子页面（内容区）里操作时它们会被 focus_inert 摘出导航，见 OnUpdate。
+
         ShowTab(0);
     }
 
     void OnUpdate(float dt) override {
         UpdatePageAnim(dt);
+        // 焦点在子页面（内容区）里时，这排开关不参与方向键导航：
+        // 否则内容区靠下的控件按 ← 会就近跳到它们身上，而不是回到左列 tab。
+        // 焦点回到左列/别处时恢复（鼠标悬停、点击、触摸始终可用）。
+        if (controls_box_ != nullptr) {
+            Widget* focused = Global::focused;
+            controls_box_->focus_inert = focused != nullptr && content_panel_->ContainsDescendant(focused);
+        }
+        // GUI_DEV_TRACE_SIGNAL=1：打印焦点落点（脚本化验收方向键导航用，
+        // 例如「子页面里按 ← 应回到 tab 列，而不是跳到左下角三个开关」）
+        if (TraceSignal()) {
+            static const Widget* last_focused = nullptr;
+            if (Global::focused != last_focused) {
+                last_focused = Global::focused;
+                std::printf("[signal] focus = %s\n",
+                            last_focused != nullptr ? last_focused->name.c_str() : "(none)");
+                std::fflush(stdout);
+            }
+        }
         LayoutPanels();  // 两个面板的位置/尺寸（画布尺寸可变）
         LayoutContent(); // 面板内的控件重排
 
@@ -271,6 +294,20 @@ public:
             page_anim_[index].enter_time = 0.0f;
             Toasts().ShowInfo("已在 " + tab_column_->items()[static_cast<std::size_t>(index)].text + " 页");
         });
+
+        // 左下角三个应用级开关（焦点框 / 主题 / 比例）的容器：跟在 tab 列下面，一起排版、一起管焦点。
+        // 容器本身不画底/边框/阴影（ClearControlBarDecor），视觉与原来只有这三个按钮时一致。
+        controls_box_ = tab_panel_->Emplace<Box>("tab_controls");
+        ClearControlBarDecor();
+    }
+
+    // 开关容器只负责分组：清掉 Box 默认的底色/边框/阴影。
+    // 切主题时 RefreshThemeTree() 会把 Box 的约定样式重新打开，所以 ToggleTheme 里要再清一次。
+    void ClearControlBarDecor() {
+        controls_box_->background = 0;
+        controls_box_->background_follows_theme = false;
+        controls_box_->border.width = 0.0f;
+        controls_box_->shadow.enabled = false;
     }
 
     // ------------------------------------------------- 子页面切换动画 ----
@@ -1255,9 +1292,12 @@ public:
         tab_column_->position = ImVec2(0.0f, 0.0f);
         tab_column_->size = ImVec2(Theme::kTabColumnWidth, TabInnerHeight() - kControlSize - kRowGap);
         const float controls_y = TabInnerHeight() - kControlSize;
-        focus_style_button_->moveTo(0.0f, controls_y);
-        theme_button_->moveTo(kControlSize + kRowGap, controls_y);
-        zoom_button_->moveTo((kControlSize + kRowGap) * 2.0f, controls_y);
+        // 底部一排应用级开关：装在容器里，坐标相对容器内容区（容器无内边距）
+        controls_box_->position = ImVec2(0.0f, controls_y);
+        controls_box_->size = ImVec2(Theme::kTabColumnWidth, kControlSize);
+        focus_style_button_->moveTo(0.0f, 0.0f);
+        theme_button_->moveTo(kControlSize + kRowGap, 0.0f);
+        zoom_button_->moveTo((kControlSize + kRowGap) * 2.0f, 0.0f);
     }
 
     // 7 个 tab 固定 56px 高时，画布矮了（Switch 底座 1.5x → 853x480）会超出左列盒子：
@@ -1587,6 +1627,7 @@ public:
         Theme::ApplyToImGui();
         RefreshTheme(); // 内部：Global::ApplyTheme() + 根节点装饰复位 + 整棵树重新取色
         ApplyPanelColors(); // 面板底色是显式设的，不跟主题，这里补一次
+        ClearControlBarDecor(); // 同上：Box 的约定边框/阴影会在 RefreshThemeTree 里被打开，再清一次
         theme_button_->setIcon(Icons::Glyph(ThemeIcon()));
         theme_button_->setSubtitle(ThemeName());
     }
@@ -1826,6 +1867,7 @@ private:
     std::vector<Badge*> badges_;
     Box* tab_panel_ = nullptr;
     Box* content_panel_ = nullptr;
+    Box* controls_box_ = nullptr; // 左下角三个应用级开关的容器（tab_panel 底部）
     TabColumn* tab_column_ = nullptr;
     Header* header_buttons_ = nullptr;
     Header* header_api_ = nullptr;
