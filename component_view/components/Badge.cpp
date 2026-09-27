@@ -48,7 +48,7 @@ BadgeStyleParams BadgeStyleOf(BadgeStyle style) {
     BadgeStyleParams p;
     switch (style) {
     case BadgeStyle::GridListDetail:
-        p = BadgeStyleParams{}; // 默认就是这一档：12 / 20 / 36 / pad 8 / 圆角 4 / 主题文字色
+        p = BadgeStyleParams{}; // 默认就是这一档：14 / 26 / 36 / pad 8 / 圆角 4 / 主题文字色
         break;
     case BadgeStyle::IisuCover:
         p.font_size = 12.0f;

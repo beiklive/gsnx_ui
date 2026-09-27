@@ -49,7 +49,8 @@ PlatformBadgeInfo PlatformBadgeInfoOf(EmuPlatform platform);
 
 // 变体：几何与文字色不同，底色都来自平台色（GameDataView 例外，是固定蓝）
 enum class BadgeStyle {
-    GridListDetail, // 网格 / 列表 / 右侧详情面板：12 / 20 / minW 36 / pad 8 / 圆角 4 / 主题文字色
+    GridListDetail, // 网格 / 列表 / 右侧详情面板：用统一尺寸 14 / 26（GBAStation 原为 12 / 20）
+                    //   / minW 36 / pad 8 / 圆角 4 / 主题文字色
     IisuCover,      // iisu 封面卡：12 / 17 / minW 30 / pad 14 / 胶囊 / 白字（alpha 乘动画进度）
     GameDataView,   // 游戏详情侧栏：14 / 26 / 宽固定 62 / 圆角 5 / 固定蓝 + 白字 α245
     GridItem,       // borealis GridItem：12 / 20 / minW 36（文本 > 3 字符时 58）/ pad 8 / 圆角 4 / 白字

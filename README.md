@@ -305,7 +305,9 @@ macOS runner 上跑同一条脚本，手动 *Run workflow*、推 iOS 相关文�
 `Header`（竖条 + 标题 + 分隔线）、`TabColumn`（左侧纵向 Tab 列）、`CapsuleTabs`（横向胶囊标签条）、
 `Toast`（通知）、`FocusRing`（焦点框图层）；基础件是 `Widget / Page / Global / Theme / Anim / Draw / Object`。
 
-**API、主题与尺寸规范、动画时长、输入与焦点约定、调试开关、以及接入别的项目的清单，
+**每个控件一页的 API 参考在 [docs/controls/](docs/controls/README.md)**（公开字段 / 链式方法 / 信号 /
+尺寸与主题约定，索引见该目录 README）。
+**框架总览、主题与尺寸规范、动画时长、输入与焦点约定、调试开关、以及接入别的项目的清单，
 都在 [docs/component-view.md](docs/component-view.md)**（本 README 下面只留框架层与历史记录笔记）。
 
 加一个组件：
@@ -786,6 +788,7 @@ ImGui::TextUnformatted(Icons::Glyph(Icons::Material::Settings));
 ```bash
 git submodule update --init --recursive   # 拉取 imgui
 git -C third_party/imgui fetch --tags     # 升级 imgui 用
+python3 scripts/verify_control_docs.py    # 核对 docs/controls/*.md 里的 API 名是否真实存在（无依赖）
 ```
 
 ## 状态

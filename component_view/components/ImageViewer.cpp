@@ -18,7 +18,6 @@ namespace gui_dev::cv {
 namespace {
 
 constexpr float kInfoHeight = 24.0f;
-constexpr float kStateIconSize = 40.0f;
 // 底部工具条：比统一控件高度（Theme::kControlHeight）矮一截，图标收小、文字和 Header 一样大
 constexpr float kToolbarButtonHeight = 40.0f;
 constexpr float kToolbarIconCell = 22.0f;

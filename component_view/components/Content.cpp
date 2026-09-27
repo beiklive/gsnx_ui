@@ -21,24 +21,6 @@ float ContentWidthFor(const Widget& widget, const ImVec2& available) {
     return Maxf(available.x, 1.0f);
 }
 
-// UTF-8：返回 [index, next) 这个字符的字节长度（>=1）
-std::size_t Utf8CharLength(const std::string& text, std::size_t index) {
-    std::size_t next = index + 1;
-    while (next < text.size() && (static_cast<unsigned char>(text[next]) & 0xC0) == 0x80) {
-        ++next;
-    }
-    return next - index;
-}
-
-bool Utf8IsSpace(const std::string& text, std::size_t index) {
-    return text[index] == ' ' || text[index] == '\t';
-}
-
-// 中日韩字符可以逐字换行；拉丁字母/数字要连着当词
-bool Utf8IsWide(const std::string& text, std::size_t index) {
-    return static_cast<unsigned char>(text[index]) >= 0xE0;
-}
-
 // 用 imgui 自己的断行算法把一段文本拆成行（CJK / 拉丁都正确，含显式 '\n'）。
 // 返回的每行是 [begin,end) 指针，直接喂给 Draw::Text 的 text_end 用。
 std::vector<std::pair<const char*, const char*>> WrapLines(ImFont* font, float font_size, const char* begin,
@@ -77,20 +59,6 @@ std::vector<std::pair<const char*, const char*>> WrapLines(ImFont* font, float f
         paragraph = newline + 1;
     }
     return lines;
-}
-
-void DrawGlyphText(ImDrawList* dl, ImFont* font, float font_size, const ImVec2& pos, ImU32 color, const char* text,
-                   const char* text_end, bool bold) {
-    
-    dl->AddText(font, font_size, pos, color, text, text_end, 0.0f);
-    if (bold) {
-        // 只有一套字重：半像素偏移再画一遍模拟粗体
-        dl->AddText(font, font_size, ImVec2(pos.x + 0.6f, pos.y), color, text, text_end, 0.0f);
-    }
-}
-
-std::size_t HashCombine(std::size_t seed, std::size_t value) {
-    return seed ^ (value + 0x9E3779B97F4A7C15ULL + (seed << 6) + (seed >> 2));
 }
 
 } // namespace

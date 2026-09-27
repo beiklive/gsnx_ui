@@ -14,7 +14,7 @@
 //   7 ValueButton       左：图标 + 文字；右：[L] 数值 [R]，固定间隔、超长滚动，L/R 调值，
 //                       长按加速（有上限），valueChanged 在短按或长按松开后触发
 //   8 FileButton        文件列表行：左：图标（按文件类型）+ 文件名；右：文件夹显示「文件夹」、
-//                       文件显示大小（单位自动换算）；行高参考 GBAStation FileListPage（70）
+//                       文件显示大小（单位自动换算）；行高 kRowHeight = 50（GBAStation FileListPage 是 70）
 //
 // 说明行：除 TextButton 外都支持 showSubtitle(true)：主文字下加一行小号浅色文字。
 // 有主文字时图标在左侧方形格里居中、文字紧跟其右；没有主文字（纯图标）时说明行落到图标下方居中。
@@ -268,8 +268,8 @@ protected:
 //   * 图标按类型取 Material 字形：文件夹 / 文件 / 图片 / 压缩包 / 文本；
 //   * 右侧：文件夹 → 「文件夹」；其它 → 文件大小（1024 进制、单位自动换算）；
 //   * 大小未知（-1）时不画右侧信息。
-// 行高取 GBAStation FileListPage 的 FileListView::m_itemHeight = 70（Switch 1280x720 量出来的），
-// 宿主可以直接用 FileButton::kRowHeight，保证文件列表的节奏一致。
+// 行高见 FileButton::kRowHeight = 50（GBAStation FileListPage 的 FileListView::m_itemHeight = 70 是
+// Switch 1280x720 量出来的，这里压紧一档更平衡）；宿主直接用 kRowHeight 就能对齐列表节奏。
 class FileButton : public Button {
 public:
     enum class FileKind {

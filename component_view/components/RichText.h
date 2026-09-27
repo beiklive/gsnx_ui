@@ -226,7 +226,6 @@ private:
     bool document_dirty_ = true;
     Layout layout_;
     bool layout_dirty_ = true;
-    float layout_width_ = -1.0f;
     float layout_scale_ = -1.0f;
     float rendered_height_ = 0.0f;
 

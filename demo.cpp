@@ -876,7 +876,7 @@ public:
         desc_tabs_ = AddDescription(kTabBasics, "L / R 切换标签，选中项停在中间（胶囊高亮）。");
         tabs_demo_ = AddTo(kTabBasics, content_panel_->Emplace<CapsuleTabs>());
         tabs_demo_->setLabels({"所有", "GBA", "GBC", "FC", "NDS", "3DS"}, 0);
-        connect(tabs_demo_, &CapsuleTabs::selectionChanged, this, [this](int index) {
+        connect(tabs_demo_, &CapsuleTabs::selectionChanged, this, [](int index) {
             (void)index;
             if (TraceSignal()) {
                 std::printf("[signal] basics_tab = %d\n", index);
@@ -1819,7 +1819,6 @@ private:
     Label* image_cap_limit_ = nullptr;
     Label* image_cap_viewer_ = nullptr;
     TextButton* viewer_png_button_ = nullptr;
-    TextButton* viewer_big_button_ = nullptr;
     TextButton* viewer_transparent_button_ = nullptr;
     TextButton* viewer_jpg_button_ = nullptr;
     TextButton* viewer_jpeg_button_ = nullptr;
@@ -1833,7 +1832,6 @@ private:
     Image* image_native_ = nullptr;
     Image* image_limited_ = nullptr;
     gui_dev::TextureRef test_tex_;              // assets/img/test.png
-    gui_dev::TextureRef gradient_tex_;          // assets/img/border_gradient.png
     ToggleButton* switch_ = nullptr;
     OptionButton* selector_ = nullptr;
     ValueButton* slider_ = nullptr;
