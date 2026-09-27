@@ -1859,17 +1859,24 @@ public:
     const char* Title() const override { return mode_ == Mode::PickFile ? "选择文件" : "选择目录"; }
 
     void OnBuild() override {
-        title_ = Root().Emplace<Label>(Title());
-        title_->setFontSize(Theme::kFontTitle + 4.0f);
+        // 页头就是路径：Header 的标题 = 当前路径，右侧 info = 项目数
+        header_ = Root().Emplace<Header>(Title());
+        header_->setTitle(CurrentPath());
 
-        path_label_ = Root().Emplace<Label>();
-        path_label_->setFontSize(Theme::kFontSmall);
-        path_label_->setColor(Theme::kTextMuted);
+        // 「使用当前路径」：选目录模式下才显示（选文件模式没有这个动作）
+        use_button_ = MakeAction("使用当前路径", Icons::Glyph(Icons::Material::Check));
+        connect(use_button_, &Widget::clicked, this, [this] { Finish(CurrentPath()); });
 
-        // 分割线：路径行与文件列表之间
+        // 分割线：把「路径 + 使用当前路径」与下面的「返回上级 + 列表」分开
         divider_ = Root().Emplace<Separator>();
         divider_->setThickness(1.0f);
 
+        // 「返回上级」：只有不在根目录时显示（放在分割线下面，紧贴列表，像「..」这一项）
+        back_button_ = MakeAction("返回上层", Icons::Glyph(Icons::Material::ArrowBack));
+        connect(back_button_, &Widget::clicked, this, [this] { pending_up_ = true; });
+
+        // 列表容器：**四周留内边距**，给行内的流光焦点框（外扩 ~5px）留出空间，
+        // 否则焦点框会被容器的裁剪矩形切掉。
         list_ = Root().Emplace<Box>("browser_list");
         list_->overflow = Overflow::Scroll;
         list_->scroll_bar_auto_hide = true;
@@ -1878,12 +1885,7 @@ public:
         list_->background_follows_theme = false;
         list_->border.width = 0.0f;
         list_->shadow.enabled = false;
-        list_->padding = EdgeInsets{};
-
-        back_button_ = MakeAction("返回上层", Icons::Glyph(Icons::Material::ArrowBack));
-        use_button_ = MakeAction("使用当前路径", Icons::Glyph(Icons::Material::Check));
-        connect(back_button_, &Widget::clicked, this, [this] { pending_up_ = true; });
-        connect(use_button_, &Widget::clicked, this, [this] { Finish(CurrentPath()); });
+        list_->padding = EdgeInsets::All(kListPadding);
 
         hint_ = Root().Emplace<Label>();
         hint_->setFontSize(Theme::kFontSmall);
@@ -1915,6 +1917,11 @@ public:
     }
 
     void OnInput() override {
+        // START：切换文件列表项的边框 / 阴影显隐（核对留白与焦点框用）
+        if (Global::pad.Pressed(InputAction::Menu) && Global::Available(InputAction::Menu)) {
+            ToggleBorders();
+            Global::MarkConsumed(InputAction::Menu);
+        }
         if (!Global::pad.Pressed(InputAction::Cancel) || !Global::Available(InputAction::Cancel)) {
             return;
         }
@@ -1962,6 +1969,26 @@ private:
         return path;
     }
 
+    // 列表行样式：默认无边框、无阴影；START 键可切换（用于核对边框与留白）
+    void ApplyRowStyle(FileButton* row) const {
+        row->setBorderVisible(show_borders_);
+        row->setShadowVisible(show_borders_);
+    }
+
+    void ToggleBorders() {
+        show_borders_ = !show_borders_;
+        for (FileButton* row : rows_) {
+            ApplyRowStyle(row);
+        }
+        if (back_button_ != nullptr) {
+            ApplyRowStyle(back_button_);
+        }
+        if (use_button_ != nullptr) {
+            ApplyRowStyle(use_button_);
+        }
+        Toasts().ShowInfo(show_borders_ ? "文件列表：显示边框 / 阴影" : "文件列表：隐藏边框 / 阴影");
+    }
+
     void RebuildRows() {
         // 行要被销毁：先把焦点移开，避免 Global::focused 指向已释放的控件
         if (Global::focused != nullptr && list_->ContainsDescendant(Global::focused)) {
@@ -1977,8 +2004,7 @@ private:
             const FakeEntry& entry = node.children[i];
             FileButton* row = list_->Emplace<FileButton>(KindOfEntry(entry), entry.name,
                                                          entry.folder ? -1 : entry.size);
-            row->setBorderVisible(false); // 列表行：不要边框
-            row->setShadowVisible(false); // 也不要阴影（靠行距分隔）
+            ApplyRowStyle(row); // 默认无边框无阴影；START 可切换
             const int index = static_cast<int>(i);
             connect(row, &Widget::clicked, this, [this, index] { ActivateRow(index); });
             rows_.push_back(row);
@@ -1988,12 +2014,16 @@ private:
     }
 
     void UpdatePathLabel() {
-        path_label_->setText("当前路径：" + CurrentPath() + "    （" +
-                             std::to_string(Node().children.size()) + " 项）");
-        hint_->setText(mode_ == Mode::PickFile ? "A 选择文件   ·   B 返回上层 / 取消"
-                                               : "A 进入目录   ·   B 返回上层 / 取消");
+        header_->setTitle(CurrentPath());
+        header_->setInfo(std::to_string(Node().children.size()) + " 项");
+        hint_->setText(mode_ == Mode::PickFile
+                           ? "A 选择文件   ·   B 返回上层 / 取消   ·   START 切换边框"
+                           : "A 进入目录   ·   B 返回上层 / 取消   ·   START 切换边框");
     }
 
+    // 页面结构（自上而下）：
+    //   Header（当前路径 + 项数） → 使用当前路径（仅选目录） → 分割线 →
+    //   返回上级（仅非根目录） → 文件列表（容器四周留 kListPadding，行与行留 kRowGap）
     void Layout() {
         const ImVec2 canvas = Global::canvas_size;
         const float margin = 24.0f;
@@ -2001,46 +2031,43 @@ private:
         const float row_height = FileButton::kRowHeight;
         float y = margin;
 
-        title_->position = ImVec2(margin, y);
-        title_->size = ImVec2(width, 40.0f);
-        y += 40.0f + 6.0f;
+        header_->position = ImVec2(margin, y);
+        header_->size = ImVec2(width, header_->style.height);
+        y += header_->style.height + 10.0f;
 
-        path_label_->position = ImVec2(margin, y);
-        path_label_->size = ImVec2(width, 24.0f);
-        y += 24.0f + 8.0f;
+        use_button_->visible = mode_ == Mode::PickFolder;
+        if (use_button_->visible) {
+            use_button_->resize(width, row_height);
+            use_button_->moveTo(margin, y);
+            y += row_height + 12.0f;
+        }
 
         divider_->position = ImVec2(margin, y);
         divider_->size = ImVec2(width, 1.0f);
         divider_->setLength(width);
         y += 1.0f + 12.0f;
 
+        back_button_->visible = !path_.empty();
+        if (back_button_->visible) {
+            back_button_->resize(width, row_height);
+            back_button_->moveTo(margin, y);
+            y += row_height + kRowGap;
+        }
+
+        // 底部提示
         float bottom = canvas.y - margin;
         hint_->position = ImVec2(margin, bottom - 24.0f);
         hint_->size = ImVec2(width, 24.0f);
         bottom -= 24.0f + 8.0f;
 
-        // 底部动作行：使用当前路径（仅选目录）→ 返回上层（仅非根目录）
-        const bool show_use = mode_ == Mode::PickFolder;
-        const bool show_back = !path_.empty();
-        use_button_->visible = show_use;
-        if (show_use) {
-            use_button_->resize(width, row_height);
-            use_button_->moveTo(margin, bottom - row_height);
-            bottom -= row_height + 8.0f;
-        }
-        back_button_->visible = show_back;
-        if (show_back) {
-            back_button_->resize(width, row_height);
-            back_button_->moveTo(margin, bottom - row_height);
-            bottom -= row_height + 8.0f;
-        }
-
+        // 列表容器：内边距给焦点框留空间；行高固定，行与行之间留 kRowGap
         const float list_height = cv::Maxf(bottom - y, 80.0f);
         list_->position = ImVec2(margin, y);
         list_->size = ImVec2(width, list_height);
+        const float row_width = cv::Maxf(width - kListPadding * 2.0f, 80.0f);
         for (std::size_t i = 0; i < rows_.size(); ++i) {
-            rows_[i]->resize(width, row_height);
-            rows_[i]->moveTo(0.0f, static_cast<float>(i) * row_height);
+            rows_[i]->resize(row_width, row_height);
+            rows_[i]->moveTo(kListPadding, kListPadding + static_cast<float>(i) * (row_height + kRowGap));
         }
     }
 
@@ -2106,6 +2133,10 @@ private:
         callback(std::move(path));
     }
 
+    // 列表留白：容器四周 + 行间距（焦点流光框外扩约 5px，留 8/6 就不会被裁）
+    static constexpr float kListPadding = 8.0f;
+    static constexpr float kRowGap = 6.0f;
+
     Mode mode_;
     Done done_;
     FakeEntry tree_;
@@ -2113,14 +2144,14 @@ private:
     int pending_activate_ = -1;  // 延迟动作：要点开的行
     bool pending_up_ = false;    // 延迟动作：返回上层
     bool pending_cancel_ = false; // 延迟动作：取消
-    Label* title_ = nullptr;
-    Label* path_label_ = nullptr;
+    Header* header_ = nullptr;
     Separator* divider_ = nullptr;
     Box* list_ = nullptr;
     std::vector<FileButton*> rows_;
     FileButton* back_button_ = nullptr;
     FileButton* use_button_ = nullptr;
     Label* hint_ = nullptr;
+    bool show_borders_ = false; // START 键切换：默认无边框，便于核对留白
 };
 
 // ------------------------------------------------------------------ App ----
