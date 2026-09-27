@@ -13,7 +13,7 @@
 ```text
 framework/               引擎层（不含业务 UI）
 ├── core/App.{h,cpp}     App 基类 + AppRunner 主循环（帧率上限在这里）
-├── ui/UiContext.*       宿主桥接：BeginFrame/EndFrame、Pad()、DeltaTime、SetUiZoom
+├── ui/UiContext.*       宿主桥接：BeginFrame/EndFrame、Pad()、DeltaTime、SetUiZoom / ApplyModeZoom
 ├── ui/Icons.*           图标表：按键图标 16 个 + Material 图标 42 个（字形来自字体资源）
 ├── platform/Backend.h   后端接口 + BackendConfig（title/size/vsync/max_fps）
 └── platform/Input.h     InputAction / PadState / InputFrame（头文件，无实现）
@@ -68,6 +68,15 @@ void OnStart(UiContext& ui) override {
     Scenes().Reset(std::make_unique<MyScene>());
     page_ = std::make_unique<MyPage>();
     page_->Bind(ui);
+}
+
+void OnFrame(UiContext& ui, float dt) override {
+    // 掌机/底座两套比例（Switch 底座 = 大屏）：每帧调用，内部只在模式或取值变化时才改缩放。
+    // 桌面 IsLargeScreenMode() 恒 false，只会用到 handheld 那一档，可以只在固定平台调用。
+    if (zoom_auto) {
+        ui.ApplyModeZoom(1.25f /*掌机*/, 1.5f /*底座/大屏*/);
+    }
+    ...
 }
 ```
 

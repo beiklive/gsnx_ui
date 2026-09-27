@@ -92,11 +92,17 @@ namespace Anim = gui_dev::cv::Anim;
 // 观看距离远，1:1 时正文 16px 会明显偏小（这也是之前用 1.2 时的手感），放大一档后正文 = 20px，
 // 和 GBAStation 在 720p 上的字号对齐。
 // 覆盖方式：桌面用 GUI_DEV_ZOOM=1.25；Switch 没有环境变量，直接改这里的常量。
+//
+// 模式自动切换：固定设计空间平台（Switch）按当前模式取缩放 —— 掌机 720p 用 kZoomHandheld，
+// 底座 1080p 用 kZoomDocked（电视观看距离更远，所以放大一档）。判定见 Backend::IsLargeScreenMode()。
 #if defined(GUI_DEV_PLATFORM_switch)
 constexpr float kDefaultZoom = 1.25f;
 #else
 constexpr float kDefaultZoom = 1.0f;
 #endif
+// 模式自动切换用的两档缩放（见上面说明）：掌机 / 底座。
+constexpr float kZoomHandheld = 1.25f; // 掌机：720p 屏幕、近距离
+constexpr float kZoomDocked = 1.5f;    // 底座：1080p 电视、远距离（画布 853x480）
 
 // 验收用开关：GUI_DEV_TRACE_SIGNAL=1 时把按钮状态变化打到终端，方便脚本化测试
 bool TraceSignal() {
@@ -126,6 +132,20 @@ public:
 
     // 文件浏览器：由 DemoApp 注入（打开 / 关闭浏览页），结果回填到本页的说明行
     std::function<void(bool pick_folder)> on_open_browser;
+
+    // 「比例」按钮：由 DemoApp 注入，真正应用缩放（auto_mode = 按掌机/底座自动切）
+    std::function<void(bool auto_mode, float zoom)> on_zoom_request;
+    // 比例档位：0 = 自动（固定设计空间平台按当前模式切），其余 = 固定 zoom 值。
+    // 只留布局撑得住的几档：1.0（与设计 1:1）/ 1.25（掌机）/ 1.5（底座）。
+    static constexpr int kZoomOptionCount = 4;
+    static constexpr float kZoomOptions[kZoomOptionCount] = {0.0f, 1.0f, 1.25f, 1.5f};
+    bool ZoomAuto() const { return kZoomOptions[zoom_option_] <= 0.0f; }
+    float ZoomValue() const { return kZoomOptions[zoom_option_]; }
+    // 自动模式下实际生效的档位由 DemoApp 回填（含模式切换），显示在按钮副标题上
+    void SetZoomLabel(bool large_screen) {
+        zoom_large_shown_ = large_screen;
+        UpdateZoomSubtitle();
+    }
     void ShowBrowserResult(const std::string& path, bool pick_folder) {
         const std::string text = path.empty() ? std::string("结果：已取消")
                                               : std::string(pick_folder ? "结果：已选择目录 " : "结果：已选择文件 ") + path;
@@ -166,6 +186,16 @@ public:
         focus_style_button_->setSubtitle(FocusStyleName());
         connect(focus_style_button_, &IconButton::clicked, this, [this] { ToggleFocusStyle(); });
         buttons_.push_back(focus_style_button_);
+
+        // 比例切换（测试用）：循环 自动 / 1.00x / 1.25x / 1.50x，
+        // 「自动」在固定设计空间平台（Switch）按掌机/底座自动取档，桌面上没有模式概念。
+        zoom_button_ = tab_panel_->Emplace<IconButton>(Icons::Glyph(Icons::Material::ZoomIn));
+        zoom_button_->SetName("btn_zoom");
+        zoom_button_->setSide(kControlSize);
+        zoom_button_->setShape(IconButtonShape::RoundedSquare);
+        zoom_button_->setSubtitle(ZoomSubtitle());
+        connect(zoom_button_, &IconButton::clicked, this, [this] { CycleZoom(); });
+        buttons_.push_back(zoom_button_);
 
         ShowTab(0);
     }
@@ -1220,12 +1250,29 @@ public:
         content_panel_->moveTo(kMargin + tab_w + kPanelGap, kMargin);
         content_panel_->resize(page_w, content_h);
 
-        // TabColumn 撑满面板内容区，底部留一行给主题/焦点框开关
+        // TabColumn 撑满面板内容区，底部留一行给主题/焦点框/比例开关
+        FitTabColumnHeight();
         tab_column_->position = ImVec2(0.0f, 0.0f);
         tab_column_->size = ImVec2(Theme::kTabColumnWidth, TabInnerHeight() - kControlSize - kRowGap);
         const float controls_y = TabInnerHeight() - kControlSize;
         focus_style_button_->moveTo(0.0f, controls_y);
         theme_button_->moveTo(kControlSize + kRowGap, controls_y);
+        zoom_button_->moveTo((kControlSize + kRowGap) * 2.0f, controls_y);
+    }
+
+    // 7 个 tab 固定 56px 高时，画布矮了（Switch 底座 1.5x → 853x480）会超出左列盒子：
+    // 溢出部分被 TabColumn 裁掉，但**命中测试不裁**，最后一个 tab 会盖在底部按钮行上抢点击
+    // （点「比例」变成切 tab）。这里按可用高度压缩行高（≥40），保证两者不重叠。
+    void FitTabColumnHeight() {
+        const int count = tab_column_->count();
+        if (count <= 0) {
+            return;
+        }
+        const float gap = tab_column_->style.item_gap;
+        const float box_h = TabInnerHeight() - kControlSize - kRowGap - tab_column_->padding.top -
+                            tab_column_->padding.bottom;
+        const float fit = (box_h - gap * static_cast<float>(count - 1)) / static_cast<float>(count);
+        tab_column_->style.item_height = gui_dev::cv::Clampf(fit, kMinTabItemHeight, Theme::kControlHeight);
     }
 
     void LayoutContent() {
@@ -1550,6 +1597,35 @@ public:
         focus_style_button_->setSubtitle(FocusStyleName());
     }
 
+    // 「比例」按钮：切到下一档，并把「自动 / 固定值」交给 DemoApp 去应用（真正调 SetUiZoom）
+    void CycleZoom() {
+        zoom_option_ = (zoom_option_ + 1) % kZoomOptionCount;
+        if (on_zoom_request) {
+            on_zoom_request(ZoomAuto(), ZoomValue());
+        }
+        UpdateZoomSubtitle();
+    }
+
+    void UpdateZoomSubtitle() {
+        if (zoom_button_ == nullptr) {
+            return;
+        }
+        zoom_button_->setSubtitle(ZoomSubtitle());
+    }
+
+    // 副标题：自动时显示实际模式（掌机/底座），固定档位显示倍率
+    std::string ZoomSubtitle() const {
+        if (!ZoomAuto()) {
+            char buffer[16];
+            std::snprintf(buffer, sizeof(buffer), "%.2fx", static_cast<double>(ZoomValue()));
+            return buffer;
+        }
+        if (!ui().GetBackend().UsesFixedDesignSpace()) {
+            return "自动";
+        }
+        return zoom_large_shown_ ? "自动·底座" : "自动·掌机";
+    }
+
     // 子页面里按 B：焦点回到左边的 tab 列（A 进内容、B 回列，形成来回）
     void OnInput() override {
         // 弹窗打开时页面级快捷键全部让位：B 已经由弹窗处理，这里不能再把焦点挪回 tab 列
@@ -1603,6 +1679,7 @@ private:
     static constexpr float kStackWidth = 396.0f;
     static constexpr float kToggleWidth = 340.0f;
     static constexpr float kControlSize = Theme::kControlHeight; // 统一控件尺寸（56）
+    static constexpr float kMinTabItemHeight = 40.0f; // 左列 tab 的最小行高（画布矮时压缩，见 FitTabColumnHeight）
     static constexpr float kCapsuleWidth = 440.0f;
     static constexpr float kCardRowHeight = 172.0f;   // 卡牌行高（封面 106 + 标题 22 + 副行 20 + 余量）
     static constexpr float kFunctionBarHeight = 88.0f; // 功能按钮行高（胶囊 64 + 名称行 24）
@@ -1786,6 +1863,9 @@ private:
     CapsuleTabs* capsule_ = nullptr;
     IconButton* theme_button_ = nullptr;
     IconButton* focus_style_button_ = nullptr;
+    IconButton* zoom_button_ = nullptr;
+    int zoom_option_ = 0;              // kZoomOptions 下标，0 = 自动
+    bool zoom_large_shown_ = false;    // 自动模式下当前是不是底座/大屏（副标题用）
     bool subtitle_on_ = true;
 };
 
@@ -2230,6 +2310,7 @@ public:
         page_ = std::make_unique<DemoPage>();
         page_->Bind(ui);
         page_->on_open_browser = [this](bool pick_folder) { OpenBrowser(pick_folder); };
+        page_->on_zoom_request = [this](bool auto_mode, float zoom) { ApplyZoomOption(auto_mode, zoom); };
 
         if (const char* value = std::getenv("GUI_DEV_PERF")) {
             perf_ = value != nullptr && value[0] != '0';
@@ -2244,6 +2325,7 @@ public:
                 ui.SetUiZoom(value);
             }
         }
+        base_zoom_ = ui.UiZoom(); // 「比例」按钮的「自动」档在桌面上回到这个值
     }
 
     // 打开文件浏览页（选文件 / 选目录）：回调里不直接析构，避免在页面自己的 Update 里自杀
@@ -2292,7 +2374,78 @@ public:
         }
     }
 
+    // ---- 比例（UI 缩放）---------------------------------------------------
+    // 「自动」档：固定设计空间平台（Switch）按当前模式取缩放 —— 掌机 kZoomHandheld / 底座 kZoomDocked；
+    // 桌面没有掌机/底座概念（IsLargeScreenMode() 恒 false），自动档就等于 handheld 那一档，
+    // 但 demo 在桌面上不接管缩放（保持 kDefaultZoom / GUI_DEV_ZOOM），只有按按钮才改。
+    void ApplyZoomOption(bool auto_mode, float zoom) {
+        if (ui_ == nullptr || page_ == nullptr) {
+            return;
+        }
+        zoom_auto_ = auto_mode;
+        if (auto_mode) {
+            // 桌面没有模式可切，「自动」= 回到启动缩放（kDefaultZoom / GUI_DEV_ZOOM）
+            if (!ui_->GetBackend().UsesFixedDesignSpace()) {
+                ui_->SetUiZoom(base_zoom_);
+                page_->SetZoomLabel(false);
+                ShowZoomToast(ui_->UiZoom());
+            } else {
+                SyncModeZoom(true);
+            }
+        } else {
+            ui_->SetUiZoom(zoom);
+            page_->SetZoomLabel(ui_->GetBackend().IsLargeScreenMode());
+            ShowZoomToast(ui_->UiZoom());
+        }
+        if (TraceSignal()) {
+            std::printf("[signal] zoom = %.2fx auto = %s\n", static_cast<double>(ui_->UiZoom()),
+                        auto_mode ? "on" : "off");
+            std::fflush(stdout);
+        }
+    }
+
+    // 每帧调用：掌机 <-> 底座（模式）变化时自动换档；force = 刚切回「自动」档时立刻生效一次
+    void SyncModeZoom(bool force) {
+        if (ui_ == nullptr || page_ == nullptr) {
+            return;
+        }
+        if (ui_->GetBackend().UsesFixedDesignSpace() && ui_->ApplyModeZoom(kZoomHandheld, kZoomDocked)) {
+            page_->SetZoomLabel(ui_->GetBackend().IsLargeScreenMode());
+            ShowZoomToast(ui_->UiZoom());
+            if (TraceSignal()) {
+                std::printf("[signal] zoom mode -> %.2fx (%s)\n", static_cast<double>(ui_->UiZoom()),
+                            ui_->GetBackend().IsLargeScreenMode() ? "docked" : "handheld");
+                std::fflush(stdout);
+            }
+        } else if (force) {
+            page_->SetZoomLabel(false); // 桌面：没有模式可切，只把副标题刷成当前状态
+        }
+    }
+
+    // 切换后弹一条：倍率 + 实际逻辑画布（截图/日志都靠它核对缩放是否真的生效）
+    void ShowZoomToast(float zoom) {
+        if (page_ == nullptr) {
+            return;
+        }
+        int drawable_w = 0;
+        int drawable_h = 0;
+        ui_->GetBackend().GetDrawableSize(drawable_w, drawable_h);
+        const float scale = ui_->GetBackend().UiScale() > 0.0f ? ui_->GetBackend().UiScale() : 1.0f;
+        char buffer[96];
+        const char* mode = "";
+        if (ui_->GetBackend().UsesFixedDesignSpace()) {
+            mode = ui_->GetBackend().IsLargeScreenMode() ? " 底座" : " 掌机";
+        }
+        std::snprintf(buffer, sizeof(buffer), "缩放 %.2fx%s · 画布 %.0fx%.0f", static_cast<double>(zoom), mode,
+                      static_cast<double>(drawable_w) / scale, static_cast<double>(drawable_h) / scale);
+        page_->Toasts().ShowInfo(buffer);
+    }
+
     void OnFrame(gui_dev::UiContext& ui, float dt) override {
+        // 模式（掌机<->底座）自动换档：只在固定设计空间平台生效，且手动档位时不接管
+        if (zoom_auto_) {
+            SyncModeZoom(false);
+        }
         gui_dev::cv::Global::BeginFrame(ui);
         ShowDisplayInfoOnce(); // 第一帧：显示基准 Toast（只弹一次）
         if (browser_ != nullptr) {
@@ -2342,6 +2495,8 @@ private:
     bool pending_pick_folder_ = false;
     bool has_pending_result_ = false;
     bool display_info_shown_ = false;
+    bool zoom_auto_ = true;        // 「比例」是否处于自动档（按掌机/底座模式切）
+    float base_zoom_ = 1.0f;       // 启动缩放（桌面「自动」档回到它）
     int frame_ = 0;
     int exit_after_ = 0;
     bool perf_ = false;

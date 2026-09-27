@@ -158,6 +158,15 @@ public:
     virtual void SetUiZoom(float zoom) { (void)zoom; }
     virtual float UiZoom() const { return 1.0f; }
 
+    // 定标策略：固定设计空间平台（Switch / Android / iOS）= true —— 画布恒为 720p 设计基准/zoom，
+    // 掌机 720p 与底座 1080p 拿到同一个画布（整幅放大呈现）；可缩放窗口的桌面 = false，
+    // 画布跟着窗口尺寸变、布局重排（只按像素密度缩放）。
+    virtual bool UsesFixedDesignSpace() const { return false; }
+
+    // 是否处于「大屏模式」：Switch 底座（1080p 输出）等。宿主据此在「掌机 / 电视」两套缩放之间
+    // 自动切换（见 UiContext::ApplyModeZoom）。非固定设计空间平台恒为 false。
+    virtual bool IsLargeScreenMode() const { return false; }
+
     // 驱动/后端描述，例如 "SDL 2.32.72 + metal"。用于诊断与课程展示。
     // 返回的是后端内部持有的字符串（Init 时构建一次），调用方不需要释放、也不产生分配。
     virtual const char* DriverName() const = 0;

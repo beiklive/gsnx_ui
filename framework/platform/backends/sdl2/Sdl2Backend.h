@@ -39,6 +39,13 @@ public:
     float UiScale() const override { return ui_scale_; }
     void SetUiZoom(float zoom) override;
     float UiZoom() const override { return ui_zoom_; }
+    // 定标策略：固定分辨率平台（Switch / Android / iOS）按 720p 设计空间 fit（画布恒定，
+    // 掌机与底座 UI 一样大）；可缩放窗口的桌面按窗口尺寸定标（窗口变 = 画布变、布局重排）。
+    // 桌面可用 GUI_DEV_DESIGN_FIT=1 强制走 fit 策略（没有掌机时验证用）。
+    bool UsesFixedDesignSpace() const override;
+    // 大屏模式：固定设计空间平台上按 drawable 高度判定（Switch 掌机 1280x720 / 底座 1920x1080），
+    // 底座（电视）观看距离更远 -> 宿主可以调大 UI 缩放。桌面恒 false。
+    bool IsLargeScreenMode() const override;
     const char* DriverName() const override { return driver_name_.c_str(); }
     std::string DisplayInfo() const override;
 
@@ -54,10 +61,6 @@ private:
     void UpdateFaceButtonSwap();
     // with_zoom=false 时只按分辨率算（字体密度用这个，不含用户缩放）
     float ComputeUiScale(bool with_zoom = true) const;
-    // 定标策略：固定分辨率平台（Switch / Android / iOS）按 720p 设计空间 fit（画布恒定，
-    // 掌机与底座 UI 一样大）；可缩放窗口的桌面按窗口尺寸定标（窗口变 = 画布变、布局重排）。
-    // 桌面可用 GUI_DEV_DESIGN_FIT=1 强制走 fit 策略（没有掌机时验证用）。
-    bool UsesFixedDesignSpace() const;
     // 启动与分辨率变化时打一行：设计基准 1280x720 ↔ 窗口/drawable/渲染缩放/逻辑画布，
     // 各平台「打开时是不是 720p」看这一行即可（Switch 手持/底座切换也会重打）。
     void LogDisplayBasis() const;

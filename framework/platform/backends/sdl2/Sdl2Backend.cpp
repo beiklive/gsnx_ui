@@ -275,6 +275,20 @@ bool Sdl2Backend::UsesFixedDesignSpace() const {
 #endif
 }
 
+// 大屏模式（Switch 底座 1080p / 电视）：按 drawable 高度判定 —— 掌机 1280x720、底座 1920x1080，
+// 分辨率变化时 PollEvents 会重算 auto_scale_ 并递增 display_generation_，这里读的是当前值。
+// 桌面恒 false（除非 GUI_DEV_DESIGN_FIT=1 强开 fit，那时也能在 mac 上用 1080p 窗口验证切换）。
+bool Sdl2Backend::IsLargeScreenMode() const {
+    if (!UsesFixedDesignSpace()) {
+        return false;
+    }
+    int drawable_w = 0;
+    int drawable_h = 0;
+    GetDrawableSize(drawable_w, drawable_h);
+    // ≥1080p（= 720 * 1.5）算大屏：Switch 底座输出 1920x1080。
+    return static_cast<float>(drawable_h) >= kDesignHeight * 1.5f;
+}
+
 // 「显示基准」摘要（日志与宿主显示共用一份拼装，避免两处数字不一致）
 std::string Sdl2Backend::DisplayInfo() const {
     int window_w = 0;
@@ -286,18 +300,22 @@ std::string Sdl2Backend::DisplayInfo() const {
     }
     GetDrawableSize(drawable_w, drawable_h);
     const float scale = ui_scale_ > 0.0f ? ui_scale_ : 1.0f;
-    char buffer[256];
+    char buffer[320];
+    const char* mode = "";
+    if (UsesFixedDesignSpace()) {
+        mode = IsLargeScreenMode() ? "（底座/大屏）" : "（掌机）";
+    }
     std::snprintf(buffer, sizeof(buffer),
-                  "窗口 %dx%d | drawable %dx%d | 渲染缩放 %.3f%s | 逻辑画布(设计空间) %.0fx%.0f | UI 缩放 %.2fx",
+                  "窗口 %dx%d | drawable %dx%d | 渲染缩放 %.3f%s | 逻辑画布(设计空间) %.0fx%.0f | UI 缩放 %.2fx%s",
                   window_w, window_h, drawable_w, drawable_h, static_cast<double>(scale),
                   UsesFixedDesignSpace() ? "（按720p设计空间fit）" : "（按窗口尺寸）",
                   static_cast<double>(drawable_w) / scale, static_cast<double>(drawable_h) / scale,
-                  static_cast<double>(ui_zoom_));
+                  static_cast<double>(ui_zoom_), mode);
     return buffer;
 }
 
 void Sdl2Backend::LogDisplayBasis() const {
-    char buffer[320];
+    char buffer[384];
     std::snprintf(buffer, sizeof(buffer), "设计基准 %.0fx%.0f | %s", static_cast<double>(kDesignWidth),
                   static_cast<double>(kDesignHeight), DisplayInfo().c_str());
     std::fprintf(stderr, "[gui_dev] %s\n", buffer);
@@ -359,9 +377,9 @@ ImVec2 Sdl2Backend::WindowToLogical(const ImVec2& window_point) const {
                   clamp(window_point.y * logical.y / static_cast<float>(window_h), 0.0f, logical.y));
 }
 
-// 注意：运行期改渲染缩放会让 SDL 的几何/视口状态错乱（mac 的 sdl2-compat + Metal 实测
-// 20 帧内必崩：AGX "Region width OOB"），所以它只用于启动前（或分辨率变化时）设定。
-// demo 里由 kDefaultZoom / GUI_DEV_ZOOM 在 OnStart 里设定，界面上不再提供运行期缩放按钮。
+// 运行期改缩放：改的是「逻辑画布 + 光栅化密度」，下一帧的 DisplayFramebufferScale 就是新密度，
+// imgui 1.92 的字形是按需烘焙的，密度变了它会自己重烘一份，不需要（也不应该在运行期）
+// ClearFonts() 重建设备图集。demo 里由 kDefaultZoom / GUI_DEV_ZOOM / 「比例」按钮设置。
 void Sdl2Backend::SetUiZoom(float zoom) {
     const float next = zoom < 0.5f ? 0.5f : (zoom > 3.0f ? 3.0f : zoom);
     if (next == ui_zoom_) {
@@ -369,10 +387,7 @@ void Sdl2Backend::SetUiZoom(float zoom) {
     }
     ui_zoom_ = next;
     ui_scale_ = auto_scale_ * ui_zoom_;
-    // 注意：这里**不**递增 display_generation_。
-    // 缩放只改「逻辑画布 + 光栅化密度」，imgui 1.92 的字形是按需烘焙的，
-    // 密度变了它会自己烘一份新的，不需要（也不应该在运行期）ClearFonts() 重建设备图集
-    // —— Switch 上点放大/缩小崩溃就是死在那条重建路径上。
+    // 不递增 display_generation_：那不是「分辨率变了」，上层不用重建布局，字体也不重建。
     std::fprintf(stderr, "[gui_dev] UI 缩放 %.2fx（渲染缩放 %.3f）\n", static_cast<double>(ui_zoom_),
                  static_cast<double>(ui_scale_));
     LogDisplayBasis(); // 用户缩放生效后重新对照一次（逻辑画布 = 设计基准 / zoom）

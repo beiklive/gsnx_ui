@@ -167,6 +167,20 @@ bool UiContext::RefreshIfDisplayChanged() {
     return false;
 }
 
+// 固定设计空间平台（Switch）的掌机/底座两套缩放：底座输出 1080p、观看距离更远，
+// 所以「大屏」这一档通常给更大的 zoom（画布变小 = 控件变大）。
+// 非固定设计空间平台（桌面）IsLargeScreenMode() 恒 false，只会用 handheld_zoom。
+bool UiContext::ApplyModeZoom(float handheld_zoom, float large_zoom) {
+    const float want = backend_.IsLargeScreenMode() ? large_zoom : handheld_zoom;
+    if (mode_zoom_applied_ && want == mode_zoom_last_) {
+        return false;
+    }
+    mode_zoom_applied_ = true;
+    mode_zoom_last_ = want;
+    backend_.SetUiZoom(want);
+    return true;
+}
+
 void UiContext::RebuildFonts() {
     ImGuiIO& io = ImGui::GetIO();
 
