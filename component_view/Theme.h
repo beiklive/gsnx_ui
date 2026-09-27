@@ -177,9 +177,13 @@ inline constexpr ImVec4 kPopupNeutral = rgb(133, 133, 133); // #858585（自定�
 // 组件（Box / Button / Badge / Toast）只允许引用这里的常量，不要再各写一套字面量。
 inline constexpr float kFontTitle  = 22.0f; // 大标题 / 卡片标题
 inline constexpr float kFontHeader = 20.0f; // 区块标题（SettingPage 的 section header = 20）
-inline constexpr float kFontBody   = 16.0f; // 正文：按钮主文字、Toast 正文
+inline constexpr float kFontBody   = 16.0f; // 正文：Label / RichText / Toast 正文
 inline constexpr float kFontSmall  = 14.0f; // 说明行 / 提示 / 徽标文字
 inline constexpr float kFontTiny   = 12.0f; // 极小号
+// 按钮（含 Tab 项）单独一档：720p 实机上按钮主文字/右侧文字偏小，所以不跟着正文走，
+// 主文字比正文大一档、说明行/右侧信息比说明行大一档。
+inline constexpr float kFontButton    = 18.0f; // 按钮主文字（8 种形态 + Tab 项 + LR 右侧选项）
+inline constexpr float kFontButtonSub = 15.0f; // 按钮说明行 / 右侧次要信息（文件大小等）
 
 inline constexpr float kRadiusNone  = 0.0f;
 inline constexpr float kRadiusSmall = 3.0f;

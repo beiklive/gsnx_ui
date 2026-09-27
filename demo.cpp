@@ -88,21 +88,21 @@ namespace Anim = gui_dev::cv::Anim;
 // 界面里写的尺寸与设计稿完全一致）。后端把 drawable 除以 (像素密度 * zoom) 得到逻辑画布，
 // 所以这里 >1 就是「整体放大」（画布变小、内容按比例放大）。
 //
-// 平台差异：桌面（鼠标近距离）默认 1.0 = 严格按设计稿；**Switch 默认 1.2** —— 掌机 720p 屏幕小、
-// 观看距离远，1:1 时正文 16px 会明显偏小，1.2 时正文 ≈ 19px，实机手感刚好。
+// 平台差异：桌面（鼠标近距离）默认 1.0 = 严格按设计稿；**Switch 默认 1.25** —— 掌机 720p 屏幕小、
+// 观看距离远，1:1 时正文 16px 明显偏小，1.25 时正文 = 20px，实机手感刚好（1.2 试过，仍偏小）。
 // 覆盖方式：桌面用 GUI_DEV_ZOOM=1.25；Switch 没有环境变量，直接改这里的常量。
 //
 // 模式自动切换：固定设计空间平台（Switch）按当前模式取缩放 —— 掌机用 kZoomHandheld，
-// 底座 1080p 用 kZoomDocked（判定见 Backend::IsLargeScreenMode()）。当前两档都是 1.2：
-// 固定设计空间下掌机/底座画布本来就一样（1067x600），需要电视上再放大一档就改 kZoomDocked。
+// 底座 1080p 用 kZoomDocked（判定见 Backend::IsLargeScreenMode()）。当前两档都是 1.25：
+// 固定设计空间下掌机/底座画布本来就一样（1024x576），需要电视上再放大一档就改 kZoomDocked。
 #if defined(GUI_DEV_PLATFORM_switch)
-constexpr float kDefaultZoom = 1.2f;
+constexpr float kDefaultZoom = 1.25f;
 #else
 constexpr float kDefaultZoom = 1.0f;
 #endif
 // 模式自动切换用的两档缩放（见上面说明）：掌机 / 底座。
-constexpr float kZoomHandheld = 1.2f; // 掌机：720p 屏幕、近距离（画布 1067x600）
-constexpr float kZoomDocked = 1.2f;   // 底座：1080p 电视；要更大一档就调这里（1.5 -> 画布 853x480）
+constexpr float kZoomHandheld = 1.25f; // 掌机：720p 屏幕、近距离（画布 1024x576）
+constexpr float kZoomDocked = 1.25f;   // 底座：1080p 电视；要更大一档就调这里（1.5 -> 画布 853x480）
 
 // 验收用开关：GUI_DEV_TRACE_SIGNAL=1 时把按钮状态变化打到终端，方便脚本化测试
 bool TraceSignal() {
@@ -376,7 +376,7 @@ public:
     TextButton* AddViewerButton(const char* name, const char* label, const char* image_path, bool confirm) {
         TextButton* button = AddTo(kTabBasics, content_panel_->Emplace<TextButton>(label));
         button->SetName(name);
-        button->setFontSize(Theme::kFontBody);
+        button->setFontSize(Theme::kFontButton);
         connect(button, &Widget::clicked, this,
                 [this, path = std::string(image_path), title = std::string(label), confirm] {
                     Popup* popup = Popups().ShowImageViewer(title, path);
@@ -417,7 +417,7 @@ public:
 
         // 1 普通按钮（弹窗的确认 / 取消这类提示文字）：文字居中，字号比其它按钮大一档
         TextButton* plain = AddTo(kTabPopups, content_panel_->Emplace<TextButton>("普通按钮"));
-        plain->setFontSize(Theme::kFontHeader); // 20（其它按钮正文 16）
+        plain->setFontSize(Theme::kFontHeader); // 20（其它按钮 18）
         AddStackButton(plain, "btn_text");
 
         // 2 图标 + 文字：图标占左侧正方形格（格内水平+垂直居中），文字紧跟其右
@@ -540,7 +540,7 @@ public:
             "用 FileButton 模拟文件列表：点文件夹进入、点文件选择；根目录不显示「返回上层」，选文件不显示「使用当前路径」");
         pick_file_button_ = AddTo(kTabPopups, content_panel_->Emplace<TextButton>("选择文件"));
         pick_file_button_->SetName("browser_pick_file");
-        pick_file_button_->setFontSize(Theme::kFontBody);
+        pick_file_button_->setFontSize(Theme::kFontButton);
         connect(pick_file_button_, &Widget::clicked, this, [this] {
             if (on_open_browser) {
                 on_open_browser(false);
@@ -548,7 +548,7 @@ public:
         });
         pick_dir_button_ = AddTo(kTabPopups, content_panel_->Emplace<TextButton>("选择目录"));
         pick_dir_button_->SetName("browser_pick_dir");
-        pick_dir_button_->setFontSize(Theme::kFontBody);
+        pick_dir_button_->setFontSize(Theme::kFontButton);
         connect(pick_dir_button_, &Widget::clicked, this, [this] {
             if (on_open_browser) {
                 on_open_browser(true);

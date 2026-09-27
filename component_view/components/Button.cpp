@@ -704,9 +704,9 @@ FileButton::FileButton() {
     ApplyFontSizes();             // 文件名走自己的 name_font_size，右侧信息继续用说明行字号
 }
 
-// 左文件名用 name_font_size，说明行（右侧信息复用 subFontSize()）保持 kFontSmall
+// 左文件名用 name_font_size，说明行（右侧信息复用 subFontSize()）走 kFontButtonSub
 void FileButton::ApplyFontSizes() {
-    setFontSize(name_font_size > 0.0f ? name_font_size : Theme::kFontBody, Theme::kFontSmall);
+    setFontSize(name_font_size > 0.0f ? name_font_size : Theme::kFontButton, Theme::kFontButtonSub);
 }
 
 FileButton::FileButton(FileKind value, std::string file_name, long long size) : FileButton() {
@@ -791,7 +791,7 @@ void FileButton::drawRightSide(ImDrawList* dl, const Rect& right_rect) {
     if (value.empty()) {
         return;
     }
-    const float font_size = subFontSize(); // 右侧是次要信息：用说明行字号
+    const float font_size = subFontSize(); // 右侧是次要信息：用说明行那一档字号
     const ImVec2 extent = Draw::MeasureText(nullptr, font_size, value.c_str(), 0.0f);
     Draw::Text(dl, nullptr, font_size,
                ImVec2(right_rect.max.x - extent.x, right_rect.Center().y - extent.y * 0.5f), Ink(right_color),

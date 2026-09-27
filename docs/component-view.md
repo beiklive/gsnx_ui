@@ -126,13 +126,16 @@ public:
 - **设计空间 = 720p**：组件里写的一切数字（56 行高、20 字号…）都是这个空间的值。
 - **逻辑画布** = `drawable / (auto_scale × ui_zoom)`。后端负责缩放，组件只认 `Global::canvas_size`。
   - `auto_scale = min(高/720, 宽/1280)`：16:9 下恒为 1:1 设计空间；更方/更窄的屏逻辑画布会变高（面板居中）。
-  - `ui_zoom`：整套 UI 放大倍数（1.2 → 逻辑画布 1067×600）。**只在启动前设置**（运行期改渲染缩放会让 SDL/Metal 状态错乱）。
+  - `ui_zoom`：整套 UI 放大倍数（Switch 掌机/底座都是 1.25 → 逻辑画布 1024×576）。
+    运行期可以改（`SetUiZoom` / `UiContext::ApplyModeZoom`）：只换逻辑画布 + 光栅化密度，
+    不重建字体图集；mac 上实测连切 40 次不崩。
 
 ### 3.2 尺寸常量（`Theme.h`）
 
 | 常量 | 值 | 用途 |
 |---|---|---|
 | `kFontTitle / kFontHeader / kFontBody / kFontSmall / kFontTiny` | 22 / 20 / 16 / 14 / 12 | 标题 / 区块标题 / 正文 / 说明 / 极小 |
+| `kFontButton / kFontButtonSub` | 18 / 15 | 按钮（含 Tab 项）主文字 / 说明行与右侧信息（各比正文、说明大一档） |
 | `kControlHeight` | 56 | 按钮、列表行统一高度 |
 | `kBadgeHeight` | 26 | 机种徽标 |
 | `kListRowHeight / kKeySize` | 32 / 30 | 列表行 / 虚拟键盘按键（预留给后续组件） |
@@ -201,7 +204,7 @@ panel->focusVisual(1.04f);            // 聚焦时的缩放/位移/焦点框
 | `CustomButton` | 自定义右侧文字/颜色（`setRightText`） | 文字 |
 | `OptionButton` | LR 选项选择器：`[L] 选项 [R]`，L/R 切换 | `[L] 值 [R]`，超长跑马灯 |
 | `ValueButton` | LR 数值选择器：长按加速，松开才发 `valueChanged` | `[L] 值 [R]` |
-| `FileButton` | 文件列表行：图标按类型（文件夹/文件/图片/压缩包/文本），行高 `kRowHeight = 50`（比 GBAStation FileListPage 的 `m_itemHeight = 70` 更紧凑）；左侧文件名由**独立变量** `name_font_size` 控制（默认 `Theme::kFontHeader` = 20，`setNameFontSize()` 可改，0 = 回落正文 16）；`setShowRight(false)` = 右侧不画字（「返回上层 / 使用当前路径」这种纯导航行），此时文件名可用满整行 | 文件夹 → 「文件夹」；文件 → 大小（1024 进制、单位自动换算；未知则留空；始终用说明行字号 14） |
+| `FileButton` | 文件列表行：图标按类型（文件夹/文件/图片/压缩包/文本），行高 `kRowHeight = 50`（比 GBAStation FileListPage 的 `m_itemHeight = 70` 更紧凑）；左侧文件名由**独立变量** `name_font_size` 控制（默认 `Theme::kFontHeader` = 20，`setNameFontSize()` 可改，0 = 回落按钮主文字 18）；`setShowRight(false)` = 右侧不画字（「返回上层 / 使用当前路径」这种纯导航行），此时文件名可用满整行 | 文件夹 → 「文件夹」；文件 → 大小（1024 进制、单位自动换算；未知则留空；走 `kFontButtonSub` = 15） |
 
 通用能力：`setIcon/setText/setSubtitle/showSubtitle/setTextAlign/setFontSize/setTextColors/setBorder/
 setCornerRadius/setShadow/setFlowingFocus/setContentPadding/setBorderVisible/setShadowVisible/resize/moveTo`；

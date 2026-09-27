@@ -30,7 +30,7 @@ public:
         float spacing = 132.0f;       // 相邻标签中心距
         float capsule_width = 104.0f; // 胶囊宽
         float capsule_height = 42.0f; // 胶囊高（圆角取一半 → 胶囊形）
-        float font_min = 17.0f;       // 最靠边的标签字号
+        float font_min = Theme::kFontButton; // 最靠边的标签字号（18，与按钮主文字一致）
         float font_max = 22.0f;       // 中心标签字号
         float alpha_min = 0.42f;      // 最靠边的标签透明度
         float fade_span = 1.55f;      // 超过这么多个间距（|相对格位|）就不画

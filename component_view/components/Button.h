@@ -47,8 +47,8 @@ public:
     TextAlign text_align = TextAlign::Left;
     float icon_gap = 8.0f;
     float icon_cell = -1.0f;      // 左侧图标正方形格的边长，<0 = 内容区高度（四周留白相同）
-    float font_size = 0.0f;       // 0 = Theme::kFontBody
-    float subtitle_size = 0.0f;   // 0 = Theme::kFontSmall
+    float font_size = 0.0f;       // 0 = Theme::kFontButton（18，比正文大一档）
+    float subtitle_size = 0.0f;   // 0 = Theme::kFontButtonSub（15）
     ImVec4 text_color = Theme::kTextPrimary;
     ImVec4 subtitle_color = Theme::kTextMuted;
     // 文字颜色是否跟随主题：用 setTextColors() 设过颜色就置 false（固定色）
@@ -133,8 +133,8 @@ protected:
     bool border_visible_ = true;
     bool shadow_visible_ = true;
 
-    float mainFontSize() const { return font_size > 0.0f ? font_size : Theme::kFontBody; }
-    float subFontSize() const { return subtitle_size > 0.0f ? subtitle_size : Theme::kFontSmall; }
+    float mainFontSize() const { return font_size > 0.0f ? font_size : Theme::kFontButton; }
+    float subFontSize() const { return subtitle_size > 0.0f ? subtitle_size : Theme::kFontButtonSub; }
     float ResolvedFocusMargin() const;
     float ResolvedFocusWidth() const;
     float ResolvedSlotWidth() const;                  // LR 选择器中间那一格的宽度
@@ -294,14 +294,14 @@ public:
     bool right_color_follows_theme = true;
 
     // 左侧文件名的字号：**独立变量**，不跟着普通 Button 的正文走（文件名要更醒目）。
-    // 0 表示回落到 Theme::kFontBody；右侧「文件夹 / 大小」始终用说明行字号（kFontSmall）。
-    float name_font_size = Theme::kFontHeader; // 默认 20（比正文 16 大一档）
+    // 0 表示回落到 Theme::kFontButton；右侧「文件夹 / 大小」始终用说明行字号（kFontButtonSub）。
+    float name_font_size = Theme::kFontHeader; // 默认 20（比按钮主文字 18 大一档）
     // 右侧信息显隐用基类的 Button::show_right / setShowRight()（一处实现，全按钮家族共用）
 
     FileButton& setFile(FileKind value, std::string file_name, long long size = -1);
     FileButton& setFileKind(FileKind value);
     FileButton& setFileSize(long long value);
-    // 只改左侧文件名的大小（传 0 = 用 Theme::kFontBody）
+    // 只改左侧文件名的大小（传 0 = 用 Theme::kFontButton）
     FileButton& setNameFontSize(float value);
     FileButton& setRightColor(ImVec4 color);
     // 右侧那行字：文件夹 → 「文件夹」；文件 → 大小（未知/0 之外都按 1024 进制换算）
@@ -316,7 +316,7 @@ protected:
     void OnThemeChanged() override;
 
 private:
-    void ApplyFontSizes(); // name_font_size -> Button::font_size（右侧仍用 kFontSmall）
+    void ApplyFontSizes(); // name_font_size -> Button::font_size（右侧仍用 kFontButtonSub）
 };
 
 // -------------------------------------------------------------- 6 LR 选项选择 --
