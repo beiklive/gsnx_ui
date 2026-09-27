@@ -216,24 +216,41 @@ float Sdl2Backend::ComputeUiScale(bool with_zoom) const {
     // 而不是整幅画面被缩放 —— 这是多平台 UI 要的「不同设备上 UI 物理大小一致」。
     // （早期是 min(h/720, w/1280)：那会让 720p 窗口 = 1:1、1080p = 1.5x 整幅放大，
     //   窗口拉大时只是整幅缩放而不重排，不符合一致性要求。）
-    int window_w = 0;
-    int window_h = 0;
-    if (window_ != nullptr) {
-        SDL_GetWindowSize(window_, &window_w, &window_h);
-    }
     int drawable_w = 0;
     int drawable_h = 0;
     GetDrawableSize(drawable_w, drawable_h);
     float scale = 1.0f;
-    if (window_w > 0 && window_h > 0 && drawable_w > 0 && drawable_h > 0) {
-        const float by_x = static_cast<float>(drawable_w) / static_cast<float>(window_w);
-        const float by_y = static_cast<float>(drawable_h) / static_cast<float>(window_h);
-        scale = (by_x + by_y) * 0.5f; // 两轴一般相等；取平均更稳
-        // 物理像素不可能比逻辑点还少：出现 <1 说明这个平台的 SDL_GetWindowSize 报的不是
-        // 「点尺寸」（例如全屏平台上返回的是创建窗口时请求的尺寸）——此时按 1.0 处理，
-        // 否则画布会被误放大（表现为控件突然变得很小）。
-        if (scale < 0.999f) {
-            scale = 1.0f;
+
+    // 两种「定标」策略（决定逻辑画布怎么来）：
+    //   A) 固定分辨率平台（Switch / Android / iOS）：**按 720p 设计空间 fit** ——
+    //      scale = min(drawable/720, drawable/1280)，画布恒为 1280x720/zoom。
+    //      这样掌机 720p 与底座 1080p 拿到的是**同一个画布**，UI 在两种模式下一样大
+    //      （底座时整幅放大 1.5x 呈现，而不是把设计空间变成 1920x1080 让控件变小）。
+    //   B) 可缩放窗口的桌面：**按窗口尺寸定标** —— scale = drawable/window（Retina 等像素密度），
+    //      画布 = 窗口尺寸/zoom：窗口拉大就是画布变大、布局重排，而不是整幅缩放。
+    const bool fixed_screen_platform = UsesFixedDesignSpace();
+
+    if (fixed_screen_platform) {
+        if (drawable_w > 0 && drawable_h > 0) {
+            const float by_height = static_cast<float>(drawable_h) / kDesignHeight;
+            const float by_width = static_cast<float>(drawable_w) / kDesignWidth;
+            scale = by_height < by_width ? by_height : by_width;
+        }
+    } else {
+        int window_w = 0;
+        int window_h = 0;
+        if (window_ != nullptr) {
+            SDL_GetWindowSize(window_, &window_w, &window_h);
+        }
+        if (window_w > 0 && window_h > 0 && drawable_w > 0 && drawable_h > 0) {
+            const float by_x = static_cast<float>(drawable_w) / static_cast<float>(window_w);
+            const float by_y = static_cast<float>(drawable_h) / static_cast<float>(window_h);
+            scale = (by_x + by_y) * 0.5f; // 两轴一般相等；取平均更稳
+            // 物理像素不可能比逻辑点还少：出现 <1 说明这个平台的 SDL_GetWindowSize 报的不是
+            // 「点尺寸」——按 1.0 处理，避免画布被误放大（表现为控件突然变得很小）。
+            if (scale < 0.999f) {
+                scale = 1.0f;
+            }
         }
     }
     // 用户缩放（GUI_DEV_ZOOM / SetUiZoom）乘在这里：画布 = window / zoom，zoom 变大 = 界面变大。
@@ -249,8 +266,15 @@ float Sdl2Backend::ComputeUiScale(bool with_zoom) const {
     return scale;
 }
 
-// 设计基准与实际输出的对照：设计基准 1280x720 固定不变，缩放由 min(drawable/设计) 推出，
-// 所以 720p 窗口 = 1:1、1080p = 1.5x；非 16:9 表面会把多出来的空间给布局（逻辑画布变大）。
+bool Sdl2Backend::UsesFixedDesignSpace() const {
+#if defined(GUI_DEV_PLATFORM_switch) || defined(GUI_DEV_PLATFORM_android) || defined(GUI_DEV_PLATFORM_ios)
+    return true; // 固定分辨率平台：按 720p 设计空间 fit，画布恒定
+#else
+    // 桌面：默认按窗口尺寸定标；GUI_DEV_DESIGN_FIT=1 强制 fit（没有掌机时验证 A 策略用）
+    return std::getenv("GUI_DEV_DESIGN_FIT") != nullptr;
+#endif
+}
+
 // 「显示基准」摘要（日志与宿主显示共用一份拼装，避免两处数字不一致）
 std::string Sdl2Backend::DisplayInfo() const {
     int window_w = 0;
@@ -264,8 +288,9 @@ std::string Sdl2Backend::DisplayInfo() const {
     const float scale = ui_scale_ > 0.0f ? ui_scale_ : 1.0f;
     char buffer[256];
     std::snprintf(buffer, sizeof(buffer),
-                  "窗口 %dx%d | drawable %dx%d | 像素密度×缩放 %.3f | 逻辑画布(设计空间) %.0fx%.0f | UI 缩放 %.2fx",
+                  "窗口 %dx%d | drawable %dx%d | 渲染缩放 %.3f%s | 逻辑画布(设计空间) %.0fx%.0f | UI 缩放 %.2fx",
                   window_w, window_h, drawable_w, drawable_h, static_cast<double>(scale),
+                  UsesFixedDesignSpace() ? "（按720p设计空间fit）" : "（按窗口尺寸）",
                   static_cast<double>(drawable_w) / scale, static_cast<double>(drawable_h) / scale,
                   static_cast<double>(ui_zoom_));
     return buffer;
