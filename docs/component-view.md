@@ -645,12 +645,13 @@ if (p != nullptr) {
 | `Image` | 图片，等比缩放 / 居中 / 限高，缺资源画占位 | `setTexture(tex.ImGuiRef(), w, h)` `setFit(Image::Fit::Contain)` |
 | `RichText`（`components/RichText.h`，**单文件零依赖**） | 富文本：标题 / 粗体 / 斜体 / 删除线 / 行内代码 / 无序·有序列表 / 引用 / 分隔线 / 链接 / 行内图片 / `[color=#RRGGBB]` 染色（代码块已移除）。详见 [RichText.md](component_view/components/RichText.md) 与本节 14.5 | `SetMarkdown(md)` + `SetImageResolver()` + `SetLinkCallback()` |
 
-**控件状态色（唯一来源 = 主题）**：`Theme::WidgetState{Normal,Hovered,Pressed,Selected,Disabled}` +
+**控件状态色（唯一来源 = 主题）**：`Theme::WidgetState{Normal,Hovered,Pressed,Disabled}` +
 `Theme::ControlBackgroundColor/ControlBorderColor/ControlInkColor(state)`；状态判定在 `Widget::State()`
-（Disabled > Pressed > Selected > Hovered > Normal；单选 focused 不算 Hovered，焦点仍由流光框表达）。
+（Disabled > Pressed > Hovered > Normal）。两处刻意省略：**单选 focused 不算 Hovered**（焦点仍由流光框表达）；
+**selected 不参与状态色**（选中是容器语义，例如 TabColumn 自己画选中底），按钮/控件不因 `selected` 变色。
 Button 家族的底色/边框色每帧按状态从主题取（`background_state_follows_theme` / `border_state_follows_theme`），
 控件自己不存第二套颜色；**Normal 状态与以前完全一致**，Hovered = `kBgWidgetHi`、Pressed = `kButtonActive`、
-Selected = `kSelection`、Disabled 走 `disabled_opacity` + `kTextDisabled`。
+Disabled 走 `disabled_opacity` + `kTextDisabled`。
 纯容器默认两个开关都是关的，视觉不变。
 
 **Widget 细化接口（本轮补齐，Box/Button 等直接复用）**：`SetX/SetY/SetWidth/SetHeight`、
@@ -827,6 +828,6 @@ Section Title（Header）
 | 拖动惯性 | 滚动容器拖动松手后继续滑一段（速度 = 手指速度、指数衰减、到边即停）：实测拖 210px 后惯性再滑 100px（`scroll_target` 210 → 310.7）平滑收尾；卡牌行自己的横向拖动同样带甩动（拖 300px 停在 2，甩动后到 4/5） |
 | 文件列表行 | `FileButton`：左图标（类型字形：folder / insert_drive_file / image / archive / description）+ 文件名（独立 `name_font_size`，默认 20），右侧文件夹显示「文件夹」、文件显示大小（14）；实测 512 B / 4.71 KB / 1.25 MB / 3.40 GB 四档单位自动换算；行高 50（比 GBAStation FileListPage 的 70 更紧凑）。字形自检从 42 项升到 43 项（新增 `insert_drive_file`，字体覆盖通过） |
 | 文件浏览页 | Demo 新增「文件浏览器」区块：`选择文件` / `选择目录` 两个按钮分别打开一个真实的新页面（`FileBrowserPage`，1280×720 的 `Page`）。页面结构（自上而下）：**`Header` 显示当前路径（右侧 info = 项数）→ 使用当前路径（仅选目录）→ `Separator` 分割线 → 返回上层（仅非根目录）→ `FileButton` 列表**；列表容器四周留 8px 内边距、行与行留 6px 间距（否则行的流光焦点框会被容器的裁剪矩形切掉，实测已修）；两个动作行（使用当前路径 / 返回上层）与列表 item **同宽、同左边界、同行高**；**START 键一键切换列表项（含两个动作行）的「边框 + 阴影 + 背景」**——默认关闭态是纯列表观感（透明底、无边框、无阴影，靠留白与行距分隔），打开态是卡片观感（主题底色 + 边框 + 阴影）；选文件=点文件即返回，选目录=进入目录后按「使用当前路径」返回，B 在子目录=返回上层、在根目录=取消。实测四种路径：`选择文件→/Games→/Games/冒险者物语.gba`、`选择目录→/Games→「使用当前路径」→/Games`、根目录 B → 已取消；行数/单位/图标按类型正确；截图核对新结构（Header 路径 + 项数 / 使用当前路径 / 分割线 / 返回上层 / 带留白的列表）与 START 切换边框 |
-| 控件 API 补齐（本轮） | Widget 细化接口（几何/Padding/Margin/RGBA/单角圆角/阴影逐字段/单边边框/裁剪/focusable）；Button 图标显隐 + 图标颜色 + 三向对齐 + 右侧区域显隐 + 主题状态色；派生 Button 补 `ToggleButton::setKnobSpeed/isChecked`、`IconButton::setCaptionGap`、`OptionButton::setWrap/optionCount`、`ValueButton::setRange/setStep/setPrecision/setWrap/setRepeat/setRepeatAcceleration`；`Separator::setOrientation`；Tab 项改为**基础 Button 左对齐 + 无边框无阴影**（选中态仍由 TabColumn 自绘）。截图核对：左/中/右三向对齐、隐藏图标、Selected 状态色、只画下边框 + 左上 16 圆角。 |
+| 控件 API 补齐（本轮） | Widget 细化接口（几何/Padding/Margin/RGBA/单角圆角/阴影逐字段/单边边框/裁剪/focusable）；Button 图标显隐 + 图标颜色 + 三向对齐 + 右侧区域显隐 + 主题状态色；派生 Button 补 `ToggleButton::setKnobSpeed/isChecked`、`IconButton::setCaptionGap`、`OptionButton::setWrap/optionCount`、`ValueButton::setRange/setStep/setPrecision/setWrap/setRepeat/setRepeatAcceleration`；`Separator::setOrientation`；Tab 项改为**基础 Button 左对齐 + 无边框无阴影**（选中态仍由 TabColumn 自绘）。截图核对：左/中/右三向对齐、隐藏图标、只画下边框 + 左上 16 圆角。 |
 | 未实现（有意） | Spacer/Spring（当前 Free/Vertical/Horizontal 布局没有主轴 flex）、旋转、letter-spacing/自选字体、通用属性动画系统、Grid —— 见文档「未处理问题」，均为无需求或需改布局/渲染器 |
 | 视觉特效 | 未引入 Glass / Neon / Glow / 渐变 / 粒子 |

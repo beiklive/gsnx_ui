@@ -83,9 +83,8 @@ inline ImVec4 kCapsuleShadow = rgba(0, 0, 0, 72);
 // 深色/浅色两套主题各自覆盖上面那些角色色，所以状态色自动跟着主题走。
 enum class WidgetState {
     Normal,   // 常规
-    Hovered,  // 指针悬停
+    Hovered,  // 指针悬停（指针悬停；按钮类 focus_on_hover，悬停会同时拿到焦点）
     Pressed,  // 按下（down）
-    Selected, // 选中（容器设置的 selected）
     Disabled, // 禁用（enabled == false；透明度另由 disabled_opacity 处理）
 };
 
@@ -95,8 +94,6 @@ inline ImVec4 ControlBackgroundColor(WidgetState state) {
         return kBgWidgetHi;
     case WidgetState::Pressed:
         return kButtonActive;
-    case WidgetState::Selected:
-        return kSelection;
     case WidgetState::Normal:
     case WidgetState::Disabled:
     default:
@@ -109,7 +106,6 @@ inline ImVec4 ControlBorderColor(WidgetState state) {
     case WidgetState::Hovered:
         return kAccentHover;
     case WidgetState::Pressed:
-    case WidgetState::Selected:
         return kAccent;
     case WidgetState::Normal:
     case WidgetState::Disabled:
@@ -121,7 +117,6 @@ inline ImVec4 ControlBorderColor(WidgetState state) {
 inline ImVec4 ControlInkColor(WidgetState state) {
     switch (state) {
     case WidgetState::Pressed:
-    case WidgetState::Selected:
         return kTextBright;
     case WidgetState::Disabled:
         return kTextDisabled;

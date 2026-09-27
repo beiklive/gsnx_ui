@@ -238,7 +238,8 @@ float Sdl2Backend::ComputeUiScale(bool with_zoom) const {
 
 // 设计基准与实际输出的对照：设计基准 1280x720 固定不变，缩放由 min(drawable/设计) 推出，
 // 所以 720p 窗口 = 1:1、1080p = 1.5x；非 16:9 表面会把多出来的空间给布局（逻辑画布变大）。
-void Sdl2Backend::LogDisplayBasis() const {
+// 「显示基准」摘要（日志与宿主显示共用一份拼装，避免两处数字不一致）
+std::string Sdl2Backend::DisplayInfo() const {
     int window_w = 0;
     int window_h = 0;
     int drawable_w = 0;
@@ -248,13 +249,19 @@ void Sdl2Backend::LogDisplayBasis() const {
     }
     GetDrawableSize(drawable_w, drawable_h);
     const float scale = ui_scale_ > 0.0f ? ui_scale_ : 1.0f;
-    std::fprintf(stderr,
-                 "[gui_dev] 设计基准 %.0fx%.0f | 窗口 %dx%d | drawable %dx%d | 像素密度×缩放 %.3f | "
-                 "逻辑画布(设计空间) %.0fx%.0f | UI 缩放 %.2fx\n",
-                 static_cast<double>(kDesignWidth), static_cast<double>(kDesignHeight), window_w, window_h,
-                 drawable_w, drawable_h, static_cast<double>(scale),
-                 static_cast<double>(drawable_w) / scale, static_cast<double>(drawable_h) / scale,
-                 static_cast<double>(ui_zoom_));
+    char buffer[256];
+    std::snprintf(buffer, sizeof(buffer),
+                  "窗口 %dx%d | drawable %dx%d | 像素密度×缩放 %.3f | 逻辑画布(设计空间) %.0fx%.0f | UI 缩放 %.2fx",
+                  window_w, window_h, drawable_w, drawable_h, static_cast<double>(scale),
+                  static_cast<double>(drawable_w) / scale, static_cast<double>(drawable_h) / scale,
+                  static_cast<double>(ui_zoom_));
+    return buffer;
+}
+
+void Sdl2Backend::LogDisplayBasis() const {
+    const std::string info = DisplayInfo();
+    std::fprintf(stderr, "[gui_dev] 设计基准 %.0fx%.0f | %s\n", static_cast<double>(kDesignWidth),
+                 static_cast<double>(kDesignHeight), info.c_str());
     std::fflush(stderr);
 }
 
@@ -576,6 +583,7 @@ void Sdl2Backend::BeginRenderFrame() {
     SDL_SetRenderDrawColor(renderer_, 0x11, 0x13, 0x16, 0xFF);
     SDL_RenderClear(renderer_);
     ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer_);
+    
     
 }
 

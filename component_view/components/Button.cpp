@@ -56,7 +56,7 @@ Button& Button::applyComponentStyle() {
     return *this;
 }
 
-// 状态底色：每帧按当前状态从主题取（Hovered = kBgWidgetHi / Pressed = kButtonActive / Selected = kSelection）
+// 状态底色：每帧按当前状态从主题取（Hovered = kBgWidgetHi / Pressed = kButtonActive）
 void Button::OnUpdate(float dt) {
     (void)dt;
     ApplyStateColors();

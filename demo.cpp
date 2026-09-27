@@ -463,7 +463,8 @@ public:
         desc_api_ = AddDescription(
             kTabPopups,
             "Button：setTextAlign(Left/Center/Right) 控制「图标+文字」整块；setIconVisible(false) 隐藏图标；"
-            "Widget：SetBorderTop/Bottom…、SetShadow*、SetRadiusTopLeft…；状态色由 Theme 统一管理");
+            "Widget：SetBorderTop/Bottom…、SetShadow*、SetRadiusTopLeft…；"
+            "状态色由 Theme 统一管理（Hovered / Pressed / Disabled；selected 不参与，选中态由容器自己画）");
         {
             struct AlignSpec {
                 const char* name;
@@ -488,11 +489,6 @@ public:
             no_icon->setTextAlign(TextAlign::Left);
             api_buttons_.push_back(no_icon);
 
-            TextButton* selected = AddTo(kTabPopups, content_panel_->Emplace<TextButton>("选中态（Theme::kSelection）"));
-            selected->SetName("btn_selected");
-            selected->setTextAlign(TextAlign::Center);
-            selected->selected = true; // 状态色：由主题统一给（Selected → kSelection / kTextBright）
-            api_buttons_.push_back(selected);
         }
         api_box_ = AddTo(kTabPopups, content_panel_->Emplace<Box>("box_border_demo"));
         api_box_->SetName("box_border_demo");
@@ -2283,8 +2279,22 @@ public:
         }
     }
 
+    // 启动后把「显示基准」弹一次 Toast：窗口/drawable/像素密度/画布/缩放 一眼可见，
+    // Switch 上没有控制台也能核对（日志同样会打这一行，nxlink -s 可见）。
+    void ShowDisplayInfoOnce() {
+        if (display_info_shown_ || ui_ == nullptr || page_ == nullptr) {
+            return;
+        }
+        display_info_shown_ = true;
+        const std::string info = ui_->GetBackend().DisplayInfo();
+        if (!info.empty()) {
+            page_->Toasts().ShowInfo(info);
+        }
+    }
+
     void OnFrame(gui_dev::UiContext& ui, float dt) override {
         gui_dev::cv::Global::BeginFrame(ui);
+        ShowDisplayInfoOnce(); // 第一帧：显示基准 Toast（只弹一次）
         if (browser_ != nullptr) {
             browser_->Update(dt);
             browser_->Render(); // 浏览页铺满画布，盖住 demo 页
@@ -2331,6 +2341,7 @@ private:
     std::string pending_result_;   // 浏览页的结果先存起来，回到 demo 页再展示
     bool pending_pick_folder_ = false;
     bool has_pending_result_ = false;
+    bool display_info_shown_ = false;
     int frame_ = 0;
     int exit_after_ = 0;
     bool perf_ = false;

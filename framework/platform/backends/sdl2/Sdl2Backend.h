@@ -40,6 +40,7 @@ public:
     void SetUiZoom(float zoom) override;
     float UiZoom() const override { return ui_zoom_; }
     const char* DriverName() const override { return driver_name_.c_str(); }
+    std::string DisplayInfo() const override;
 
     std::string ResolveAssetPath(const char* relative_path) const override;
     Texture LoadTexture(const char* relative_asset_path) override;

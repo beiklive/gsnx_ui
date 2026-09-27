@@ -162,6 +162,10 @@ public:
     // 返回的是后端内部持有的字符串（Init 时构建一次），调用方不需要释放、也不产生分配。
     virtual const char* DriverName() const = 0;
 
+    // 「显示基准」一行摘要：窗口尺寸 / drawable / 像素密度×缩放 / 逻辑画布(设计空间) / UI 缩放。
+    // 宿主可以直接显示出来（demo 启动时弹 Toast）——Switch 上没有控制台，靠这个核对缩放是否符合预期。
+    virtual std::string DisplayInfo() const { return {}; }
+
     // ---- 资源 --------------------------------------------------------------
     // 解析 assets/ 下的相对路径（见 platform/AssetPaths.h）。
     virtual std::string ResolveAssetPath(const char* relative_path) const = 0;

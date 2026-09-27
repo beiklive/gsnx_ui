@@ -271,17 +271,17 @@ signals:
 
     // ---- 链式设置 ----------------------------------------------------------
     // ---- 状态（状态色由主题统一给：Theme::ControlBackgroundColor / ControlInkColor …）----
-    // 判定顺序：Disabled > Pressed(down) > Selected > Hovered > Normal。
-    // 注意：单选「focused」不算 Hovered —— 键盘焦点已经由流光焦点框表达，避免叠加出新底色。
+    // 判定顺序：Disabled > Pressed(down) > Hovered > Normal。
+    // 注意两个刻意的省略：
+    //   * focused 不算 Hovered —— 键盘焦点已经由流光焦点框表达，避免叠加出新底色；
+    //   * selected 不参与状态色 —— 「选中」是容器的语义（TabColumn 自己画选中底），
+    //     按钮/控件不因 selected 变色。
     WidgetState State() const {
         if (!enabled) {
             return WidgetState::Disabled;
         }
         if (down) {
             return WidgetState::Pressed;
-        }
-        if (selected) {
-            return WidgetState::Selected;
         }
         if (hovered) {
             return WidgetState::Hovered;
