@@ -169,8 +169,8 @@ public:
         BuildNavPage();    // tab 4 导航
         BuildHomePage();   // tab 6 主页布局（游戏卡牌行 + 功能按钮行，对齐 GBAStation 的 Switch 主界面）
 
-        // 三个「应用级」开关（主题 / 焦点框 / 比例）：装在 tab 面板底部的容器 controls_box_ 里，
-        // 任何 tab 下都能用；不属于任何子页面，所以子页面操作时会被摘出方向键导航（见 OnUpdate）
+        // 三个「应用级」开关（主题 / 焦点框 / 比例）：装在 tab 面板底部的按钮组 controls_box_ 里，
+        // 跟 tab 项同一个焦点分区 —— 组内 ←/→ 选开关，↑/↓ 切换 tab。
         theme_button_ = controls_box_->Emplace<IconButton>(Icons::Glyph(ThemeIcon()));
         theme_button_->SetName("btn_theme");
         theme_button_->setSide(kControlSize);
@@ -198,9 +198,10 @@ public:
         connect(zoom_button_, &IconButton::clicked, this, [this] { CycleZoom(); });
         buttons_.push_back(zoom_button_);
 
-        // 注意：容器保持默认分区（0），**不要**设成 tab 列的分区（1）——
-        // 那样从 tab 项按 → 会先命中同分区里「右下方的开关」而不是进内容页。
+        // 与 tab 列同一焦点分区：按钮组内 ←/→ 在三个开关之间走，↑/↓ 在按钮组与 tab 项之间走
+        // （↑/↓ 落到 tab 项即切页面，就是「上下键切换 tab」）。
         // 子页面（内容区）里操作时它们会被 focus_inert 摘出导航，见 OnUpdate。
+        controls_box_->SetFocusZone(tab_column_->style.focus_zone);
 
         ShowTab(0);
     }
@@ -208,8 +209,8 @@ public:
     void OnUpdate(float dt) override {
         UpdatePageAnim(dt);
         // 焦点在子页面（内容区）里时，这排开关不参与方向键导航：
-        // 否则内容区靠下的控件按 ← 会就近跳到它们身上，而不是回到左列 tab。
-        // 焦点回到左列/别处时恢复（鼠标悬停、点击、触摸始终可用）。
+        // 子页面里 ←/B 都该回到 tab 列，而不是落到这排开关上。
+        // 焦点在 tab 列/按钮组里时恢复（此时按钮组与 tab 项同一个分区，↑/↓ 互相走）。
         if (controls_box_ != nullptr) {
             Widget* focused = Global::focused;
             controls_box_->focus_inert = focused != nullptr && content_panel_->ContainsDescendant(focused);
@@ -293,7 +294,19 @@ public:
         connect(tab_column_, &TabColumn::activated, this, [this](int index) {
             page_anim_[index].enter_time = 0.0f;
             Toasts().ShowInfo("已在 " + tab_column_->items()[static_cast<std::size_t>(index)].text + " 页");
+            tab_column_->EnterContent();
         });
+
+        // 点 / 触摸选中某个 tab 后焦点直接进子页面（手柄 A 由 TabItem::OnPadAction 走同一条
+        // EnterContent；子页面里按 B 回到 tab，见 OnInput）。方向键在 tab 列里只是切页面，
+        // 不会一移就跳走，所以这里只挂 clicked。
+        // 用 EnterContent() 而不是自己找 FirstFocusable()：ShowTab 已把 focusTarget_ 设成新页的
+        // 第一个可聚焦控件，而退场中的旧页还 visible，自己找会选中旧页控件（下一帧就被清成无焦点）。
+        for (int i = 0; i < tab_column_->count(); ++i) {
+            if (Button* item = tab_column_->itemAt(i)) {
+                connect(item, &Widget::clicked, this, [this] { tab_column_->EnterContent(); });
+            }
+        }
 
         // 左下角三个应用级开关（焦点框 / 主题 / 比例）的容器：跟在 tab 列下面，一起排版、一起管焦点。
         // 容器本身不画底/边框/阴影（ClearControlBarDecor），视觉与原来只有这三个按钮时一致。
@@ -342,7 +355,7 @@ public:
         content_panel_->scroll_target = ImVec2(0.0f, 0.0f);
         ApplyTabVisibility();
 
-        // → / R 进内容区时落在当前页第一个可聚焦控件上
+        // A / 点击 tab 进子页面时落在当前页第一个可聚焦控件上（TabColumn::EnterContent 用这个）
         Widget* first = nullptr;
         for (Widget* widget : pages_[index]) {
             if (widget->focusable) {

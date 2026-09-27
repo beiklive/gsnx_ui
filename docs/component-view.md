@@ -254,7 +254,7 @@ h->position = ImVec2(0,0); h->size.x = content_width; // 给宽度，分隔线�
 |---|---|
 | ↑ / ↓ | 列内逐项移动；**焦点落到哪一项，选中就立刻跟到哪一项**（切焦点 = 切页面） |
 | A / 点击 | `EnterContent()`：焦点交给 `setFocusTarget()` 指定的内容区入口控件 |
-| → / R | 同上（键盘/手柄的翻页键也能进内容区） |
+| → / R | 同上；但**同分区里还有别的控件时（demo 的底部按钮组）会先在本分区内移动**，进内容区用 A / 点击 |
 | 子页面按 B | 由页面调 `FocusCurrentItem()` 把焦点收回本列（demo 里的做法） |
 
 ```cpp
@@ -388,7 +388,8 @@ A/B、X/Y 对掉，保证「按机身上的 A」= 确认。可用 `GUI_DEV_FACE_
 
 - **Focus 是一等状态**：`Global::focused`，每帧 `root_->CollectFocusables()` + `Global::NavigateFocus()` 处理方向键。
 - **焦点分区**（`focus_zone`）：同分区内按「方向最近邻」移动；**只有左右方向会跨分区**。
-  典型用法：左列 `focus_zone = 1`，内容区 `= 2` → ↑↓ 留在列内，→ 进内容、← 回列表。
+  典型用法：左列 `focus_zone = 1`，内容区 `= 2` → ↑↓ 留在列内，→ 进内容、← 回列表；
+  列里若还塞了同分区的控件（例如底部按钮组），←/→ 会先在本分区里移动，进内容区用 A / 点击（`TabColumn::EnterContent()`）。
 - **控件自己吃方向键**：`capture_horizontal / capture_vertical = true`（列表、滑条、虚拟键盘用）。
 - **复合控件**：`focus_only_self = true`（只把自己当停靠点，内部导航自己做）。
 - **按键消费**：一帧里同一个键只能被消费一次。页面级快捷键要写

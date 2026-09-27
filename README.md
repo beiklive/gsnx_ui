@@ -140,10 +140,21 @@ cmake --preset switch && cmake --build --preset switch
 
 宿主自己的日志也可以直接调 `gui_dev::PlatformLogLine("...")`（Switch 写上面那个文件，桌面/Android 空实现）。
 
-**左下角三个开关（焦点框 / 主题 / 比例）**：装在 `tab_panel` 底部的一个透明 Box（`tab_controls`）里，
-与 tab 列一起排版；容器保持默认焦点分区，并在**焦点位于子页面（内容区）时 `focus_inert`** ——
-否则内容区靠下的控件按 ← 会就近跳到这三个按钮上，而不是回到左列 tab。
-（实测：`R,D×7,L` 焦点回到 `tab_item`；关掉保护后同一脚本落到 `btn_zoom`。）
+**左栏结构**：`tab_panel` 就是一个普通容器，里面填的是「顶部 TabColumn（若干 tab 按钮）+ 底部按钮组
+`tab_controls`（焦点框 / 主题 / 比例）」两块；按钮组是透明 Box，只负责分组与焦点分区。
+
+**导航约定**（与 `TabColumn` 的既有设计一致）：
+
+| 操作 | 行为 |
+|---|---|
+| 点 / A 选中 tab | 焦点**直接进子页面**（`TabColumn::EnterContent()` → 用 `ShowTab` 设好的 `setFocusTarget()`），不需要按 → |
+| 子页面按 B | 焦点回到 tab 列当前项（`FocusCurrentItem()`） |
+| ↑ / ↓ | tab 列内逐项移动（焦点落到哪项就切到哪页）；从最后一项 ↓ 进底部按钮组，按钮组里 ↑ 回 tab 列 |
+| ← / → | 底部按钮组内在三个开关之间走；tab 列与按钮组是同一焦点分区，所以本分区内先移动 |
+
+按钮组与 tab 项**同一焦点分区**，但**焦点在子页面（内容区）时容器 `focus_inert`** —— 保证子页面里
+← / B 都是回 tab 列，而不是落到按钮组上。（实测：点 tab → `focus=btn_text`；按 A → `focus=box`；
+按 B → `focus=tab_item`；在子页面按 ← → `focus=tab_item` 而非 `btn_*`。）
 
 **掌机 / 底座自动切比例**：demo 按当前模式自动换 UI 缩放 —— 掌机/底座两档现在都是 **1.25**
 （固定设计空间下画布同为 1024×576；要电视上再放大一档就改 `kZoomDocked`，例如 1.5 → 画布 853×480）。
