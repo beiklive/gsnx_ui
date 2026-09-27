@@ -88,21 +88,21 @@ namespace Anim = gui_dev::cv::Anim;
 // 界面里写的尺寸与设计稿完全一致）。后端把 drawable 除以 (像素密度 * zoom) 得到逻辑画布，
 // 所以这里 >1 就是「整体放大」（画布变小、内容按比例放大）。
 //
-// 平台差异：桌面（鼠标近距离）默认 1.0 = 严格按设计稿；**Switch 默认 1.25** —— 掌机 720p 屏幕小、
-// 观看距离远，1:1 时正文 16px 会明显偏小（这也是之前用 1.2 时的手感），放大一档后正文 = 20px，
-// 和 GBAStation 在 720p 上的字号对齐。
+// 平台差异：桌面（鼠标近距离）默认 1.0 = 严格按设计稿；**Switch 默认 1.2** —— 掌机 720p 屏幕小、
+// 观看距离远，1:1 时正文 16px 会明显偏小，1.2 时正文 ≈ 19px，实机手感刚好。
 // 覆盖方式：桌面用 GUI_DEV_ZOOM=1.25；Switch 没有环境变量，直接改这里的常量。
 //
-// 模式自动切换：固定设计空间平台（Switch）按当前模式取缩放 —— 掌机 720p 用 kZoomHandheld，
-// 底座 1080p 用 kZoomDocked（电视观看距离更远，所以放大一档）。判定见 Backend::IsLargeScreenMode()。
+// 模式自动切换：固定设计空间平台（Switch）按当前模式取缩放 —— 掌机用 kZoomHandheld，
+// 底座 1080p 用 kZoomDocked（判定见 Backend::IsLargeScreenMode()）。当前两档都是 1.2：
+// 固定设计空间下掌机/底座画布本来就一样（1067x600），需要电视上再放大一档就改 kZoomDocked。
 #if defined(GUI_DEV_PLATFORM_switch)
-constexpr float kDefaultZoom = 1.25f;
+constexpr float kDefaultZoom = 1.2f;
 #else
 constexpr float kDefaultZoom = 1.0f;
 #endif
 // 模式自动切换用的两档缩放（见上面说明）：掌机 / 底座。
-constexpr float kZoomHandheld = 1.25f; // 掌机：720p 屏幕、近距离
-constexpr float kZoomDocked = 1.5f;    // 底座：1080p 电视、远距离（画布 853x480）
+constexpr float kZoomHandheld = 1.2f; // 掌机：720p 屏幕、近距离（画布 1067x600）
+constexpr float kZoomDocked = 1.2f;   // 底座：1080p 电视；要更大一档就调这里（1.5 -> 画布 853x480）
 
 // 验收用开关：GUI_DEV_TRACE_SIGNAL=1 时把按钮状态变化打到终端，方便脚本化测试
 bool TraceSignal() {
@@ -2418,7 +2418,8 @@ public:
                 std::fflush(stdout);
             }
         } else if (force) {
-            page_->SetZoomLabel(false); // 桌面：没有模式可切，只把副标题刷成当前状态
+            // 档位没变（例如两档缩放相同）：只刷新副标题；桌面没有模式可切，flag 恒为 false
+            page_->SetZoomLabel(ui_->GetBackend().IsLargeScreenMode());
         }
     }
 

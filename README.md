@@ -123,11 +123,12 @@ cmake --preset switch && cmake --build --preset switch
 # 产物：build/switch/dist/<目标名>.nro（每个 demo 一个，例如 gui_dev_demo.nro）
 ```
 
-打包：`nx_create_nro` 自动生成 NACP 并把 `romfs/` 打进去。**romfs 只放**
-`img/` 与 `font/MaterialIcons-Regular.ttf`（`switch_font.ttf` 10.9MB、`switch_icons.ttf`
-走 HOS 共享字体，不进 romfs，否则 NRO 从 7.6MB 涨到 18MB+）。
+打包：`nx_create_nro` 自动生成 NACP 并把 `romfs/` 打进去。**romfs 放**`img/` 与
+`font/{switch_font.ttf, switch_icons.ttf, MaterialIcons-Regular.ttf}` —— 字体全部随 NRO 发布，
+**不使用 HOS 共享字体**（系统字体随固件/区域变，排版不可控；也不同固件差异导致中文/图标缺失）。
+代价是 NRO 从 ~11MB 涨到 ~22MB，换来实现机排版与 mac 完全一致。
 `assets/icon.png` 存在时自动作为图标。部署：把 `.nro` 拷到 `sdmc:/switch/`；
-要换图不用重编，直接覆盖 `sdmc:/switch/GUI_DEV/assets/`。
+要换图/换字体不用重编，直接覆盖 `sdmc:/switch/GUI_DEV/assets/`（查找顺序优先 sdmc，再 romfs）。
 
 **日志（Switch 没有控制台）**：
 
@@ -139,9 +140,9 @@ cmake --preset switch && cmake --build --preset switch
 
 宿主自己的日志也可以直接调 `gui_dev::PlatformLogLine("...")`（Switch 写上面那个文件，桌面/Android 空实现）。
 
-**掌机 / 底座自动切比例**：demo 按当前模式自动换 UI 缩放 —— 掌机 720p 用 1.25（画布 1024×576），
-底座 1080p 用 1.50（画布 853×480，电视观看距离更远所以再放大一档）。判定来自
-`Backend::IsLargeScreenMode()`（Switch 上 = drawable 高度 ≥ 1080p），模式变化时每帧自动生效；
+**掌机 / 底座自动切比例**：demo 按当前模式自动换 UI 缩放 —— 掌机/底座两档现在都是 **1.2**
+（固定设计空间下画布同为 1067×600；要电视上再放大一档就改 `kZoomDocked`，例如 1.5 → 画布 853×480）。
+判定来自 `Backend::IsLargeScreenMode()`（Switch 上 = drawable 高度 ≥ 1080p），模式变化时每帧自动生效；
 日志里那一行会带 `（掌机）` / `（底座/大屏）` 后缀，切换瞬间还有一条 Toast（倍率 + 画布尺寸）。
 桌面没有模式概念，仍是 `kDefaultZoom` / `GUI_DEV_ZOOM`。手动验证：左侧控制列第三个按钮「自动·掌机 / 自动·底座 / 1.00x / 1.25x / 1.50x」循环切档
 （切到固定档位后自动档停止接管；切回「自动」立刻按当前模式生效，桌面上则回到启动缩放）。
@@ -247,8 +248,9 @@ macOS runner 上跑同一条脚本，手动 *Run workflow*、推 iOS 相关文�
 
 * **Switch 掌机 720p 与底座 1080p 拿到同一个设计空间**（画布 = 1280×720 ÷ UI 缩放）→
   两种模式下控件相对屏幕一样大（底座时整幅放大呈现，而不是把设计空间变成 1920×1080 让控件显小）。
-* **UI 缩放按模式给**：桌面 1.0（与设计稿 1:1）；**Switch 掌机 1.25 / 底座 1.50** ——
-  掌机小屏近距离、电视大屏远距离，正文 16 设计像素分别变成 20 / 24 物理像素（与 GBAStation 在 720p 的字号对齐）。
+* **UI 缩放按模式给**：桌面 1.0（与设计稿 1:1）；**Switch 两档都是 1.2** ——
+  实机手感 1.2 刚好（正文 16 设计像素 → 19 物理像素，与 GBAStation 在 720p 的字号对齐）；
+  掌机/底座两档可以是同一个值，机制仍在：切模式会通知宿主刷新标签。
   实现：`UiContext::ApplyModeZoom(掌机档, 大屏档)`（每帧调用，内部只在模式/取值变化时才 `SetUiZoom`），
   模式来自 `Backend::IsLargeScreenMode()`；demo 在固定设计空间平台上每帧调用它，手动按「比例」按钮后停止接管。
 * **桌面**：1280×720 窗口 → 画布 1280×720（默认 UI 缩放 1.0，与设计稿 1:1）；窗口拉到 1600×900 →
@@ -260,15 +262,15 @@ macOS runner 上跑同一条脚本，手动 *Run workflow*、推 iOS 相关文�
 |---|---|---|---|---|---|
 | 桌面默认 | 1280×720 | 2560×1440 | 2.000（按窗口尺寸） | 1280×720 | 1.00 |
 | 桌面 `GUI_DEV_ZOOM=1.5` | 1280×720 | 2560×1440 | 3.000（按窗口尺寸） | 853×480 | 1.50 |
-| Switch 掌机（模拟 720p） | 640×360 | 1280×720 | 1.250（按720p设计空间fit） | 1024×576 | 1.25（掌机） |
-| Switch 底座（模拟 1080p） | 960×540 | 1920×1080 | 2.250（按720p设计空间fit） | 853×480 | 1.50（底座/大屏） |
+| Switch 掌机（模拟 720p） | 640×360 | 1280×720 | 1.200（按720p设计空间fit） | 1067×600 | 1.20（掌机） |
+| Switch 底座（模拟 1080p） | 960×540 | 1920×1080 | 1.800（按720p设计空间fit） | 1067×600 | 1.20（底座/大屏） |
 
 * 运行期模式切换实测：窗口 640×360 → 960×540（drawable 1280×720 → 1920×1080）时日志打出
-  `[signal] zoom mode -> 1.50x (docked)`，画布 1024×576 → 853×480，进程正常退出；
+  `[signal] zoom mode -> 1.20x (docked)`（两档数值相同时，切模式照样通知宿主刷新标签），画布 1067×600 不变，进程正常退出；
   连续切 40 次缩放（1.00/1.25/1.50/1.75 各 10 次）退出码 0、无驱动断言。
-* demo 左列 7 个 tab 的行高按可用高度自适应（56 → 最低 40）：画布 853×480（底座 1.5x）时若仍按
+* demo 左列 7 个 tab 的行高按可用高度自适应（56 → 最低 40）：切到「1.50x」测试档（画布 853×480）时若仍按
   56px 排会溢出左列盒子，溢出项被裁掉但命中测试不裁，会盖住底部按钮行抢点击；压缩后两者不重叠。
-* 覆盖：`GUI_DEV_WINDOW=WxH` 改窗口；`GUI_DEV_ZOOM=1.25` 启动缩放（画布 = 设计空间 ÷ zoom）；
+* 覆盖：`GUI_DEV_WINDOW=WxH` 改窗口；`GUI_DEV_ZOOM=1.25` 启动缩放（画布 = 设计空间 ÷ zoom；固定设计空间平台上会被模式档覆盖）；
   `GUI_DEV_DESIGN_FIT=1` 桌面强制 fit（验证固定平台行为）。Switch 没有环境变量，改 demo 里的
   `kZoomHandheld` / `kZoomDocked`。
 * **怎么在 Switch 上看**：demo 启动会弹一次 Toast（`Backend::DisplayInfo()`，末尾带 `（掌机）`/`（底座/大屏）`）；
@@ -663,22 +665,27 @@ if (tex.Valid()) ImGui::Image(tex.ImGuiRef(), tex.Size());
   与源码目录；Switch 查 `sdmc:/switch/GUI_DEV/assets/` 与 `romfs:/`。
 - 解码：**libpng**（mac homebrew / Switch portlibs 都自带）。没用 SDL_image
   （mac 上没装），也没 vendored stb_image。
-- Switch romfs 只打包 `img/` 与 `font/MaterialIcons-Regular.ttf`：
-  `switch_font.ttf`(10.9MB) 与 `switch_icons.ttf` 用不到（走 pl 共享字体），不进 romfs，
-  否则 NRO 会从 7.6MB 涨到 18MB+。要换图可以直接改 `sdmc:/switch/GUI_DEV/assets/` 覆盖 romfs。
+- Switch romfs 打包 `img/` 与 `font/` 下三个字体（主文本/按键图标/Material 图标）；
+  不依赖 HOS 共享字体。要换图或换字体，直接把同名文件放到 `sdmc:/switch/GUI_DEV/assets/` 覆盖 romfs。
 
 ## 字体栈
 
-三类字形，来源按平台不同，但 `framework/ui` 只认 `FontSource`：
+三类字形，各平台统一用仓库 `assets/font/` 下的同一批文件，`framework/ui` 只认 `FontSource`：
 
-| 内容 | mac（`assets/font/`） | Switch |
-|---|---|---|
-| 主文本字体 | `switch_font.ttf`（HOS 转出，与实机排版一致） | pl `PlSharedFontType_Standard` |
-| 中文补充 | ——（主字体已含 CJK） | pl `PlSharedFontType_ChineseSimplified` |
-| 按键图标 | `switch_icons.ttf`（NintendoExt 转出） | pl `PlSharedFontType_NintendoExt` |
-| Material 图标 | `MaterialIcons-Regular.ttf` | 同左，**打包进 NRO 的 romfs** |
+| 内容 | 文件 | mac | Switch |
+|---|---|---|---|
+| 主文本字体 | `switch_font.ttf`（HOS 转出，含 CJK） | `assets/font/` | romfs（随 NRO 打包） |
+| 按键图标 | `switch_icons.ttf`（NintendoExt 转出） | `assets/font/` | romfs |
+| Material 图标 | `MaterialIcons-Regular.ttf` | `assets/font/` | romfs |
 
-全部通过 `assets/` 或 pl 加载，没有字体文件时最后兜底到系统 CJK 字体、再兜底到 imgui 内置字体。
+Switch 不再用 HOS 共享字体（`pl:u`）：系统字体随固件/区域版本变，同一份 UI 在不同机器上排版会漂，
+还要多依赖一个系统服务。现在三个平台同一套字体、同一套排版，代价是 NRO 里多 ~11MB。
+没有字体文件时兜底到系统 CJK 字体、再兜底到 imgui 内置字体。
+
+**别给文件字体设 `FontDataOwnedByAtlas = false`**：1.92 起这个 flag 真的「不复制也不释放」，
+而字体图集在切分辨率/掌机↔底座时会 `ClearFonts()` 重建 —— 每次重建白漏一份 TTF。
+实测（mac，10.9MB 主字体，反复改窗口尺寸触发 14 次重建）：`false` 峰值 215MB，交给 imgui 管 151MB。
+只有内存字体（平台自己持有、imgui 不许 free）才需要设 false，见 `UiContext.cpp` 的 `AddFont()`。
 
 ### 合并字体必须声明 GlyphExcludeRanges
 
@@ -700,8 +707,8 @@ NintendoExt / `switch_icons.ttf` 覆盖了整整 **1022 个私用区码位**（�
 
 | 平台 | 字体来源 | 实现 |
 |---|---|---|
-| Switch | HOS 共享字体 `PlSharedFontType_NintendoExt`（`pl:u`） | `backends/sdl2/SwitchFonts.cpp` |
-| macOS | `assets/font/switch_icons.ttf` | `backends/sdl2/DesktopFonts.cpp` |
+| Switch | `assets/font/switch_icons.ttf`（随 NRO 的 romfs 发布） | `backends/sdl2/SwitchPlatform.cpp` |
+| macOS / Windows / Linux | `assets/font/switch_icons.ttf` | `backends/sdl2/DesktopPlatform.cpp` |
 
 ```cpp
 #include "ui/Icons.h"
@@ -756,7 +763,7 @@ ImGui::TextUnformatted(Icons::Glyph(Icons::Material::Settings));
 | Switch 符号 | 必须定义 `IMGUI_DISABLE_DEFAULT_SHELL_FUNCTIONS`（imgui 默认 shell 用 `fork/execvp/waitpid`，libnx 没有） |
 | Switch 归档 | 工具链强制 `CMAKE_AR` 为 devkitPro 的 `aarch64-none-elf-ar`；macOS 宿主的 `llvm-ar` 会让 GNU ld 解析不到归档成员符号 |
 | NRO 打包 | 用 devkitPro 的 `nx_create_nro()`；`assets/icon.png` 存在时自动作为图标 |
-| 共享字体内存 | `plInitialize` 之后取到的字体在共享内存里，必须 `cfg.FontDataOwnedByAtlas = false`，否则 imgui 会去 free 系统内存 |
+| 字体随 NRO | Switch 的 `switch_font.ttf`(10.9MB)+`switch_icons.ttf` 走 romfs，NRO 从 ~11MB 涨到 ~22MB；imgui 从文件读，不需要 `FontDataOwnedByAtlas` 特判 |
 
 ## 开发命令
 
@@ -825,15 +832,17 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   ① **缩放崩溃**：运行期点放大后 mac 必崩（Metal `AGX … Region width OOB`），逐项实验定位到
   「运行期改 SDL 渲染缩放」这一条路径（把 SDL 缩放固定住或跳过 ImGui 绘制都不崩；字体图集尺寸
   一直是 imgui 512×512 == sdl 512×512、无待更新块，不是我们的纹理管理），mac 的 SDL 是
-  sdl2-compat（有已知的 SDL_RenderSetScale 兼容问题）。改成**启动时设定缩放**（demo 默认 1.25），
-  去掉运行期缩放按钮；同时不再让缩放触发布局图集重建、字体密度只跟分辨率走。
+  sdl2-compat（有已知的 SDL_RenderSetScale 兼容问题）。当时改成**启动时设定缩放**并去掉运行期缩放按钮。
+  （第十轮复核：现在的实现不再在运行期重建字体图集，只改逻辑画布 + 光栅化密度，实测连续切 40 次缩放
+  退出码 0、无 AGX 断言，所以「比例」按钮又回来了；本轮遇到的 readback 崩溃定位在脚本抓帧的
+  `SDL_RenderReadPixels`，与缩放本身无关。）
   ② **Toast 连点只能触发一次**：去重窗口默认 0（关闭），实测连点 4 次 → 4 条（色条 y 22/76/130/184）。
   ③ Toast 右边距 20 → **5px**：实测右边缘 1019（画布 1024）。
   ④ Toast 左侧两角改直角、色条直角且左/上/下离边框 2px：实测左上角 3×3 全是边框/填充（无页面白）、
   色条从 (821,22) 起（= 框 (819,20) + 2px）、宽 4、无圆角。
   ⑤ 徽标墙改成**两列、统一尺寸、白字、不套容器 Box**：实测两列 8 行、每个徽标 84×24、行距 32、
   墙外页面纯白（255,255,255）、徽标内最亮像素 (255,255,255)（白字）、填充色 = 平台色 α220 叠白底。
-  ⑥ **界面整体放大**：demo 默认缩放 1.25（720p 手持），可以用 kDefaultZoom / GUI_DEV_ZOOM 调。
+  ⑥ **界面整体放大**：demo 默认缩放（当时 1.25，现 Switch 1.2 / 桌面 1.0），可以用 kDefaultZoom / GUI_DEV_ZOOM 调。
 - 已确认（Toast 通知系统）：新增 `component_view/Toast.{h,cpp}`（ToastManager + Toast + ToastStyle），
   Page 持有并在每帧 `Update` / `Draw`。**视觉完全复用 Button 的 Box**：把 `Widget::DrawBackground` 的
   画法抽成 `Draw::ComponentBox()`（Box / Button / Toast 共用），样式参数统一从 `Global::component_style`
@@ -932,8 +941,8 @@ git -C third_party/imgui fetch --tags     # 升级 imgui 用
   `sports_esports` U+EA28、`videogame_asset` U+E338、`cloud_upload` U+E2C3、
   `cloud_download` U+E2C0、`install_app` 借用 `install_mobile` U+EB72）；其余码位正常。另外 `◀ ▶ ⌫`(U+25C0/U+25B6/U+232B) 这类符号在原字体里缺字形，
   已统一换成 ASCII 文案。
-- 未验证：NRO 在实机/模拟器上的运行表现（含 HOS 共享字体与 NintendoExt 的实际字形、
-  romfsInit 是否成功、Material 图标在实机上的渲染）；暂停菜单在实机上的手感与耗时
+- 未验证：NRO 在实机/模拟器上的运行表现（romfsInit 是否成功、打包的 switch_font/switch_icons
+  在实机上的字形与排版、Material 图标渲染）；暂停菜单在实机上的手感与耗时
   （30/60/120FPS 的时间一致性由公式保证，但没有实机测帧）。
 - 已知取舍：`assets/font/switch_font.ttf` 10.9MB 进了 git。仓库体积敏感的话建议转
   Git LFS 或按需本地放置（mac 端缺它会退回系统 CJK 字体，不影响 Switch）。

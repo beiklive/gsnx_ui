@@ -8,7 +8,7 @@
 | 关注点 | 处理方式 |
 |---|---|
 | 依赖从哪来 | `cmake/Dependencies.cmake`：`GUI_DEV_DEPS_MODE=package`（系统包 / vcpkg）或 `fetch`（源码编译） |
-| 平台服务 | `platform/backends/sdl2/` 下按平台各一份：`SwitchPlatform.cpp`（pl 共享字体 + romfs）、`AndroidPlatform.cpp`（APK assets）、`DesktopPlatform.cpp`（assets/font/*.ttf） |
+| 平台服务 | `platform/backends/sdl2/` 下按平台各一份：`SwitchPlatform.cpp`（romfs：字体/图片随 NRO 打包）、`AndroidPlatform.cpp`（APK assets）、`DesktopPlatform.cpp`（assets/font/*.ttf） |
 | 目标形态 | `gui_dev_add_demo()`：桌面 = 可执行文件，iOS = `.app` bundle，Android = `libmain.so`（gradle 打包） |
 
 ---

@@ -108,13 +108,17 @@ std::vector<ImWchar> CompressRanges(const std::vector<std::uint32_t>& codes, con
 bool AddFont(ImGuiIO& io, const FontSource& source, bool merge, const ImWchar* exclude_ranges) {
     ImFontConfig cfg;
     cfg.GlyphExcludeRanges = exclude_ranges;
+    const bool from_memory = source.data != nullptr && source.size > 0;
     if (merge) {
         cfg.MergeMode = true;
-    } else {
-        // 内存字体归平台所有（Switch 共享内存），imgui 不许释放。
+    } else if (from_memory) {
+        // 内存字体归平台所有（例如 Switch 的共享字体），imgui 不许 free。
         cfg.FontDataOwnedByAtlas = false;
     }
-    if (source.data != nullptr && source.size > 0) {
+    // 文件字体（三个平台现在都走这条）保持默认 true：imgui 自己接管这份文件缓冲，
+    // ClearFonts()/析构时释放。设成 false 的话 1.92 起真的不复制也不释放 ——
+    // 每次重建字体（切分辨率/掌机<->底座）都会白漏一份 10MB+ 的 TTF。
+    if (from_memory) {
         return io.Fonts->AddFontFromMemoryTTF(const_cast<void*>(source.data),
                                               static_cast<int>(source.size), source.size_pixels,
                                               &cfg) != nullptr;
@@ -167,16 +171,17 @@ bool UiContext::RefreshIfDisplayChanged() {
     return false;
 }
 
-// 固定设计空间平台（Switch）的掌机/底座两套缩放：底座输出 1080p、观看距离更远，
-// 所以「大屏」这一档通常给更大的 zoom（画布变小 = 控件变大）。
-// 非固定设计空间平台（桌面）IsLargeScreenMode() 恒 false，只会用 handheld_zoom。
+// 固定设计空间平台（Switch）按模式给缩放：掌机一档、底座/大屏一档（两档可以相同，只换模式标签
+// 也会通知宿主）。非固定设计空间平台（桌面）IsLargeScreenMode() 恒 false，只会用 handheld_zoom。
 bool UiContext::ApplyModeZoom(float handheld_zoom, float large_zoom) {
-    const float want = backend_.IsLargeScreenMode() ? large_zoom : handheld_zoom;
-    if (mode_zoom_applied_ && want == mode_zoom_last_) {
+    const bool large = backend_.IsLargeScreenMode();
+    const float want = large ? large_zoom : handheld_zoom;
+    if (mode_zoom_applied_ && want == mode_zoom_last_ && large == mode_zoom_last_large_) {
         return false;
     }
     mode_zoom_applied_ = true;
     mode_zoom_last_ = want;
+    mode_zoom_last_large_ = large;
     backend_.SetUiZoom(want);
     return true;
 }

@@ -1,8 +1,6 @@
 // 按键图标：任天堂私用区（U+E0xx / U+E1xx）编码。
 //
-// 字形来源按平台不同，但码位一致：
-//   Switch : HOS 共享字体 PlSharedFontType_NintendoExt（见 platform/Fonts.h）
-//   桌面   : assets/font/switch_icons.ttf
+// 字形来源各平台统一：assets/font/switch_icons.ttf（NintendoExt 转出；Switch 随 NRO 的 romfs 发布）。
 //
 // 用法：Components 的按键提示直接传 Glyph()，不要手写 UTF-8 字节。
 #pragma once

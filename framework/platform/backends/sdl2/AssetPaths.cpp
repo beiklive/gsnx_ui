@@ -30,8 +30,8 @@ std::string ResolveAssetPath(const char* relative_path) {
     }
 
 #if defined(GUI_DEV_PLATFORM_switch)
-    // Switch：NRO 没有打包 romfs（assets 里有 10MB+ 字体，不适合塞进 NRO），
-    // 因此优先找 sdmc 上的 resources 目录，其次才是 romfs。
+    // Switch：字体/图片都打包在 NRO 的 romfs 里；仍优先看 sdmc 上的资源目录，
+    // 方便不重编就换字体/图（见 README「Nintendo Switch」）。
     const char* prefixes[] = {
         "sdmc:/switch/GUI_DEV/assets/",
         "romfs:/assets/",

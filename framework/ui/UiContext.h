@@ -60,7 +60,7 @@ public:
     float UiZoom() const { return backend_.UiZoom(); }
     // 按当前显示模式自动切缩放：掌机/小屏 = handheld_zoom，底座/大屏 = large_zoom
     // （Backend::IsLargeScreenMode，Switch 底座 1080p 为真）。内部只在模式或取值变化时才
-    // 调 SetUiZoom，宿主每帧调用即可；返回 true 表示本次发生了切换。手动接管缩放时不要调用。
+    // 调 SetUiZoom，宿主每帧调用即可；返回 true 表示本次模式或取值有变化（两档相同时切模式也会返回 true）。
     bool ApplyModeZoom(float handheld_zoom, float large_zoom);
 
     // ---- 上一帧的渲染统计（在 ImGui::Render() 之后采集，供 demo/性能面板用）----
@@ -80,9 +80,10 @@ private:
     std::vector<std::vector<ImWchar>> exclusion_;
     std::uint32_t last_display_generation_ = 0;
     bool fonts_built_ = false;
-    // ApplyModeZoom：是否已应用过一次、上次用的取值（避免每帧重复 SetUiZoom）
+    // ApplyModeZoom：是否已应用过一次、上次用的取值与模式（避免每帧重复 SetUiZoom）
     bool mode_zoom_applied_ = false;
     float mode_zoom_last_ = 0.0f;
+    bool mode_zoom_last_large_ = false;
     int last_draw_calls_ = 0;
     int last_vertices_ = 0;
     int last_indices_ = 0;

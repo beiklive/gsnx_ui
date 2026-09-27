@@ -2,8 +2,9 @@
 // Material 图标）」两类来源，各平台获取方式不同，但 src/ui 只认这里的 FontSource。
 //
 // 各后端目录下各提供一份实现：
-//   backends/sdl2/SwitchPlatform.cpp   -> pl:u 共享字体 + romfs
+//   backends/sdl2/SwitchPlatform.cpp   -> romfs（assets/font/*.ttf 打包进 NRO）
 //   backends/sdl2/DesktopPlatform.cpp  -> assets/font/*.ttf
+//   backends/sdl2/AndroidPlatform.cpp  -> APK assets/font/*.ttf
 #pragma once
 
 #include <cstddef>

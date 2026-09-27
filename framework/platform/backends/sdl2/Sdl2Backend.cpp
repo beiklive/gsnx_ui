@@ -200,7 +200,7 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
         }
     }
 
-    // 平台服务：Switch 上是 pl:u（共享字体）与 romfs（打包资源）。
+    // 平台服务：Switch 上是 romfs（字体/图片随 NRO 打包，不用系统共享字体）。
     // 失败只丢字体/图标，不阻止启动；必须在字体收集与纹理加载之前完成。
     PlatformServicesInit();
     return BackendStatus::Ok;
@@ -397,7 +397,7 @@ void Sdl2Backend::Shutdown() {
     if (imgui_backend_inited_) {
         ShutdownImGuiBackend();
     }
-    // 平台服务要在 imgui 之后关：共享字体内存在 plExit 后就失效了。
+    // 平台服务要在 imgui 之后关：romfs 里还有字体/图片数据，字体图集可能还在用。
     PlatformServicesShutdown();
     if (controller_) {
         SDL_GameControllerClose(controller_);

@@ -96,7 +96,7 @@ if(GUI_DEV_BACKEND STREQUAL "sdl2")
         ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer2.cpp)
 
     # 平台服务按平台各实现一份：
-    #   Switch: pl 共享字体 + romfs；Android: APK assets；其余: assets/font/*.ttf
+    #   Switch: romfs（字体/图片随 NRO 打包）；Android: APK assets；其余: assets/font/*.ttf
     if(GUI_DEV_PLATFORM STREQUAL "switch")
         target_sources(gui_dev_backend PRIVATE framework/platform/backends/sdl2/SwitchPlatform.cpp)
     elseif(GUI_DEV_PLATFORM STREQUAL "android")
@@ -294,15 +294,20 @@ if(GUI_DEV_PLATFORM STREQUAL "switch")
     set(NACP_AUTHOR "GBAStation")
     set(NACP_VERSION "${PROJECT_VERSION}")
 
-    # romfs 只放 Switch 端真正需要的运行时资源：
+    # romfs 放 Switch 端真正需要的运行时资源：
     #   img/  界面图片
-    #   font/MaterialIcons-Regular.ttf  谷歌图标字体（必须随 NRO 发布）
-    # 不放 font/switch_font.ttf(10.9MB) 与 switch_icons.ttf：Switch 走 pl 共享字体。
+    #   font/switch_font.ttf              主文本字体（与桌面/Android 同一份，NRO 自带，不用系统字体）
+    #   font/switch_icons.ttf             任天堂按键图标（NintendoExt 转出）
+    #   font/MaterialIcons-Regular.ttf    谷歌图标字体
+    # 字体全部随 NRO 发布（约 +11MB）：掌机/底座与桌面排版完全一致，不依赖固件/区域的共享字体。
+    # sdmc:/switch/GUI_DEV/assets/ 下放同名文件可覆盖 romfs（见 AssetPaths.cpp 的查找顺序）。
     set(GUI_DEV_ROMFS_DIR "${CMAKE_BINARY_DIR}/romfs")
     file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets/img" DESTINATION "${GUI_DEV_ROMFS_DIR}")
     file(MAKE_DIRECTORY "${GUI_DEV_ROMFS_DIR}/font")
-    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets/font/MaterialIcons-Regular.ttf"
-         DESTINATION "${GUI_DEV_ROMFS_DIR}/font")
+    foreach(gui_dev_font IN ITEMS switch_font.ttf switch_icons.ttf MaterialIcons-Regular.ttf)
+        file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets/font/${gui_dev_font}"
+             DESTINATION "${GUI_DEV_ROMFS_DIR}/font")
+    endforeach()
 
     foreach(gui_dev_nro_target IN LISTS GUI_DEV_DEMO_TARGETS)
         set(GUI_DEV_NRO_ARGS OUTPUT "${CMAKE_BINARY_DIR}/dist/${gui_dev_nro_target}.nro"

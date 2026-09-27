@@ -1,13 +1,13 @@
 // 平台服务生命周期。
 //
-// Switch 上是 pl:u（HOS 共享字体）与 romfs（打包进 NRO 的资源）；
-// 桌面上是空实现。必须在 CollectPlatformFontSources() 与任何 LoadTexture()
+// Switch 上是 romfs（打包进 NRO 的字体/图片）；桌面上是空实现。
+// 必须在 CollectPlatformFontSources() 与任何 LoadTexture()
 // 之前完成，在 Shutdown 时按相反顺序释放。
 #pragma once
 
 namespace gui_dev {
 
-// 失败不致命：只表示共享字体/打包资源不可用，UI 仍应能起来。
+// 失败不致命：只表示打包资源（字体/图片）不可用，UI 仍应能起来（主字体退回 imgui 内置）。
 bool PlatformServicesInit();
 void PlatformServicesShutdown();
 
