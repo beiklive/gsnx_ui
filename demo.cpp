@@ -1892,6 +1892,9 @@ public:
         hint_->setColor(Theme::kTextMuted);
 
         RebuildRows();
+        // 两个动作行与列表 item 用同一套样式（关闭态 = 透明底 / 无边框 / 无阴影）
+        ApplyRowStyle(back_button_);
+        ApplyRowStyle(use_button_);
     }
 
     void OnUpdate(float dt) override {
@@ -1969,10 +1972,17 @@ private:
         return path;
     }
 
-    // 列表行样式：默认无边框、无阴影；START 键可切换（用于核对边框与留白）
+    // 列表行样式：**边框 / 阴影 / 背景** 一起切（START 键）。
+    //   关闭态（默认）= 纯列表观感：透明底、无边框、无阴影，靠留白与行距分隔；
+    //   打开态 = 卡片观感：主题底色 + 边框 + 阴影（用于核对留白与焦点框）。
+    // 注意：这里只在「建列表 / 按 START」时应用；主题切换后 applyComponentStyle() 会给
+    // 透明底重新补 KbWidget，但浏览页打开期间 demo 页（含主题按钮）不再更新，所以不受影响。
     void ApplyRowStyle(FileButton* row) const {
         row->setBorderVisible(show_borders_);
         row->setShadowVisible(show_borders_);
+        row->background = show_borders_ ? Theme::U32(Theme::kBgWidget) : 0;
+        row->background_follows_theme = show_borders_;
+        row->background_state_follows_theme = show_borders_; // 打开态才有 Hover/Pressed 状态底色
     }
 
     void ToggleBorders() {
@@ -2035,10 +2045,12 @@ private:
         header_->size = ImVec2(width, header_->style.height);
         y += header_->style.height + 10.0f;
 
+        // 动作行（使用当前路径 / 返回上层）与列表 item 完全同宽、同左边界
+        const float row_width = cv::Maxf(width - kListPadding * 2.0f, 80.0f);
         use_button_->visible = mode_ == Mode::PickFolder;
         if (use_button_->visible) {
-            use_button_->resize(width, row_height);
-            use_button_->moveTo(margin, y);
+            use_button_->resize(row_width, row_height);
+            use_button_->moveTo(margin + kListPadding, y);
             y += row_height + 12.0f;
         }
 
@@ -2049,8 +2061,8 @@ private:
 
         back_button_->visible = !path_.empty();
         if (back_button_->visible) {
-            back_button_->resize(width, row_height);
-            back_button_->moveTo(margin, y);
+            back_button_->resize(row_width, row_height);
+            back_button_->moveTo(margin + kListPadding, y);
             y += row_height + kRowGap;
         }
 
@@ -2064,7 +2076,6 @@ private:
         const float list_height = cv::Maxf(bottom - y, 80.0f);
         list_->position = ImVec2(margin, y);
         list_->size = ImVec2(width, list_height);
-        const float row_width = cv::Maxf(width - kListPadding * 2.0f, 80.0f);
         for (std::size_t i = 0; i < rows_.size(); ++i) {
             rows_[i]->resize(row_width, row_height);
             rows_[i]->moveTo(kListPadding, kListPadding + static_cast<float>(i) * (row_height + kRowGap));
