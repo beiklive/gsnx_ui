@@ -37,9 +37,10 @@ TabColumn::TabColumn() : Widget("tab_column") {
     scroll_bar_auto_hide = true;
     focusable = false; // 焦点停在 item 上，容器自己不占停靠点
     background = 0;    // 列本身不画底/边框（要底色的话由页面套 Box）
-    // 留出一点内边距：溢出裁剪是按本节点 rect 裁的，item 的流光焦点框会往外扩 2~3px，
-    // 不留边距的话焦点框会被切掉（只剩一条底边）。
-    padding = EdgeInsets::All(6.0f);
+    // 留出内边距：溢出裁剪是按本节点 rect 裁的，item 的流光焦点框会往外扩 ~4px。
+    // 右边要多留：聚焦项还会整体右移 style.focus_offset（默认 4px），
+    // 只留 6px 的话焦点框右边会被裁掉 —— 右内边距 = 6 + focus_offset + 余量。
+    padding = EdgeInsets{6.0f, 6.0f, 6.0f + style.focus_offset + 8.0f, 6.0f};
 }
 
 TabColumn& TabColumn::setItems(std::vector<Item> items) {

@@ -194,24 +194,30 @@ BackendStatus Sdl2Backend::Init(const BackendConfig& cfg) {
 }
 
 float Sdl2Backend::ComputeUiScale(bool with_zoom) const {
-    // 设计基准：1280x720。UI 里写的一切尺寸都是这个空间里的值。
+    // 设计基准：1280x720（UI 里写的一切尺寸都是这个空间里的值）。
     //
-    // scale = min(h/720, w/1280)：取两者中更受限的一个，于是逻辑画布恒为
-    // 「>=1280x720」——设计布局永远能完整放下，不会因为画布变窄而被压扁，
-    // 多出来的空间交给布局层自适应（面板居中、槽位改列数）。
-    //   16:9 任意分辨率：两个比值相等 -> 纯等比放大（720p -> 1.0，1080p -> 1.5）
-    //   4:3 / 更窄     ：受宽度限制    -> 逻辑画布变高，面板垂直居中
-    int w = 0;
-    int h = 0;
-    GetDrawableSize(w, h);
-    if (h <= 0 || w <= 0) {
-        return 1.0f;
+    // 缩放策略：**只按像素密度缩放，不按分辨率做 fit** ——
+    //   渲染缩放 = drawable / window（Retina = 2.0、普通桌面 = 1.0、手机 = 设备像素密度）× 用户缩放
+    //   逻辑画布 = drawable / 渲染缩放 = window / 用户缩放
+    // 于是窗口/设备分辨率一变，**画布尺寸跟着变**（布局按新尺寸自适应、控件尺寸不变），
+    // 而不是整幅画面被缩放 —— 这是多平台 UI 要的「不同设备上 UI 物理大小一致」。
+    // （早期是 min(h/720, w/1280)：那会让 720p 窗口 = 1:1、1080p = 1.5x 整幅放大，
+    //   窗口拉大时只是整幅缩放而不重排，不符合一致性要求。）
+    int window_w = 0;
+    int window_h = 0;
+    if (window_ != nullptr) {
+        SDL_GetWindowSize(window_, &window_w, &window_h);
     }
-    const float by_height = static_cast<float>(h) / kDesignHeight;
-    const float by_width = static_cast<float>(w) / kDesignWidth;
-    float scale = by_height < by_width ? by_height : by_width;
-    // 用户缩放（「放大 / 缩小」按钮）乘在这里：逻辑画布 = drawable / scale，
-    // 所以 zoom 变大 = 逻辑画布变小 = 界面变大。
+    int drawable_w = 0;
+    int drawable_h = 0;
+    GetDrawableSize(drawable_w, drawable_h);
+    float scale = 1.0f;
+    if (window_w > 0 && window_h > 0 && drawable_w > 0 && drawable_h > 0) {
+        const float by_x = static_cast<float>(drawable_w) / static_cast<float>(window_w);
+        const float by_y = static_cast<float>(drawable_h) / static_cast<float>(window_h);
+        scale = (by_x + by_y) * 0.5f; // 两轴一般相等；取平均更稳
+    }
+    // 用户缩放（GUI_DEV_ZOOM / SetUiZoom）乘在这里：画布 = window / zoom，zoom 变大 = 界面变大。
     if (with_zoom) {
         scale *= ui_zoom_;
     }
@@ -237,8 +243,8 @@ void Sdl2Backend::LogDisplayBasis() const {
     GetDrawableSize(drawable_w, drawable_h);
     const float scale = ui_scale_ > 0.0f ? ui_scale_ : 1.0f;
     std::fprintf(stderr,
-                 "[gui_dev] 设计基准 %.0fx%.0f | 窗口 %dx%d | drawable %dx%d | 渲染缩放 %.3f | "
-                 "逻辑画布 %.0fx%.0f | UI 缩放 %.2fx\n",
+                 "[gui_dev] 设计基准 %.0fx%.0f | 窗口 %dx%d | drawable %dx%d | 像素密度×缩放 %.3f | "
+                 "逻辑画布(设计空间) %.0fx%.0f | UI 缩放 %.2fx\n",
                  static_cast<double>(kDesignWidth), static_cast<double>(kDesignHeight), window_w, window_h,
                  drawable_w, drawable_h, static_cast<double>(scale),
                  static_cast<double>(drawable_w) / scale, static_cast<double>(drawable_h) / scale,
